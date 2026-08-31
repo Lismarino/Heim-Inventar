@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Heim-Inventar</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
+<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Inventar">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="stylesheet" href="./css/app.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ LISTE ============ -->
+  <section class="view" id="view-list">
+    <header class="topbar">
+      <h1>Inventar</h1>
+      <span class="count" id="list-count"></span>
+    </header>
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Suchen …" autocomplete="off" autocorrect="off" autocapitalize="off">
+      <div class="filters">
+        <select id="f-cat"><option value="">Alle Kategorien</option></select>
+        <select id="f-room"><option value="">Alle Räume</option></select>
+      </div>
+    </div>
+    <div class="scroll">
+      <div id="list" class="list"></div>
+      <p class="empty" id="list-empty" hidden></p>
+    </div>
+  </section>
+
+  <!-- ============ HINZUFÜGEN ============ -->
+  <section class="view" id="view-add" hidden>
+    <header class="topbar">
+      <button class="link" data-nav="list">Abbrechen</button>
+      <h1>Hinzufügen</h1>
+      <button class="link strong" id="add-save">Speichern</button>
+    </header>
+    <div class="scroll">
+
+      <div class="card">
+        <div id="photo-slot" class="photo-slot">
+          <img id="photo-preview" alt="" hidden>
+          <div id="photo-placeholder" class="photo-placeholder">
+            <div class="ph-icon">📷</div>
+            <div>Foto aufnehmen oder auswählen</div>
+            <small>Optional – du kannst auch nur Text eintragen</small>
+          </div>
+        </div>
+        <input type="file" id="photo-input" accept="image/*" hidden>
+        <div class="row-btns">
+          <button class="btn" id="photo-pick">Foto wählen</button>
+          <button class="btn ghost" id="photo-clear" hidden>Entfernen</button>
+        </div>
+
+        <label class="field">
+          <span>Hinweis für die KI <small>(optional)</small></span>
+          <input id="ai-hint" type="text" placeholder="z. B. das ist ein Akkuschrauber" autocomplete="off">
+        </label>
+
+        <button class="btn primary block" id="ai-run" disabled>Mit KI erkennen</button>
+        <p class="hint" id="ai-status"></p>
+      </div>
+
+      <h2 class="sec">Gegenstände</h2>
+      <div id="cards"></div>
+      <button class="btn ghost block" id="card-add">+ Weiterer Gegenstand</button>
+
+      <h2 class="sec">Ort &amp; Bestand</h2>
+      <div class="card">
+        <label class="field">
+          <span>Raum</span>
+          <input id="in-room" list="dl-rooms" placeholder="z. B. Keller" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Ort-Details <small>(optional)</small></span>
+          <input id="in-loc" type="text" placeholder="z. B. Schrank 1, oben links" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Bestand</span>
+          <input id="in-qty" type="text" placeholder="z. B. 3 oder genug" autocomplete="off">
+        </label>
+        <div class="chips" id="qty-chips">
+          <button class="chip" data-qty="1">1</button>
+          <button class="chip" data-qty="2">2</button>
+          <button class="chip" data-qty="3">3</button>
+          <button class="chip" data-qty="voll">voll</button>
+          <button class="chip" data-qty="genug">genug</button>
+          <button class="chip" data-qty="wenig">wenig</button>
+          <button class="chip" data-qty="leer">leer</button>
+        </div>
+        <label class="field">
+          <span>Notiz <small>(optional)</small></span>
+          <textarea id="in-note" rows="2" placeholder="Freitext"></textarea>
+        </label>
+      </div>
+      <p class="hint">Ort, Bestand und Notiz gelten für alle Gegenstände oben.</p>
+    </div>
+  </section>
+
+  <!-- ============ DETAIL ============ -->
+  <section class="view" id="view-item" hidden>
+    <header class="topbar">
+      <button class="link" data-nav="back">Zurück</button>
+      <h1>Eintrag</h1>
+      <button class="link strong" id="item-save">Speichern</button>
+    </header>
+    <div class="scroll">
+      <div class="card">
+        <div class="photo-slot">
+          <img id="item-photo" alt="" hidden>
+          <div class="photo-placeholder" id="item-nophoto"><div class="ph-icon">📦</div><div>Kein Foto</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <label class="field"><span>Name</span><input id="it-name" type="text" autocomplete="off"></label>
+        <label class="field"><span>Kategorie</span><input id="it-cat" list="dl-cats" autocomplete="off" placeholder="z. B. Werkzeug"></label>
+        <label class="field"><span>Raum</span><input id="it-room" list="dl-rooms" autocomplete="off" placeholder="z. B. Keller"></label>
+        <label class="field"><span>Ort-Details</span><input id="it-loc" type="text" autocomplete="off"></label>
+        <label class="field"><span>Bestand</span><input id="it-qty" type="text" autocomplete="off"></label>
+        <label class="field"><span>Notiz</span><textarea id="it-note" rows="3"></textarea></label>
+      </div>
+      <p class="hint" id="it-meta"></p>
+      <div id="it-actions">
+        <button class="btn danger block" id="it-archive">Ins Archiv verschieben</button>
+      </div>
+      <div id="it-actions-arch" hidden>
+        <button class="btn block" id="it-restore">Wiederherstellen</button>
+        <button class="btn danger block" id="it-purge">Endgültig löschen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ARCHIV ============ -->
+  <section class="view" id="view-archive" hidden>
+    <header class="topbar">
+      <button class="link" data-nav="settings">Zurück</button>
+      <h1>Archiv</h1>
+      <span class="count" id="arch-count"></span>
+    </header>
+    <div class="scroll">
+      <div id="arch-list" class="list"></div>
+      <p class="empty" id="arch-empty" hidden>Das Archiv ist leer.</p>
+    </div>
+  </section>
+
+  <!-- ============ EINSTELLUNGEN ============ -->
+  <section class="view" id="view-settings" hidden>
+    <header class="topbar"><h1>Einstellungen</h1></header>
+    <div class="scroll">
+
+      <h2 class="sec">Google Gemini API</h2>
+      <div class="card">
+        <label class="field">
+          <span>API-Key</span>
+          <input id="set-key" type="password" placeholder="AIza…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        </label>
+        <label class="check"><input type="checkbox" id="set-key-show"> <span>Key anzeigen</span></label>
+        <label class="field">
+          <span>Modell</span>
+          <select id="set-model">
+            <option value="gemini-3.6-flash">gemini-3.6-flash (empfohlen)</option>
+            <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (sparsamer)</option>
+            <option value="gemini-3.7-flash">gemini-3.7-flash (stärker, langsamer)</option>
+            <option value="gemini-flash-latest">gemini-flash-latest (immer die neueste Flash-Version)</option>
+          </select>
+        </label>
+        <button class="btn block" id="set-models-load">Verfügbare Modelle laden</button>
+        <p class="hint" id="set-models-out"></p>
+        <button class="btn block" id="set-test">Verbindung testen</button>
+        <p class="hint" id="set-test-out"></p>
+        <details class="help">
+          <summary>Kostenlosen API-Key besorgen – Anleitung</summary>
+          <ol>
+            <li>Öffne <b>aistudio.google.com/app/apikey</b> im Browser.</li>
+            <li>Mit deinem Google-Konto anmelden.</li>
+            <li>Auf <b>Create API key</b> tippen und ein Projekt wählen (oder neu anlegen lassen).</li>
+            <li>Der Key beginnt mit <code>AIza…</code> – kopieren.</li>
+            <li>Hier oben in das Feld <b>API-Key</b> einfügen. Er wird nur auf diesem Gerät gespeichert.</li>
+          </ol>
+          <p>Google AI Studio hat ein kostenloses Kontingent, das für gelegentliches Foto-Erkennen locker reicht. Der Key liegt unverschlüsselt in der lokalen Datenbank dieser App – wer dein entsperrtes Gerät hat, kann ihn auslesen. Bei Verdacht: Key in AI Studio löschen und neu erstellen.</p>
+        </details>
+      </div>
+
+      <h2 class="sec">Kategorien</h2>
+      <div class="card">
+        <div id="cat-mgr" class="mgr"></div>
+        <div class="row-btns"><input id="cat-new" type="text" placeholder="Neue Kategorie"><button class="btn" id="cat-add">Anlegen</button></div>
+      </div>
+
+      <h2 class="sec">Räume</h2>
+      <div class="card">
+        <div id="room-mgr" class="mgr"></div>
+        <div class="row-btns"><input id="room-new" type="text" placeholder="Neuer Raum"><button class="btn" id="room-add">Anlegen</button></div>
+      </div>
+
+      <h2 class="sec">Fotos &amp; Speicher</h2>
+      <div class="card">
+        <label class="field">
+          <span>Gespeicherte Bildgröße</span>
+          <select id="set-imgmax">
+            <option value="1280">Klein – max. 1280 px</option>
+            <option value="1600">Standard – max. 1600 px</option>
+            <option value="2048">Groß – max. 2048 px</option>
+          </select>
+        </label>
+        <p class="hint">Fotos werden beim Speichern auf diese Kantenlänge verkleinert, damit die Datenbank nicht zuläuft.</p>
+        <p class="hint" id="storage-info"></p>
+        <button class="btn block" data-nav="archive">Archiv öffnen</button>
+      </div>
+
+      <h2 class="sec">Über</h2>
+      <div class="card">
+        <p class="hint">Alle Einträge und Fotos liegen ausschließlich in der lokalen Datenbank dieses Geräts (IndexedDB). Es gibt keinen Server und kein Konto. Nur die Bilderkennung schickt das jeweilige Foto an Google Gemini.</p>
+        <p class="hint"><b>Noch kein Export:</b> Sicherung und Übertragung auf ein anderes Gerät kommen im nächsten Schritt. Bis dahin: die App nicht vom Home-Bildschirm löschen und in Safari nicht die Website-Daten löschen.</p>
+        <p class="hint" id="ver-info"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ NAV ============ -->
+  <nav id="nav">
+    <button data-nav="list" class="active"><span>📋</span>Liste</button>
+    <button data-nav="add" class="add"><span>＋</span>Hinzufügen</button>
+    <button data-nav="settings"><span>⚙️</span>Einstellungen</button>
+  </nav>
+</div>
+
+<datalist id="dl-cats"></datalist>
+<datalist id="dl-rooms"></datalist>
+<div id="toast" class="toast" hidden></div>
+<div id="update-bar" class="update-bar" hidden><span>Neue Version verfügbar</span><button id="update-go">Neu laden</button></div>
+
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>
