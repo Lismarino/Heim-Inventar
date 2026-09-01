@@ -5,51 +5,17 @@ ausschließlich lokal auf dem Gerät (IndexedDB) – kein Server, kein Konto, ke
 Nach außen geht nur, was du selbst an Google Gemini schickst: das Foto beim Erkennen,
 und die Liste als Text, wenn du die KI-Suche benutzt.
 
-Kein Build-Schritt, keine Abhängigkeiten: reines HTML/CSS/JS mit ES-Modulen.
-Datei ändern → hochladen → fertig.
-
 ---
 
 ## 1. Auf dem iPhone installieren
 
-Damit „Zum Home-Bildschirm hinzufügen“ eine echte App ergibt (eigenes Icon, Vollbild,
-Offline-Betrieb), muss die Seite über **HTTPS** ausgeliefert werden. Ein Doppelklick auf
-`index.html` reicht nicht – über `file://` sind ES-Module und Service Worker gesperrt.
-
-### GitHub Pages einrichten (einmalig, ca. 5 Minuten)
-
-1. Auf **github.com** anmelden (kostenloser Account genügt).
-2. Oben rechts **+ → New repository**.
-   - Name z. B. `heim-inventar`
-   - Sichtbarkeit **Public** (Pages ist bei privaten Repos kostenpflichtig)
-   - **Create repository**
-3. Auf der leeren Repo-Seite: **uploading an existing file** anklicken.
-4. Den **Inhalt** des Ordners `heim-inventar` in das Browserfenster ziehen – also
-   `index.html`, `manifest.webmanifest`, `sw.js` sowie die Ordner `css`, `js` und `icons`.
-   Wichtig: nicht den Ordner selbst, sondern seinen Inhalt, damit `index.html` ganz oben liegt.
-5. Unten **Commit changes**.
-6. **Settings → Pages** (linke Spalte).
-   - *Source*: **Deploy from a branch**
-   - *Branch*: **main**, Ordner **/ (root)** → **Save**
-7. Ein bis zwei Minuten warten, dann Seite neu laden. Oben steht die Adresse:
-   `https://DEIN-NAME.github.io/heim-inventar/`
-
-### Auf dem iPhone zum Home-Bildschirm
-
-1. Adresse **in Safari** öffnen (nicht Chrome – nur Safari darf auf iOS installieren).
+1. Adressen ( https://lismarino.github.io/Heim-Inventar/ ) **in Safari** öffnen (nicht Chrome – nur Safari darf auf iOS installieren).
 2. Teilen-Symbol (Quadrat mit Pfeil nach oben) antippen.
 3. **Zum Home-Bildschirm** wählen → **Hinzufügen**.
 4. Die App vom Home-Bildschirm starten. Sie läuft im Vollbild ohne Safari-Leiste.
 
 Beim ersten Start braucht sie Internet, danach funktioniert sie offline –
 nur die KI-Bilderkennung braucht weiterhin eine Verbindung.
-
-### Updates ausrollen
-
-Geänderte Dateien im Repo ersetzen **und** in `sw.js` die Zeile
-`const VERSION` hochzählen (aktuell `v1.2.0`). Ohne diese Änderung liefert der Service Worker
-weiter die alte Fassung aus. Beim nächsten Start erscheint in der App ein blauer Balken
-„Neue Version verfügbar“.
 
 ---
 
