@@ -2,8 +2,9 @@ import * as db from './db.js';
 import * as img from './img.js';
 import * as ai from './gemini.js';
 import { initCombos, hideCombo } from './combo.js';
+import * as backup from './backup.js';
 
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.1.0';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -41,6 +42,7 @@ async function boot() {
   fillSettingsForm();
   navigate('list');
   $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
+  window.__inventarReady = true;
   registerSW();
   requestPersist();
   updateStorageInfo();
@@ -516,6 +518,135 @@ async function updateStorageInfo() {
   $('#storage-info').textContent = `${plural(n, 'Eintrag', 'Einträge')}, ${a} im Archiv${usage}${persist}`;
 }
 
+/* =========================== Sicherung =========================== */
+
+let exportFile = null;   // { blob, filename, counts }
+let importData = null;
+
+const mb = (bytes) => (bytes / 1048576).toFixed(bytes < 1048576 ? 2 : 1) + ' MB';
+
+async function buildBackup() {
+  const out = $('#exp-out');
+  const btn = $('#exp-build');
+  $('#exp-save').hidden = true;
+  exportFile = null;
+  btn.disabled = true;
+  out.className = 'hint';
+  out.innerHTML = '<span class="spin"></span>Sicherung wird erstellt …';
+  try {
+    const withPhotos = $('#exp-photos').checked;
+    exportFile = await backup.buildExport({
+      withPhotos,
+      onProgress: (i, n) => { out.innerHTML = `<span class="spin"></span>Foto ${i} von ${n} …`; },
+    });
+    const c = exportFile.counts;
+    out.className = 'hint ok';
+    out.textContent = `Fertig: ${plural(c.items, 'Eintrag', 'Einträge')}, ${c.photos} Fotos, `
+      + `${c.categories} Kategorien, ${c.rooms} Räume – ${mb(exportFile.blob.size)}.`;
+    $('#exp-save').hidden = false;
+  } catch (e) {
+    out.className = 'hint err';
+    out.textContent = 'Sicherung fehlgeschlagen: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Muss direkt aus dem Tippen heraus laufen, sonst blockiert iOS das Teilen-Fenster.
+async function saveBackup() {
+  if (!exportFile) return;
+  const { blob, filename } = exportFile;
+  const file = new File([blob], filename, { type: 'application/json' });
+  try {
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Heim-Inventar Sicherung' });
+      return;
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') return;   // Nutzer hat abgebrochen
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 20000);
+}
+
+async function readImportFile(file) {
+  const out = $('#imp-out');
+  $('#imp-choice').hidden = true;
+  importData = null;
+  if (!file) return;
+  out.className = 'hint';
+  out.innerHTML = '<span class="spin"></span>Datei wird gelesen …';
+  try {
+    importData = backup.parseBackup(await file.text());
+    const c = importData.counts || {};
+    const when = importData.exportedAt ? dtf.format(new Date(importData.exportedAt)) : 'unbekannt';
+    out.className = 'hint';
+    out.textContent = `Sicherung vom ${when}: ${c.items ?? importData.items.length} Einträge, `
+      + `${(importData.photos || []).length} Fotos, ${(importData.categories || []).length} Kategorien, `
+      + `${(importData.rooms || []).length} Räume. Wie soll eingelesen werden?`;
+    $('#imp-choice').hidden = false;
+  } catch (e) {
+    out.className = 'hint err';
+    out.textContent = e.message;
+  }
+}
+
+async function runImport(mode) {
+  if (!importData) return;
+  if (mode === 'replace' && !confirm('Wirklich alles ersetzen? Die aktuellen Einträge und Fotos auf diesem Gerät werden vorher gelöscht.')) return;
+
+  const out = $('#imp-out');
+  $('#imp-choice').hidden = true;
+  out.className = 'hint';
+  out.innerHTML = '<span class="spin"></span>Wird eingelesen …';
+  try {
+    const stats = await backup.applyBackup(importData, mode, (i, n) => {
+      out.innerHTML = `<span class="spin"></span>Foto ${i} von ${n} …`;
+    });
+    importData = null;
+    $('#imp-input').value = '';
+    await reloadAll();
+    renderManagers();
+    renderList();
+    updateStorageInfo();
+    out.className = 'hint ok';
+    out.textContent = `${plural(stats.items, 'Eintrag', 'Einträge')} und ${stats.photos} Fotos eingelesen`
+      + (stats.skipped ? `, ${stats.skipped} waren schon vorhanden.` : '.');
+  } catch (e) {
+    out.className = 'hint err';
+    out.textContent = 'Import fehlgeschlagen: ' + e.message;
+  }
+}
+
+async function runDiagnostics() {
+  const out = $('#diag-out');
+  out.className = 'hint';
+  out.textContent = 'Prüfe …';
+  try {
+    const c = await db.rawCounts();
+    const lines = [
+      `Adresse: ${location.origin}${location.pathname}`,
+      `Datenbank: ${c.items} Einträge, ${c.photos} Fotos, ${c.categories} Kategorien, ${c.rooms} Räume`,
+      `Modus: ${window.matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'vom Home-Bildschirm' : 'im Browser'}`,
+    ];
+    if (indexedDB.databases) {
+      const dbs = await indexedDB.databases();
+      lines.push(`Datenbanken hier: ${dbs.map(d => d.name).filter(Boolean).join(', ') || 'keine'}`);
+    }
+    out.className = c.items > 0 ? 'hint ok' : 'hint';
+    out.textContent = lines.join(' · ');
+  } catch (e) {
+    out.className = 'hint err';
+    out.textContent = 'Prüfung fehlgeschlagen: ' + e.message;
+  }
+}
+
 async function requestPersist() {
   try {
     if (navigator.storage?.persist && navigator.storage?.persisted) {
@@ -633,6 +764,22 @@ function wire() {
     state.settings.imgMax = Number(e.target.value);
     await db.setSetting('imgMax', state.settings.imgMax);
   });
+  // --- Sicherung ---
+  $('#exp-build').addEventListener('click', buildBackup);
+  $('#exp-save').addEventListener('click', saveBackup);
+  $('#exp-photos').addEventListener('change', () => { $('#exp-save').hidden = true; $('#exp-out').textContent = ''; exportFile = null; });
+  $('#imp-pick').addEventListener('click', () => $('#imp-input').click());
+  $('#imp-input').addEventListener('change', (e) => readImportFile(e.target.files[0]));
+  $('#imp-merge').addEventListener('click', () => runImport('merge'));
+  $('#imp-replace').addEventListener('click', () => runImport('replace'));
+  $('#imp-cancel').addEventListener('click', () => {
+    importData = null;
+    $('#imp-input').value = '';
+    $('#imp-choice').hidden = true;
+    $('#imp-out').textContent = '';
+  });
+  $('#diag-run').addEventListener('click', runDiagnostics);
+
   $('#set-models-load').addEventListener('click', loadModelList);
   $('#set-test').addEventListener('click', async () => {
     const out = $('#set-test-out');

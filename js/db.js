@@ -76,6 +76,18 @@ export async function del(name, key) {
 export async function count(name) {
   return reqP((await store(name, 'readonly')).count());
 }
+export async function clear(name) {
+  return reqP((await store(name, 'readwrite')).clear());
+}
+
+/** Rohe Satzzahlen direkt aus der Datenbank – für die Speicher-Diagnose. */
+export async function rawCounts() {
+  const out = {};
+  for (const s of ['items', 'photos', 'categories', 'rooms', 'settings']) {
+    try { out[s] = await count(s); } catch (_) { void _; out[s] = -1; }
+  }
+  return out;
+}
 
 /* ---------------- Einstellungen ---------------- */
 

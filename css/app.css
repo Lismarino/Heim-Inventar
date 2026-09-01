@@ -229,3 +229,15 @@ h1,h2{margin:0;font-weight:650}
   .scroll{max-width:640px;margin:0 auto;width:100%}
   .toolbar>*{max-width:640px;margin-left:auto;margin-right:auto;width:100%}
 }
+
+/* ---------- Trenner & Startfehler ---------- */
+.sep{border:0;border-top:1px solid var(--line);margin:16px 0}
+.boot-error{
+  position:fixed;inset:0;z-index:200;overflow-y:auto;
+  padding:calc(var(--safe-t) + 32px) 22px calc(var(--safe-b) + 32px);
+  background:var(--bg);color:var(--fg);
+}
+.boot-error h2{font-size:20px;margin-bottom:12px}
+.boot-error p{color:var(--fg2);line-height:1.6;margin:0 0 14px}
+.boot-error code{background:var(--card2);padding:1px 5px;border-radius:5px;font-size:13px}
+.boot-error .small{font-size:13px;color:var(--fg3);word-break:break-all}

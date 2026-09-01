@@ -46,7 +46,7 @@ nur die KI-Bilderkennung braucht weiterhin eine Verbindung.
 ### Updates ausrollen
 
 Geänderte Dateien im Repo ersetzen **und** in `sw.js` die Zeile
-`const VERSION = 'v1.0.0';` hochzählen. Ohne diese Änderung liefert der Service Worker
+`const VERSION` hochzählen (aktuell `v1.1.0`). Ohne diese Änderung liefert der Service Worker
 weiter die alte Fassung aus. Beim nächsten Start erscheint in der App ein blauer Balken
 „Neue Version verfügbar“.
 
@@ -137,17 +137,53 @@ Zu erreichen über Einstellungen → Archiv öffnen.
 
 ---
 
-## 4. Was noch fehlt
+## 4. Sicherung, Übertragung, Datenverlust
 
-Diese Fassung ist Schritt 1. Als Nächstes geplant:
+### Sichern
 
-- **Export/Import** der kompletten Liste inklusive Bilder als Datei, zum Sichern und
-  zum Teilen mit der Familie.
+**Einstellungen → Sicherung → Sicherung erstellen**, danach **Sichern / Teilen**. Auf dem
+iPhone öffnet sich das Teilen-Fenster: „In Dateien sichern“, per AirDrop an ein anderes
+Gerät oder als Mail an die Familie. Am Rechner lädt die Datei herunter.
+
+Enthalten sind alle Einträge, Kategorien, Räume, das Archiv und die Fotos.
+**Der API-Key wird bewusst nicht mitgesichert** – sonst läge er in einer Datei, die du
+per Mail verschickst. Ihn trägst du auf dem neuen Gerät einmal von Hand ein.
+
+Der Haken „Fotos mitsichern“ lässt sich abschalten. Die Datei wird dann sehr klein, die
+Vorschaubilder in der Liste bleiben trotzdem erhalten – nur die Originale fehlen.
+
+### Einlesen
+
+**Sicherung einlesen**, Datei wählen. Die App zeigt erst, was drinsteht, dann hast du
+zwei Möglichkeiten:
+
+- **Hinzufügen, Vorhandenes behalten** – für den Abgleich zwischen zwei Geräten.
+  Einträge, die es schon gibt, werden übersprungen; gleichnamige Kategorien und Räume
+  werden zusammengeführt statt doppelt angelegt.
+- **Alles ersetzen** – löscht den aktuellen Stand und stellt die Datei her.
+  Für den Umzug auf ein neues Gerät oder nach einem Datenverlust.
+
+Mehrfaches Einlesen derselben Datei erzeugt keine Dubletten.
+
+### Wenn die Daten weg zu sein scheinen
+
+Ein Datei-Update auf dem Server kann die Datenbank nicht löschen. Prüfe der Reihe nach:
+
+1. **Startet die App überhaupt?** Fehlt eine Datei auf dem Server, zeigt die App nach
+   wenigen Sekunden „Die App konnte nicht starten“ und nennt die fehlende Datei.
+   Die Einträge sind dann unversehrt – sie erscheinen wieder, sobald die Datei da ist.
+   **Lösche die App in dieser Lage nicht vom Home-Bildschirm**, das würde sie wirklich löschen.
+2. **Einstellungen → Datenbank prüfen.** Zeigt die tatsächlichen Satzzahlen und die
+   Adresse, unter der die App gerade läuft.
+3. **Stimmt die Adresse?** Die Daten hängen an der Web-Adresse. Unter einer anderen
+   Adresse – etwa lokal getestet gegenüber GitHub Pages – liegt eine eigene, leere Datenbank.
+4. **Wurde das Symbol vom Home-Bildschirm gelöscht und neu hinzugefügt?** Dann sind die
+   Daten weg; iOS löscht den Speicher einer Web-App beim Entfernen mit.
+
+### Was noch fehlt
+
 - **Duplikat-Erkennung**: ähnelt ein neues Foto einem vorhandenen Eintrag, beide Bilder
   nebeneinander zeigen und „Menge erhöhen“ oder „Neu anlegen“ anbieten.
-
-**Bis dahin gibt es keine Sicherung.** Die Daten liegen nur auf dem einen Gerät.
-Löschst du die App vom Home-Bildschirm oder in Safari die Website-Daten, sind sie weg.
 
 ---
 
@@ -163,6 +199,7 @@ js/db.js                IndexedDB: Einträge, Fotos, Kategorien, Räume, Einstel
 js/img.js               Bilder dekodieren, drehen, verkleinern, kodieren
 js/gemini.js            Aufrufe an die Gemini-API
 js/combo.js             Vorschlagsliste für Kategorie und Raum
+js/backup.js            Export und Import der Sicherungsdatei
 icons/                  App-Icons
 ```
 

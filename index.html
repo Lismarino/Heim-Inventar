@@ -18,6 +18,17 @@
 </head>
 <body>
 
+<div id="boot-error" class="boot-error" hidden>
+  <h2>Die App konnte nicht starten</h2>
+  <p>Vermutlich fehlt eine Datei auf dem Server oder eine davon ist unvollständig hochgeladen.
+     Prüfe, ob <b>alle</b> Dateien aus <code>js/</code> vorhanden sind – besonders neu
+     hinzugekommene.</p>
+  <p><b>Deine Einträge sind dadurch nicht verloren.</b> Sie liegen weiterhin in der lokalen
+     Datenbank dieses Geräts und erscheinen wieder, sobald die App startet. Lösche die App
+     jetzt nicht vom Home-Bildschirm – das würde die Daten tatsächlich löschen.</p>
+  <p class="small" id="boot-error-detail"></p>
+</div>
+
 <div id="app">
 
   <!-- ============ LISTE ============ -->
@@ -161,6 +172,25 @@
     <header class="topbar"><h1>Einstellungen</h1></header>
     <div class="scroll">
 
+      <h2 class="sec">Sicherung</h2>
+      <div class="card">
+        <p class="hint">Sichert alles: Einträge, Kategorien, Räume, Archiv und Fotos in einer Datei. Der API-Key wird aus Sicherheitsgründen nicht mitgesichert.</p>
+        <label class="check"><input type="checkbox" id="exp-photos" checked> <span>Fotos mitsichern</span></label>
+        <button class="btn primary block" id="exp-build">Sicherung erstellen</button>
+        <p class="hint" id="exp-out"></p>
+        <button class="btn block" id="exp-save" hidden>Sichern / Teilen</button>
+
+        <hr class="sep">
+        <button class="btn block" id="imp-pick">Sicherung einlesen</button>
+        <input type="file" id="imp-input" accept="application/json,.json" hidden>
+        <p class="hint" id="imp-out"></p>
+        <div id="imp-choice" hidden>
+          <button class="btn block" id="imp-merge">Hinzufügen, Vorhandenes behalten</button>
+          <button class="btn danger block" id="imp-replace">Alles ersetzen</button>
+          <button class="btn ghost block" id="imp-cancel">Abbrechen</button>
+        </div>
+      </div>
+
       <h2 class="sec">Google Gemini API</h2>
       <div class="card">
         <label class="field">
@@ -218,13 +248,15 @@
         </label>
         <p class="hint">Fotos werden beim Speichern auf diese Kantenlänge verkleinert, damit die Datenbank nicht zuläuft.</p>
         <p class="hint" id="storage-info"></p>
+        <button class="btn block" id="diag-run">Datenbank prüfen</button>
+        <p class="hint" id="diag-out"></p>
         <button class="btn block" data-nav="archive">Archiv öffnen</button>
       </div>
 
       <h2 class="sec">Über</h2>
       <div class="card">
         <p class="hint">Alle Einträge und Fotos liegen ausschließlich in der lokalen Datenbank dieses Geräts (IndexedDB). Es gibt keinen Server und kein Konto. Nur die Bilderkennung schickt das jeweilige Foto an Google Gemini.</p>
-        <p class="hint"><b>Noch kein Export:</b> Sicherung und Übertragung auf ein anderes Gerät kommen im nächsten Schritt. Bis dahin: die App nicht vom Home-Bildschirm löschen und in Safari nicht die Website-Daten löschen.</p>
+        <p class="hint">Die Daten hängen an dieser Web-Adresse und an dieser Installation. Sie gehen verloren, wenn du die App vom Home-Bildschirm löschst, in Safari die Website-Daten löschst oder die App unter einer anderen Adresse aufrufst. Mach dir deshalb regelmäßig eine Sicherung.</p>
         <p class="hint" id="ver-info"></p>
       </div>
     </div>
@@ -246,6 +278,29 @@
 <div id="toast" class="toast" hidden></div>
 <div id="update-bar" class="update-bar" hidden><span>Neue Version verfügbar</span><button id="update-go">Neu laden</button></div>
 
+<script>
+// Startet die App nicht (z. B. fehlende Datei), darf der Nutzer nicht vor einer
+// leeren Liste stehen und denken, seine Daten seien weg.
+setTimeout(function () {
+  if (window.__inventarReady) return;
+  document.getElementById('boot-error').hidden = false;
+  document.getElementById('app').hidden = true;
+
+  // Nachsehen, welche Datei tatsächlich fehlt – das erspart das Raten.
+  var files = ['./js/app.js', './js/db.js', './js/img.js', './js/gemini.js',
+               './js/combo.js', './js/backup.js', './css/app.css', './manifest.webmanifest'];
+  var missing = [];
+  Promise.all(files.map(function (f) {
+    return fetch(f, { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) missing.push(f + ' (' + r.status + ')'); })
+      .catch(function () { missing.push(f + ' (nicht erreichbar)'); });
+  })).then(function () {
+    document.getElementById('boot-error-detail').textContent = missing.length
+      ? 'Fehlt auf dem Server: ' + missing.join(', ')
+      : 'Alle Dateien sind erreichbar. Dann liegt es an einem Skriptfehler – lade die Seite neu.';
+  });
+}, 6000);
+</script>
 <script type="module" src="./js/app.js"></script>
 </body>
 </html>
