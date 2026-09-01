@@ -1,8 +1,9 @@
 import * as db from './db.js';
 import * as img from './img.js';
 import * as ai from './gemini.js';
+import { initCombos, hideCombo } from './combo.js';
 
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.3';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -19,6 +20,7 @@ const state = {
   draft: { source: null, previewURL: null, cards: [] },
   currentId: null,
   detailURL: null,
+  lightboxURL: null,
 };
 
 const catName = (id) => state.cats.find(c => c.id === id)?.name || '';
@@ -35,6 +37,7 @@ async function boot() {
   }
   await reloadAll();
   wire();
+  initCombos(kind => (kind === 'categories' ? state.cats : state.rooms).map(x => x.name));
   fillSettingsForm();
   navigate('list');
   $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
@@ -55,8 +58,6 @@ async function reloadAll() {
 }
 
 function refreshPickers() {
-  $('#dl-cats').innerHTML = state.cats.map(c => `<option value="${esc(c.name)}">`).join('');
-  $('#dl-rooms').innerHTML = state.rooms.map(r => `<option value="${esc(r.name)}">`).join('');
   fillSelect($('#f-cat'), state.cats, 'Alle Kategorien');
   fillSelect($('#f-room'), state.rooms, 'Alle Räume');
 }
@@ -73,6 +74,8 @@ function navigate(view) {
   if (view === 'back') view = state.prevView === 'archive' ? 'archive' : 'list';
   if (view !== state.view) state.prevView = state.view;
 
+  closeLightbox();
+  hideCombo();
   if (state.detailURL && view !== 'item') { URL.revokeObjectURL(state.detailURL); state.detailURL = null; }
   if (view === 'add' && state.view !== 'add') resetDraft();
 
@@ -159,6 +162,7 @@ function resetDraft() {
   $('#photo-preview').removeAttribute('src');
   $('#photo-placeholder').hidden = false;
   $('#photo-clear').hidden = true;
+  $('#photo-expand').hidden = true;
   $('#photo-input').value = '';
   $('#ai-hint').value = '';
   $('#ai-status').textContent = '';
@@ -177,7 +181,7 @@ function setCards(cards) {
     <div class="icard" data-i="${i}">
       ${cards.length > 1 ? '<button class="del" data-del="' + i + '" aria-label="Entfernen">×</button>' : ''}
       <label class="field"><span>Name</span><input class="c-name" type="text" value="${esc(c.name)}" placeholder="z. B. Akkuschrauber" autocomplete="off"></label>
-      <label class="field"><span>Kategorie</span><input class="c-cat" list="dl-cats" value="${esc(c.category)}" placeholder="z. B. Werkzeug" autocomplete="off"></label>
+      <label class="field"><span>Kategorie</span><input class="c-cat" data-combo="categories" value="${esc(c.category)}" placeholder="z. B. Werkzeug" autocomplete="off"></label>
       ${c.confidence != null ? `<p class="conf">KI-Sicherheit: ${Math.round(c.confidence * 100)} %</p>` : ''}
     </div>`).join('');
 }
@@ -208,6 +212,7 @@ async function onPhotoChosen(file) {
     p.hidden = false;
     $('#photo-placeholder').hidden = true;
     $('#photo-clear').hidden = false;
+    $('#photo-expand').hidden = false;
     $('#ai-status').textContent = state.settings.apiKey
       ? 'Bereit. Optional einen Hinweis eintragen, dann „Mit KI erkennen“.'
       : 'Hinweis: Ohne API-Key in den Einstellungen ist keine Erkennung möglich – du kannst den Namen aber selbst eintragen.';
@@ -289,6 +294,39 @@ async function saveDraft() {
   }
 }
 
+/* =========================== Vollbild-Ansicht =========================== */
+
+// ownURL: nur selbst erzeugte Object-URLs beim Schließen wieder freigeben.
+function openLightbox(url, ownURL) {
+  if (!url) return;
+  closeLightbox();
+  state.lightboxURL = ownURL ? url : null;
+  const lb = $('#lightbox');
+  lb.classList.remove('zoom');
+  $('#lb-img').src = url;
+  $('#lb-scroll').scrollTop = 0;
+  $('#lb-scroll').scrollLeft = 0;
+  lb.hidden = false;
+}
+
+function closeLightbox() {
+  const lb = $('#lightbox');
+  if (lb.hidden) return;
+  lb.hidden = true;
+  lb.classList.remove('zoom');
+  $('#lb-img').removeAttribute('src');
+  if (state.lightboxURL) { URL.revokeObjectURL(state.lightboxURL); state.lightboxURL = null; }
+}
+
+// Für die Liste: das Original aus der Datenbank holen, nicht das kleine Vorschaubild.
+async function openPhotoOf(itemId) {
+  const it = state.items.find(x => x.id === itemId);
+  if (!it?.photoId) return;
+  const photo = await db.get('photos', it.photoId);
+  if (!photo) { toast('Zu diesem Eintrag ist kein Foto gespeichert.', true); return; }
+  openLightbox(img.photoURL(photo), true);
+}
+
 /* =========================== Detail =========================== */
 
 async function openItem(id) {
@@ -315,6 +353,7 @@ async function openItem(id) {
   el.hidden = true;
   el.removeAttribute('src');
   $('#item-nophoto').hidden = false;
+  $('#item-expand').hidden = true;
   navigate('item');
 
   if (it.photoId) {
@@ -324,6 +363,7 @@ async function openItem(id) {
       el.src = state.detailURL;
       el.hidden = false;
       $('#item-nophoto').hidden = true;
+      $('#item-expand').hidden = false;
     }
   }
 }
@@ -496,18 +536,31 @@ function wire() {
   $('#f-cat').addEventListener('change', renderList);
   $('#f-room').addEventListener('change', renderList);
 
-  $('#list').addEventListener('click', (e) => {
+  // Tipp auf das Vorschaubild zeigt das Foto groß, Tipp auf den Rest öffnet den Eintrag.
+  const rowClick = (e) => {
     const row = e.target.closest('.row');
-    if (row) openItem(row.dataset.id);
+    if (!row) return;
+    if (e.target.matches('img.thumb')) { openPhotoOf(row.dataset.id); return; }
+    openItem(row.dataset.id);
+  };
+  $('#list').addEventListener('click', rowClick);
+  $('#arch-list').addEventListener('click', rowClick);
+
+  // --- Vollbild-Ansicht ---
+  $('#lb-close').addEventListener('click', closeLightbox);
+  $('#lb-scroll').addEventListener('click', (e) => {
+    if (e.target.id === 'lb-img') $('#lightbox').classList.toggle('zoom');
+    else closeLightbox();
   });
-  $('#arch-list').addEventListener('click', (e) => {
-    const row = e.target.closest('.row');
-    if (row) openItem(row.dataset.id);
-  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
+  $('#item-photo').addEventListener('click', () => openLightbox(state.detailURL, false));
 
   // --- Hinzufügen ---
   $('#photo-pick').addEventListener('click', () => $('#photo-input').click());
-  $('#photo-slot').addEventListener('click', () => { if (!state.draft.source) $('#photo-input').click(); });
+  $('#photo-slot').addEventListener('click', () => {
+    if (state.draft.source) openLightbox(state.draft.previewURL, false);
+    else $('#photo-input').click();
+  });
   $('#photo-input').addEventListener('change', (e) => onPhotoChosen(e.target.files[0]));
   $('#photo-clear').addEventListener('click', () => {
     releaseSource();
@@ -517,6 +570,7 @@ function wire() {
     $('#photo-preview').removeAttribute('src');
     $('#photo-placeholder').hidden = false;
     $('#photo-clear').hidden = true;
+    $('#photo-expand').hidden = true;
     $('#photo-input').value = '';
     $('#ai-status').textContent = '';
     updateAiButton();
