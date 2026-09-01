@@ -241,3 +241,12 @@ h1,h2{margin:0;font-weight:650}
 .boot-error p{color:var(--fg2);line-height:1.6;margin:0 0 14px}
 .boot-error code{background:var(--card2);padding:1px 5px;border-radius:5px;font-size:13px}
 .boot-error .small{font-size:13px;color:var(--fg3);word-break:break-all}
+
+/* ---------- KI-Suche ---------- */
+.btn.ask{margin-top:2px}
+.ai-answer{border-color:var(--accent)}
+.ai-answer .ai-q{margin:0 0 8px;font-size:13px;color:var(--fg3)}
+.ai-answer .ai-q::before{content:"„"}
+.ai-answer .ai-q::after{content:"“"}
+.ai-answer p:not(.ai-q){margin:0;line-height:1.55}
+.row .why{font-size:12px;color:var(--accent);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

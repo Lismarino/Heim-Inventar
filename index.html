@@ -38,13 +38,19 @@
       <span class="count" id="list-count"></span>
     </header>
     <div class="toolbar">
-      <input id="q" type="search" placeholder="Suchen …" autocomplete="off" autocorrect="off" autocapitalize="off">
-      <div class="filters">
+      <input id="q" type="search" placeholder="Suchen oder KI fragen …" autocomplete="off" autocorrect="off" autocapitalize="off">
+      <div class="filters" id="filters">
         <select id="f-cat"><option value="">Alle Kategorien</option></select>
         <select id="f-room"><option value="">Alle Räume</option></select>
       </div>
+      <button class="btn primary block ask" id="ai-search" hidden>Stattdessen die KI fragen</button>
     </div>
     <div class="scroll">
+      <div class="card ai-answer" id="ai-answer" hidden>
+        <p id="ai-answer-q" class="ai-q"></p>
+        <p id="ai-answer-text"></p>
+        <button class="btn ghost block" id="ai-clear">Zurück zur Liste</button>
+      </div>
       <div id="list" class="list"></div>
       <p class="empty" id="list-empty" hidden></p>
     </div>

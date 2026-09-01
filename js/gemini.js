@@ -151,6 +151,70 @@ Gib genau einen Eintrag zurück: "name" ist unverändert "${name}", "category" d
   return items[0]?.category || '';
 }
 
+const SEARCH_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    answer: { type: 'STRING' },
+    matches: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: { n: { type: 'NUMBER' }, why: { type: 'STRING' } },
+        required: ['n'],
+      },
+    },
+  },
+  required: ['answer', 'matches'],
+};
+
+/**
+ * Beantwortet eine Frage wie „habe ich irgendwas zum Kleben?“ über den Bestand.
+ * Die Einträge gehen durchnummeriert als Text mit; zurück kommen nur Nummern,
+ * das spart Token gegenüber UUIDs und macht Halluzinationen leicht erkennbar.
+ */
+export async function searchInventory(settings, question, entries) {
+  const list = entries.map(e => [
+    e.n, e.name || '-', e.category || '-', e.room || '-',
+    e.location || '-', e.quantity || '-', e.note || '-',
+  ].join(' | ')).join('\n');
+
+  const prompt = `Du durchsuchst das private Haushalts-Inventar einer Person.
+
+Frage der Person: "${question}"
+
+Inventar (Nummer | Name | Kategorie | Raum | Ort-Details | Bestand | Notiz):
+${list}
+
+Aufgabe:
+- Finde die Gegenstände, die für die Frage taugen – auch wenn die Wörter nicht übereinstimmen. Wer „etwas zum Kleben“ sucht, meint auch Sekundenkleber, Klebeband, Heißklebepistole oder Montagekleber. Wer „befestigen“ sagt, meint auch Schrauben, Dübel, Kabelbinder oder Klettband.
+- Denke vom Zweck her, nicht vom Wortlaut. Markennamen können den Zweck verbergen.
+- Das Brauchbarste zuerst, höchstens 10 Treffer.
+- "n" muss eine Nummer aus der Liste oben sein. Erfinde nichts, was dort nicht steht.
+- "why": höchstens acht Wörter dazu, warum es passt.
+- "answer": ein bis zwei Sätze auf Deutsch, direkt an die Person. Nenne Namen und Ort, zum Beispiel „Sekundenkleber liegt im Keller, Schrank 1“. Passt gar nichts, sag das ehrlich und nenne kurz, was fehlt.`;
+
+  const text = await call(settings, {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: SEARCH_SCHEMA },
+  });
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (_) {
+    void _;
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('Antwort von Gemini war nicht lesbar.');
+    data = JSON.parse(m[0]);
+  }
+  return {
+    answer: String(data?.answer || '').trim(),
+    matches: (Array.isArray(data?.matches) ? data.matches : [])
+      .map(m => ({ n: Math.round(Number(m?.n)), why: String(m?.why || '').trim() }))
+      .filter(m => Number.isFinite(m.n)),
+  };
+}
+
 // Modelle, die es zwar gibt, die für diese App aber nichts taugen
 // (Sprachausgabe, Bildgenerierung, Einbettungen, Spezialagenten).
 const MODEL_BLOCKLIST = /tts|image|embedding|lyria|transcribe|robotics|computer-use|deep-research|antigravity|nano-banana|gemma/i;

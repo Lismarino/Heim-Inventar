@@ -2,7 +2,8 @@
 
 Privates Haushalts-Inventar als installierbare PWA. Alle Einträge und Fotos liegen
 ausschließlich lokal auf dem Gerät (IndexedDB) – kein Server, kein Konto, kein Login.
-Nach außen geht nur das jeweilige Foto, das du selbst zur Erkennung an Google Gemini schickst.
+Nach außen geht nur, was du selbst an Google Gemini schickst: das Foto beim Erkennen,
+und die Liste als Text, wenn du die KI-Suche benutzt.
 
 Kein Build-Schritt, keine Abhängigkeiten: reines HTML/CSS/JS mit ES-Modulen.
 Datei ändern → hochladen → fertig.
@@ -46,7 +47,7 @@ nur die KI-Bilderkennung braucht weiterhin eine Verbindung.
 ### Updates ausrollen
 
 Geänderte Dateien im Repo ersetzen **und** in `sw.js` die Zeile
-`const VERSION` hochzählen (aktuell `v1.1.0`). Ohne diese Änderung liefert der Service Worker
+`const VERSION` hochzählen (aktuell `v1.2.0`). Ohne diese Änderung liefert der Service Worker
 weiter die alte Fassung aus. Beim nächsten Start erscheint in der App ein blauer Balken
 „Neue Version verfügbar“.
 
@@ -130,6 +131,18 @@ Bild herumschieben; das × oben rechts oder ein Tipp neben das Bild schließt wi
 **Liste** zeigt Vorschaubild, Name, Bestand, Ort sowie Datum und Uhrzeit. Die Suche geht
 über Name, Kategorie, Raum, Ortdetail, Bestand und Notiz; dazu kommen Filter nach
 Kategorie und Raum.
+
+**KI-Suche** – tippe eine ganze Frage ins Suchfeld, etwa „ich brauch irgendwas um das Ding
+zu befestigen oder zu kleben“, und nimm den Knopf **Stattdessen die KI fragen** darunter
+(am Rechner reicht die Eingabetaste). Die KI denkt vom Zweck her statt vom Wortlaut:
+„kleben“ findet auch *Pattex Ultra Gel* und *Gewebeband*, „befestigen“ auch *Dübel* –
+Wörter, die in keinem der Einträge stehen. Du bekommst einen Antwortsatz mit Fundort
+plus die Treffer, jeder mit einer kurzen Begründung. **Zurück zur Liste** beendet das.
+
+Dafür geht deine Liste als Text an Gemini: Name, Kategorie, Raum, Ort, Bestand und Notiz
+aller nicht archivierten Einträge – keine Fotos. Ohne API-Key bleibt der Knopf wirkungslos,
+die normale Textsuche funktioniert weiter. Zurückgegebene Nummern werden gegen den
+tatsächlichen Bestand geprüft, damit nichts Erfundenes in der Trefferliste landet.
 
 **Archiv** – gelöschte Einträge landen zuerst dort und bleiben wiederherstellbar.
 Erst **Endgültig löschen** entfernt Eintrag und Foto unwiderruflich.

@@ -4,7 +4,7 @@ import * as ai from './gemini.js';
 import { initCombos, hideCombo } from './combo.js';
 import * as backup from './backup.js';
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -22,6 +22,7 @@ const state = {
   currentId: null,
   detailURL: null,
   lightboxURL: null,
+  aiSearch: null,   // { question, answer, matches:[{item, why}] }
 };
 
 const catName = (id) => state.cats.find(c => c.id === id)?.name || '';
@@ -111,7 +112,7 @@ function visibleItems() {
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
-function rowHTML(it) {
+function rowHTML(it, why) {
   const thumb = it.thumb
     ? `<img class="thumb" src="${it.thumb}" alt="">`
     : `<div class="thumb">📦</div>`;
@@ -123,12 +124,15 @@ function rowHTML(it) {
     <div class="body">
       <div class="name">${esc(it.name || '(ohne Namen)')}</div>
       <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${esc(meta)}</div>
-      <div class="when">${dtf.format(new Date(it.createdAt))}</div>
+      ${why ? `<div class="why">${esc(why)}</div>` : `<div class="when">${dtf.format(new Date(it.createdAt))}</div>`}
     </div>
   </button>`;
 }
 
 function renderList() {
+  if (state.aiSearch) { renderAiResult(); return; }
+  $('#ai-answer').hidden = true;
+  $('#filters').hidden = false;
   const rows = visibleItems();
   const total = state.items.filter(i => !i.archived).length;
   $('#list').innerHTML = rows.map(rowHTML).join('');
@@ -138,6 +142,77 @@ function renderList() {
   empty.innerHTML = total === 0
     ? 'Noch nichts erfasst.<br>Tippe unten auf <b>＋ Hinzufügen</b>.'
     : 'Keine Treffer für diese Suche oder Filter.';
+}
+
+/* ---------------- KI-Suche ---------------- */
+
+function renderAiResult() {
+  const a = state.aiSearch;
+  $('#filters').hidden = true;
+  $('#ai-answer').hidden = false;
+  $('#ai-answer-q').textContent = a.question;
+  $('#ai-answer-text').textContent = a.answer || 'Keine Antwort erhalten.';
+  $('#list').innerHTML = a.matches.map(m => rowHTML(m.item, m.why)).join('');
+  $('#list-count').textContent = a.matches.length || '';
+  const empty = $('#list-empty');
+  empty.hidden = a.matches.length > 0;
+  empty.textContent = 'Dazu passt nichts aus deinem Bestand.';
+}
+
+function clearAiSearch() {
+  state.aiSearch = null;
+  // Auch das Suchfeld leeren: die Frage als Textfilter ergäbe sonst eine leere Liste.
+  $('#q').value = '';
+  renderList();
+  updateAskButton();
+}
+
+function updateAskButton() {
+  const q = $('#q').value.trim();
+  $('#ai-search').hidden = !!state.aiSearch || q.length < 3;
+}
+
+async function runAiSearch() {
+  const question = $('#q').value.trim();
+  if (question.length < 3) return;
+  if (!state.settings.apiKey) {
+    toast('Für die KI-Suche brauchst du einen API-Key in den Einstellungen.', true);
+    return;
+  }
+  const pool = state.items.filter(i => !i.archived);
+  if (!pool.length) { toast('Es ist noch nichts erfasst.', true); return; }
+
+  const btn = $('#ai-search');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>KI durchsucht deinen Bestand …';
+  try {
+    const entries = pool.map((it, i) => ({
+      n: i + 1,
+      name: it.name,
+      category: catName(it.categoryId),
+      room: roomName(it.roomId),
+      location: it.locationDetail,
+      quantity: it.quantity,
+      note: it.note,
+    }));
+    const res = await ai.searchInventory(state.settings, question, entries);
+    // Nur Nummern übernehmen, die es wirklich gibt – gegen erfundene Treffer.
+    const seen = new Set();
+    const matches = [];
+    for (const m of res.matches) {
+      if (m.n < 1 || m.n > pool.length || seen.has(m.n)) continue;
+      seen.add(m.n);
+      matches.push({ item: pool[m.n - 1], why: m.why });
+    }
+    state.aiSearch = { question, answer: res.answer, matches };
+    renderList();
+    updateAskButton();
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Stattdessen die KI fragen';
+  }
 }
 
 function renderArchive() {
@@ -663,9 +738,19 @@ function wire() {
     if (nav) { e.preventDefault(); navigate(nav.dataset.nav); }
   });
 
-  $('#q').addEventListener('input', renderList);
+  // Tippen verwirft ein KI-Ergebnis – es passt dann nicht mehr zur Eingabe.
+  $('#q').addEventListener('input', () => {
+    if (state.aiSearch) state.aiSearch = null;
+    renderList();
+    updateAskButton();
+  });
   $('#f-cat').addEventListener('change', renderList);
   $('#f-room').addEventListener('change', renderList);
+  $('#ai-search').addEventListener('click', runAiSearch);
+  $('#ai-clear').addEventListener('click', clearAiSearch);
+  $('#q').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !state.aiSearch && $('#q').value.trim().length >= 3) runAiSearch();
+  });
 
   // Tipp auf das Vorschaubild zeigt das Foto groß, Tipp auf den Rest öffnet den Eintrag.
   const rowClick = (e) => {
