@@ -56,9 +56,10 @@ export function parseBackup(text) {
   let data;
   try {
     data = JSON.parse(text);
-  } catch (_) {
-    void _;
-    throw new Error('Die Datei ist kein gültiges JSON.');
+  } catch (e) {
+    // Sehr große Dateien können beim Einlesen auch am Speicher scheitern.
+    if (e instanceof SyntaxError) throw new Error('Die Datei ist kein gültiges JSON.');
+    throw new Error('Die Datei konnte nicht verarbeitet werden (zu groß?). Es wurde nichts verändert.');
   }
   if (!data || data.app !== FORMAT) throw new Error('Das ist keine Sicherung von Heim-Inventar.');
   if (Number(data.version) > FORMAT_VERSION) throw new Error('Die Datei stammt aus einer neueren Version der App.');
@@ -73,71 +74,114 @@ function base64ToBuffer(b64) {
   return arr.buffer;
 }
 
+const isId = (v) => typeof v === 'string' && v !== '';
+// Zeitstempel: nur Zahlen im gültigen Datumsbereich, sonst Ersatzwert.
+const num = (v, fallback) => {
+  const n = typeof v === 'number' ? v : (typeof v === 'string' && v.trim() ? Number(v) : NaN);
+  return Number.isFinite(n) && Math.abs(n) <= 8.64e15 ? n : fallback;
+};
+// Vorschaubilder landen in <img src> – nur echte Bild-Data-URLs zulassen.
+const safeThumb = (v) => (typeof v === 'string' && v.startsWith('data:image/') ? v : '');
+// Dem Browser Luft lassen, damit die Fortschrittsanzeige sichtbar aktualisiert.
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
 // Kategorien/Räume nach NAMEN abgleichen, nicht nach ID – auf einem anderen
-// Gerät hat dieselbe Kategorie eine andere ID. Liefert alteId -> neueId.
-async function mergeNamed(storeName, list) {
+// Gerät hat dieselbe Kategorie eine andere ID. Schreibt nichts, sondern liefert
+// alteId -> neueId und die neu anzulegenden Sätze.
+function mapNamed(list, existing) {
   const map = new Map();
-  const existing = await db.getAll(storeName);
+  const add = [];
   const byName = new Map(existing.map(x => [String(x.name).trim().toLowerCase(), x.id]));
   const usedIds = new Set(existing.map(x => x.id));
 
-  for (const rec of list || []) {
+  for (const rec of Array.isArray(list) ? list : []) {
     const name = String(rec?.name || '').trim();
     if (!name) continue;
     const key = name.toLowerCase();
-    if (byName.has(key)) { map.set(rec.id, byName.get(key)); continue; }
-    const id = rec.id && !usedIds.has(rec.id) ? rec.id : db.uid();
-    await db.put(storeName, { id, name, createdAt: rec.createdAt || Date.now() });
-    usedIds.add(id);
-    byName.set(key, id);
-    map.set(rec.id, id);
+    let id = byName.get(key);
+    if (!id) {
+      id = isId(rec.id) && !usedIds.has(rec.id) ? rec.id : db.uid();
+      add.push({ id, name, createdAt: num(rec.createdAt, Date.now()) });
+      usedIds.add(id);
+      byName.set(key, id);
+    }
+    if (isId(rec.id)) map.set(rec.id, id);   // ohne ID kann kein Eintrag darauf zeigen
   }
-  return map;
+  return { map, add };
 }
 
 /**
  * mode 'merge'   – Vorhandenes bleibt, Neues kommt dazu (nach ID abgeglichen).
  * mode 'replace' – Alles Bisherige wird gelöscht und durch die Datei ersetzt.
+ *
+ * Erst wird alles vorbereitet (Fotos dekodiert, Einträge zugeordnet), dann in
+ * EINER Transaktion geschrieben. Bricht etwas ab, bleibt der alte Stand erhalten.
  */
 export async function applyBackup(data, mode, onProgress) {
+  const replace = mode === 'replace';
   const stats = { items: 0, photos: 0, skipped: 0 };
 
-  if (mode === 'replace') {
-    await db.clear('items');
-    await db.clear('photos');
-    await db.clear('categories');
-    await db.clear('rooms');
+  // Bei „ersetzen“ zählt der bisherige Bestand nicht – er wird ja geleert.
+  const [existCats, existRooms, photoKeys, itemKeys] = replace
+    ? [[], [], [], []]
+    : await Promise.all([db.getAll('categories'), db.getAll('rooms'), db.getAllKeys('photos'), db.getAllKeys('items')]);
+
+  const cats = mapNamed(data.categories, existCats);
+  const rooms = mapNamed(data.rooms, existRooms);
+
+  // Fotos vorab dekodieren – kaputtes base64 fällt hier auf, bevor etwas geschrieben ist.
+  const havePhotos = new Set(photoKeys);
+  const photosIn = Array.isArray(data.photos) ? data.photos : [];
+  const photos = [];
+  for (let i = 0; i < photosIn.length; i++) {
+    const p = photosIn[i];
+    if (isId(p?.id) && !havePhotos.has(p.id)) {
+      let buf;
+      try {
+        buf = base64ToBuffer(p.data);
+      } catch (_) {
+        void _;
+        throw new Error(`Foto ${i + 1} in der Datei ist beschädigt.`);
+      }
+      photos.push({
+        id: p.id,
+        buf,
+        type: typeof p.type === 'string' && p.type.startsWith('image/') ? p.type : 'image/jpeg',
+        createdAt: num(p.createdAt, Date.now()),
+      });
+      havePhotos.add(p.id);
+    }
+    if (onProgress) onProgress(i + 1, photosIn.length);
+    if (i % 10 === 9) await tick();
   }
 
-  const mapCat = await mergeNamed('categories', data.categories);
-  const mapRoom = await mergeNamed('rooms', data.rooms);
-
-  const havePhotos = new Set((await db.getAll('photos')).map(p => p.id));
-  const photos = Array.isArray(data.photos) ? data.photos : [];
-  for (let i = 0; i < photos.length; i++) {
-    const p = photos[i];
-    if (!p?.id || havePhotos.has(p.id)) continue;
-    await db.put('photos', {
-      id: p.id,
-      buf: base64ToBuffer(p.data),
-      type: p.type || 'image/jpeg',
-      createdAt: p.createdAt || Date.now(),
-    });
-    stats.photos++;
-    if (onProgress) onProgress(i + 1, photos.length);
-  }
-
-  const haveItems = new Set((await db.getAll('items')).map(i => i.id));
+  const haveItems = new Set(itemKeys);
+  const items = [];
   for (const raw of data.items) {
-    if (!raw?.id) continue;
+    if (!isId(raw?.id)) continue;
     if (haveItems.has(raw.id)) { stats.skipped++; continue; }
     const it = db.newItem({ ...raw });
-    it.categoryId = raw.categoryId ? (mapCat.get(raw.categoryId) || null) : null;
-    it.roomId = raw.roomId ? (mapRoom.get(raw.roomId) || null) : null;
+    it.categoryId = raw.categoryId ? (cats.map.get(raw.categoryId) || null) : null;
+    it.roomId = raw.roomId ? (rooms.map.get(raw.roomId) || null) : null;
     it.archived = raw.archived ? 1 : 0;
-    await db.put('items', it);
-    stats.items++;
+    it.thumb = safeThumb(raw.thumb);
+    // Verweis auf ein Foto, das weder in der Datei noch auf dem Gerät liegt: leeren.
+    it.photoId = isId(raw.photoId) && havePhotos.has(raw.photoId) ? raw.photoId : null;
+    // Erkennungsstatus: 'pending' nur mit Foto – sonst hinge der Eintrag ewig in der Warteschlange.
+    it.aiState = raw.aiState === 'done' || raw.aiState === 'failed' ? raw.aiState
+      : raw.aiState === 'pending' && it.photoId ? 'pending' : null;
+    it.aiError = typeof raw.aiError === 'string' ? raw.aiError : null;
+    it.aiSplit = raw.aiSplit === true;
+    // Kaputte Zeitstempel würden sonst das Datumsformat in der Liste sprengen.
+    it.createdAt = num(raw.createdAt, Date.now());
+    it.updatedAt = num(raw.updatedAt, it.createdAt);
+    it.archivedAt = raw.archivedAt == null ? null : num(raw.archivedAt, null);
+    haveItems.add(it.id);
+    items.push(it);
   }
 
+  await db.writeImport({ replace, categories: cats.add, rooms: rooms.add, photos, items });
+  stats.items = items.length;
+  stats.photos = photos.length;
   return stats;
 }

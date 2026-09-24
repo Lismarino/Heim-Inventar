@@ -1,4 +1,6 @@
 // Google Gemini API – direkt aus dem Browser, mit dem lokal gespeicherten API-Key.
+import { DEFAULT_MODEL } from './db.js';
+
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const TIMEOUT_MS = 60000;
 
@@ -21,12 +23,22 @@ const ITEM_SCHEMA = {
   required: ['items'],
 };
 
+// Fehler mit Kennung, damit die KI-Warteschlange unterscheiden kann, ob sich ein
+// neuer Versuch lohnt (offline, 429 …) oder nicht (Bild unlesbar, nichts erkannt).
+function aiError(message, code, status, detail) {
+  const e = new Error(message);
+  e.code = code;
+  if (status) e.status = status;
+  if (detail) e.detail = detail;
+  return e;
+}
+
 async function call(settings, body) {
   const key = (settings.apiKey || '').trim();
-  if (!key) throw new Error('Kein API-Key hinterlegt. Trage ihn unter Einstellungen ein.');
-  if (!navigator.onLine) throw new Error('Offline – die Bilderkennung braucht eine Internetverbindung.');
+  if (!key) throw aiError('Kein API-Key hinterlegt. Trage ihn unter Einstellungen ein.', 'nokey');
+  if (!navigator.onLine) throw aiError('Offline – die Bilderkennung braucht eine Internetverbindung.', 'offline');
 
-  const model = settings.model || 'gemini-2.5-flash';
+  const model = settings.model || DEFAULT_MODEL;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
 
@@ -39,8 +51,8 @@ async function call(settings, body) {
       signal: ctrl.signal,
     });
   } catch (e) {
-    if (e.name === 'AbortError') throw new Error('Zeitüberschreitung – Gemini hat nicht geantwortet.');
-    throw new Error('Netzwerkfehler beim Aufruf der Gemini-API.');
+    if (e.name === 'AbortError') throw aiError('Zeitüberschreitung – Gemini hat nicht geantwortet.', 'timeout');
+    throw aiError('Netzwerkfehler beim Aufruf der Gemini-API.', navigator.onLine ? 'network' : 'offline');
   } finally {
     clearTimeout(timer);
   }
@@ -50,25 +62,54 @@ async function call(settings, body) {
   try { json = raw ? JSON.parse(raw) : null; } catch (_) { void _; }
 
   if (!res.ok) {
-    const msg = json?.error?.message || raw.slice(0, 300) || `HTTP ${res.status}`;
-    if (res.status === 400 && /API key/i.test(msg)) throw new Error('API-Key wird abgelehnt. Bitte in den Einstellungen prüfen.');
-    if (res.status === 403) throw new Error(`Zugriff verweigert: ${msg}`);
-    if (res.status === 429) throw new Error('Kontingent erschöpft (429). Später erneut versuchen oder ein anderes Modell wählen.');
+    const s = res.status;
+    const msg = json?.error?.message || raw.slice(0, 300) || `HTTP ${s}`;
+    if (s === 400 && /API key/i.test(msg)) throw aiError('API-Key wird abgelehnt. Bitte in den Einstellungen prüfen.', 'auth', s, msg);
+    if (s === 403) throw aiError(`Zugriff verweigert: ${msg}`, 'auth', s, msg);
+    if (s === 429) throw aiError('Kontingent erschöpft (429). Später erneut versuchen oder ein anderes Modell wählen.', 'quota', s, msg);
     // Google nennt in dieser Meldung meist gleich das Nachfolgemodell – deshalb weiterreichen.
-    if (res.status === 404) throw new Error(`Modell "${settings.model}" nicht verfügbar. ${msg}`);
-    throw new Error(`Gemini-Fehler ${res.status}: ${msg}`);
+    if (s === 404) throw aiError(`Modell "${model}" nicht verfügbar. ${msg}`, 'model', s, msg);
+    throw aiError(`Gemini-Fehler ${s}: ${msg}`, s >= 500 ? 'server' : 'http', s, msg);
   }
 
   const block = json?.promptFeedback?.blockReason;
-  if (block) throw new Error(`Anfrage von Gemini blockiert (${block}).`);
+  if (block) throw aiError(`Anfrage von Gemini blockiert (${block}).`, 'blocked');
 
   const cand = json?.candidates?.[0];
   const text = cand?.content?.parts?.map(p => p.text).filter(Boolean).join('') || '';
   if (!text) {
     const fr = cand?.finishReason;
-    throw new Error(fr ? `Keine Antwort erhalten (${fr}).` : 'Keine Antwort von Gemini erhalten.');
+    throw aiError(fr ? `Keine Antwort erhalten (${fr}).` : 'Keine Antwort von Gemini erhalten.', 'empty');
   }
   return text;
+}
+
+// Modelle, die eine thinkingConfig abgelehnt haben – für diese Sitzung gemerkt.
+const noThinking = new Set();
+
+// Denken kostet bei der Bilderkennung viel Zeit und bringt wenig.
+// Gemini 2.x kennt nur ein Token-Budget, ab Gemini 3 gibt es Stufen.
+function thinkingFor(model) {
+  if (noThinking.has(model)) return null;
+  return /^gemini-2\./.test(model) ? { thinkingBudget: 0 } : { thinkingLevel: 'low' };
+}
+
+// Wie call(), aber mit möglichst wenig Denken. Lehnt das Modell die Einstellung ab
+// (400 mit „thinking“ in der Meldung), einmal ohne wiederholen und sich das merken.
+async function callFast(settings, contents, config) {
+  const model = settings.model || DEFAULT_MODEL;
+  const tc = thinkingFor(model);
+  const body = (withThinking) => ({
+    contents,
+    generationConfig: withThinking && tc ? { ...config, thinkingConfig: tc } : config,
+  });
+  try {
+    return await call(settings, body(true));
+  } catch (e) {
+    if (!tc || e.status !== 400 || !/thinking/i.test(e.detail || e.message)) throw e;
+    noThinking.add(model);
+    return call(settings, body(false));
+  }
 }
 
 function parseItems(text) {
@@ -78,8 +119,8 @@ function parseItems(text) {
   } catch (_) {
     void _;
     const m = text.match(/\{[\s\S]*\}/);
-    if (!m) throw new Error('Antwort von Gemini war nicht lesbar.');
-    data = JSON.parse(m[0]);
+    if (!m) throw aiError('Antwort von Gemini war nicht lesbar.', 'parse');
+    try { data = JSON.parse(m[0]); } catch (_) { void _; throw aiError('Antwort von Gemini war nicht lesbar.', 'parse'); }
   }
   const list = Array.isArray(data?.items) ? data.items : [];
   return list
@@ -115,23 +156,20 @@ Regeln:
 - "confidence": Wert zwischen 0 und 1, wie sicher du dir bei der Erkennung bist.
 ${hint ? `\nDer Nutzer gibt diesen Hinweis, er hat Vorrang vor deiner eigenen Einschätzung: "${hint}"` : ''}`;
 
-  const text = await call(settings, {
-    contents: [{
-      role: 'user',
-      parts: [
-        { text: prompt },
-        { inline_data: { mime_type: 'image/jpeg', data: base64Jpeg } },
-      ],
-    }],
-    generationConfig: {
-      temperature: 0.2,
-      responseMimeType: 'application/json',
-      responseSchema: ITEM_SCHEMA,
-    },
+  const text = await callFast(settings, [{
+    role: 'user',
+    parts: [
+      { text: prompt },
+      { inline_data: { mime_type: 'image/jpeg', data: base64Jpeg } },
+    ],
+  }], {
+    temperature: 0.2,
+    responseMimeType: 'application/json',
+    responseSchema: ITEM_SCHEMA,
   });
 
   const items = parseItems(text);
-  if (!items.length) throw new Error('Auf dem Foto wurde nichts Erfassbares erkannt.');
+  if (!items.length) throw aiError('Auf dem Foto wurde nichts Erfassbares erkannt.', 'nothing');
   return items;
 }
 
@@ -143,10 +181,8 @@ ${catBlock(categories)}
 
 Gib genau einen Eintrag zurück: "name" ist unverändert "${name}", "category" die passende Kategorie.`;
 
-  const text = await call(settings, {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: ITEM_SCHEMA },
-  });
+  const text = await callFast(settings, [{ role: 'user', parts: [{ text: prompt }] }],
+    { temperature: 0.1, responseMimeType: 'application/json', responseSchema: ITEM_SCHEMA });
   const items = parseItems(text);
   return items[0]?.category || '';
 }

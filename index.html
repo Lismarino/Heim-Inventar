@@ -2,11 +2,13 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
+<!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
+<meta name="app-version" content="1.4.1">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
-<meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0f1115" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4eee3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17130f" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,6 +19,31 @@
 <link rel="stylesheet" href="./css/app.css">
 </head>
 <body>
+
+<!-- Symbole: einheitlicher Strich, Farbe über currentColor. Verwendung: <svg class="ic"><use href="#i-…"/></svg> -->
+<svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-shelf" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M3.5 12h17M9.5 7.75h5M9.5 16.25h5"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3.5 9A2.5 2.5 0 0 1 6 6.5h1.7l1.2-1.8a1.6 1.6 0 0 1 1.33-.7h3.54a1.6 1.6 0 0 1 1.33.7l1.2 1.8H18A2.5 2.5 0 0 1 20.5 9v8a2.5 2.5 0 0 1-2.5 2.5H6A2.5 2.5 0 0 1 3.5 17z"/><circle cx="12" cy="12.75" r="3.6"/></symbol>
+  <symbol id="i-photos" viewBox="0 0 24 24"><rect x="3.5" y="7" width="13.5" height="13.5" rx="2.5"/><path d="M7 3.5h10.5A3 3 0 0 1 20.5 6.5V17"/><path d="m3.75 17.5 3.6-3.6a1.2 1.2 0 0 1 1.7 0l4.9 4.9M12 16l1.3-1.3a1.2 1.2 0 0 1 1.7 0l1.8 1.8"/><circle cx="12.4" cy="11" r="1.2"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7.5h9M18.5 7.5H20M4 16.5h1.5M11 16.5h9"/><circle cx="15.75" cy="7.5" r="2.5"/><circle cx="8.25" cy="16.5" r="2.5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.75" cy="10.75" r="6.25"/><path d="m15.5 15.5 4.5 4.5"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 20.75s-6.5-5.5-6.5-10.9a6.5 6.5 0 0 1 13 0c0 5.4-6.5 10.9-6.5 10.9z"/><circle cx="12" cy="9.85" r="2.35"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></symbol>
+  <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.75 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M5 19l.9-3.9L15.6 5.4a1.9 1.9 0 0 1 2.7 0l.3.3a1.9 1.9 0 0 1 0 2.7L8.9 18.1z"/><path d="m13.75 7.25 3 3"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V5.25c0-.7.55-1.25 1.25-1.25h2.5c.7 0 1.25.55 1.25 1.25V7M6.5 7l.85 11.6A2 2 0 0 0 9.35 20.5h5.3a2 2 0 0 0 2-1.9L17.5 7M10.25 11v5.5M13.75 11v5.5"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10M10 19.5H4.5V14M19.25 4.75 13.5 10.5M4.75 19.25l5.75-5.75"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M12 3.5 20 7.5v9L12 20.5 4 16.5v-9z"/><path d="m4 7.5 8 4 8-4M12 11.5v9M8 5.5l8 4"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M10.5 3.5c.55 3.9 2.6 5.95 6.5 6.5-3.9.55-5.95 2.6-6.5 6.5-.55-3.9-2.6-5.95-6.5-6.5 3.9-.55 5.95-2.6 6.5-6.5zM18 14.5c.25 1.75 1.1 2.6 2.75 2.75-1.65.25-2.5 1.1-2.75 2.75-.25-1.65-1.1-2.5-2.75-2.75 1.65-.15 2.5-1 2.75-2.75z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.25M12 7.9v.1"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.6a2 2 0 0 1 3.4 0l7 12.1a2 2 0 0 1-1.7 3H5a2 2 0 0 1-1.7-3z"/><path d="M12 9.5v4.25M12 16.6v.1"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.5"/><path d="M5 9v8.5A2 2 0 0 0 7 19.5h10a2 2 0 0 0 2-2V9M10 13h4"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.3-5.4M19.5 4.5V8.5h-4"/></symbol>
+  <symbol id="i-done" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.25 12.25 2.5 2.5 5-5.25"/></symbol>
+</svg>
 
 <div id="boot-error" class="boot-error" hidden>
   <h2>Die App konnte nicht starten</h2>
@@ -33,17 +60,20 @@
 
   <!-- ============ LISTE ============ -->
   <section class="view" id="view-list">
-    <header class="topbar">
+    <header class="topbar large">
       <h1>Inventar</h1>
       <span class="count" id="list-count"></span>
     </header>
     <div class="toolbar">
-      <input id="q" type="search" placeholder="Suchen oder KI fragen …" autocomplete="off" autocorrect="off" autocapitalize="off">
+      <label class="search">
+        <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+        <input id="q" type="search" placeholder="Suchen oder KI fragen …" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="Suchen">
+      </label>
       <div class="filters" id="filters">
-        <select id="f-cat"><option value="">Alle Kategorien</option></select>
-        <select id="f-room"><option value="">Alle Räume</option></select>
+        <select id="f-cat" required aria-label="Kategorie filtern"><option value="">Alle Kategorien</option></select>
+        <select id="f-room" required aria-label="Raum filtern"><option value="">Alle Räume</option></select>
       </div>
-      <button class="btn primary block ask" id="ai-search" hidden>Stattdessen die KI fragen</button>
+      <button class="btn block ask" id="ai-search" hidden>Stattdessen die KI fragen</button>
     </div>
     <div class="scroll">
       <div class="card ai-answer" id="ai-answer" hidden>
@@ -51,111 +81,156 @@
         <p id="ai-answer-text"></p>
         <button class="btn ghost block" id="ai-clear">Zurück zur Liste</button>
       </div>
+      <button class="noroom-hint" id="noroom-hint" data-nav="rooms" hidden></button>
       <div id="list" class="list"></div>
-      <p class="empty" id="list-empty" hidden></p>
+      <div class="empty" id="list-empty" hidden></div>
     </div>
   </section>
 
-  <!-- ============ HINZUFÜGEN ============ -->
+  <!-- ============ HINZUFÜGEN (Schnellerfassung) ============ -->
   <section class="view" id="view-add" hidden>
-    <header class="topbar">
-      <button class="link" data-nav="list">Abbrechen</button>
+    <header class="topbar large">
       <h1>Hinzufügen</h1>
-      <button class="link strong" id="add-save">Speichern</button>
+      <button class="link strong" data-nav="list">Fertig</button>
     </header>
     <div class="scroll">
 
-      <div class="card">
-        <div id="photo-slot" class="photo-slot">
-          <img id="photo-preview" alt="" hidden>
-          <div id="photo-placeholder" class="photo-placeholder">
-            <div class="ph-icon">📷</div>
-            <div>Foto aufnehmen oder auswählen</div>
-            <small>Optional – du kannst auch nur Text eintragen</small>
-          </div>
-          <span class="expand" id="photo-expand" hidden>⤢ Vergrößern</span>
-        </div>
-        <input type="file" id="photo-input" accept="image/*" hidden>
-        <div class="row-btns">
-          <button class="btn" id="photo-pick">Foto wählen</button>
-          <button class="btn ghost" id="photo-clear" hidden>Entfernen</button>
-        </div>
-
-        <label class="field">
-          <span>Hinweis für die KI <small>(optional)</small></span>
-          <input id="ai-hint" type="text" placeholder="z. B. das ist ein Akkuschrauber" autocomplete="off">
+      <div class="card cap-where">
+        <label class="field where-room">
+          <span class="where-lbl"><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg>Du bist gerade in</span>
+          <input id="cap-room" data-combo="rooms" placeholder="Raum, z. B. Keller – oder leer lassen" autocomplete="off">
         </label>
-
-        <button class="btn primary block" id="ai-run" disabled>Mit KI erkennen</button>
-        <p class="hint" id="ai-status"></p>
-      </div>
-
-      <h2 class="sec">Gegenstände</h2>
-      <div id="cards"></div>
-      <button class="btn ghost block" id="card-add">+ Weiterer Gegenstand</button>
-
-      <h2 class="sec">Ort &amp; Bestand</h2>
-      <div class="card">
-        <label class="field">
-          <span>Raum</span>
-          <input id="in-room" data-combo="rooms" placeholder="z. B. Keller" autocomplete="off">
-        </label>
-        <label class="field">
+        <label class="field where-loc">
           <span>Ort-Details <small>(optional)</small></span>
-          <input id="in-loc" type="text" placeholder="z. B. Schrank 1, oben links" autocomplete="off">
-        </label>
-        <label class="field">
-          <span>Bestand</span>
-          <input id="in-qty" type="text" placeholder="z. B. 3 oder genug" autocomplete="off">
-        </label>
-        <div class="chips" id="qty-chips">
-          <button class="chip" data-qty="1">1</button>
-          <button class="chip" data-qty="2">2</button>
-          <button class="chip" data-qty="3">3</button>
-          <button class="chip" data-qty="voll">voll</button>
-          <button class="chip" data-qty="genug">genug</button>
-          <button class="chip" data-qty="wenig">wenig</button>
-          <button class="chip" data-qty="leer">leer</button>
-        </div>
-        <label class="field">
-          <span>Notiz <small>(optional)</small></span>
-          <textarea id="in-note" rows="2" placeholder="Freitext"></textarea>
+          <input id="cap-loc" type="text" placeholder="z. B. Schrank 1, oben links" autocomplete="off">
         </label>
       </div>
-      <p class="hint">Ort, Bestand und Notiz gelten für alle Gegenstände oben.</p>
+
+      <div class="cap-btns">
+        <button class="cap-btn cam" id="cap-camera">
+          <span class="cap-ic"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span>
+          <span class="cap-txt"><b>Foto aufnehmen</b><small>Die Kamera öffnet sich direkt</small></span>
+        </button>
+        <button class="cap-btn lib" id="cap-library">
+          <span class="cap-ic"><svg class="ic" aria-hidden="true"><use href="#i-photos"/></svg></span>
+          <span class="cap-txt"><b>Aus Mediathek</b><small>Auch mehrere auf einmal</small></span>
+          <svg class="ic chev" aria-hidden="true"><use href="#i-chev-r"/></svg>
+        </button>
+      </div>
+      <input type="file" id="cap-camera-input" accept="image/*" capture="environment" hidden>
+      <input type="file" id="cap-library-input" accept="image/*" multiple hidden>
+      <p class="hint note" id="cap-hint"></p>
+
+      <div class="card cap-status" id="cap-status" hidden>
+        <p class="cap-summary" id="cap-summary"></p>
+        <div class="cap-strip" id="cap-strip"></div>
+        <p class="hint" id="cap-note" hidden></p>
+      </div>
+
+      <button class="noroom-link" id="cap-noroom" data-nav="rooms" hidden></button>
+
+      <details class="card manual" id="manual">
+        <summary><svg class="ic" aria-hidden="true"><use href="#i-pencil"/></svg><span>Ohne Foto eintragen</span><svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
+        <div class="manual-body">
+          <label class="field"><span>Name</span><input id="man-name" type="text" placeholder="z. B. Akkuschrauber" autocomplete="off"></label>
+          <label class="field"><span>Kategorie <small>(optional)</small></span><input id="man-cat" data-combo="categories" placeholder="z. B. Werkzeug" autocomplete="off"></label>
+          <details class="more" id="man-more">
+            <summary>Mehr Angaben<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
+            <label class="field">
+              <span>Bestand</span>
+              <input id="man-qty" type="text" placeholder="z. B. 3 oder genug" autocomplete="off">
+            </label>
+            <div class="chips" id="qty-chips">
+              <button class="chip" data-qty="1">1</button>
+              <button class="chip" data-qty="2">2</button>
+              <button class="chip" data-qty="3">3</button>
+              <button class="chip" data-qty="voll">voll</button>
+              <button class="chip" data-qty="genug">genug</button>
+              <button class="chip" data-qty="wenig">wenig</button>
+              <button class="chip" data-qty="leer">leer</button>
+            </div>
+            <label class="field">
+              <span>Notiz <small>(optional)</small></span>
+              <textarea id="man-note" rows="2" placeholder="Freitext"></textarea>
+            </label>
+          </details>
+          <button class="btn primary block" id="man-save">Speichern</button>
+          <p class="hint">Raum und Ort-Details kommen aus dem Feld ganz oben.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ OHNE RAUM ============ -->
+  <section class="view" id="view-rooms" hidden>
+    <header class="topbar">
+      <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+      <h1>Ohne Raum</h1>
+      <span class="count" id="rs-count"></span>
+    </header>
+    <div class="scroll">
+      <div id="rs-main">
+        <p class="hint rs-intro">Antippen zum Auswählen, dann unten den Raum eintragen.</p>
+        <div class="row-btns rs-selbtns">
+          <button class="btn pill" id="rs-all"><svg class="ic" aria-hidden="true"><use href="#i-done"/></svg>Alle auswählen</button>
+          <button class="btn pill ghost" id="rs-none">Keine</button>
+        </div>
+        <div class="pick-grid" id="rs-grid"></div>
+      </div>
+      <div class="empty" id="rs-empty" hidden>
+        <span class="empty-badge"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg></span>
+        <p>Alles hat einen Raum.</p>
+        <button class="btn" data-nav="back">Zurück</button>
+      </div>
+    </div>
+    <div class="assign-bar" id="rs-bar">
+      <div class="assign-inner">
+        <div class="assign-fields">
+          <label class="field"><span>Raum</span><input id="rs-room" data-combo="rooms" placeholder="z. B. Keller" autocomplete="off"></label>
+          <label class="field"><span>Ort-Details <small>(optional)</small></span><input id="rs-loc" type="text" placeholder="z. B. Regal 2" autocomplete="off"></label>
+        </div>
+        <button class="btn primary block" id="rs-assign" disabled>Zuweisen</button>
+      </div>
     </div>
   </section>
 
   <!-- ============ DETAIL ============ -->
   <section class="view" id="view-item" hidden>
     <header class="topbar">
-      <button class="link" data-nav="back">Zurück</button>
+      <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
       <h1>Eintrag</h1>
       <button class="link strong" id="item-save">Speichern</button>
     </header>
     <div class="scroll">
-      <div class="card">
+      <div class="card photo-card">
         <div class="photo-slot">
-          <img id="item-photo" alt="" hidden>
-          <div class="photo-placeholder" id="item-nophoto"><div class="ph-icon">📦</div><div>Kein Foto</div></div>
-          <span class="expand" id="item-expand" hidden>⤢ Vergrößern</span>
+          <img id="item-photo" alt="" role="button" tabindex="0" aria-label="Foto vergrößern" hidden>
+          <div class="photo-placeholder" id="item-nophoto"><svg class="ic ph-icon" aria-hidden="true"><use href="#i-box"/></svg><div>Kein Foto</div></div>
+          <span class="expand" id="item-expand" hidden><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Vergrößern</span>
         </div>
       </div>
-      <div class="card">
+      <div class="card group">
+        <div class="ai-state" id="it-ai" hidden>
+          <p class="hint" id="it-ai-text"></p>
+          <button class="btn block" id="it-retry" hidden>Erneut erkennen</button>
+        </div>
         <label class="field"><span>Name</span><input id="it-name" type="text" autocomplete="off"></label>
         <label class="field"><span>Kategorie</span><input id="it-cat" data-combo="categories" autocomplete="off" placeholder="z. B. Werkzeug"></label>
         <label class="field"><span>Raum</span><input id="it-room" data-combo="rooms" autocomplete="off" placeholder="z. B. Keller"></label>
-        <label class="field"><span>Ort-Details</span><input id="it-loc" type="text" autocomplete="off"></label>
-        <label class="field"><span>Bestand</span><input id="it-qty" type="text" autocomplete="off"></label>
-        <label class="field"><span>Notiz</span><textarea id="it-note" rows="3"></textarea></label>
+        <details class="more" id="it-more">
+          <summary>Mehr Angaben<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
+          <label class="field"><span>Ort-Details</span><input id="it-loc" type="text" autocomplete="off" placeholder="z. B. Regal 2"></label>
+          <label class="field"><span>Bestand</span><input id="it-qty" type="text" autocomplete="off" placeholder="z. B. 3 oder genug"></label>
+          <label class="field stack"><span>Notiz</span><textarea id="it-note" rows="3" placeholder="Freitext"></textarea></label>
+        </details>
       </div>
-      <p class="hint" id="it-meta"></p>
+      <p class="hint meta-hint" id="it-meta"></p>
       <div id="it-actions">
-        <button class="btn danger block" id="it-archive">Ins Archiv verschieben</button>
+        <button class="btn danger block" id="it-archive"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg>Ins Archiv verschieben</button>
       </div>
       <div id="it-actions-arch" hidden>
         <button class="btn block" id="it-restore">Wiederherstellen</button>
-        <button class="btn danger block" id="it-purge">Endgültig löschen</button>
+        <button class="btn danger block" id="it-purge"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg>Endgültig löschen</button>
       </div>
     </div>
   </section>
@@ -163,24 +238,27 @@
   <!-- ============ ARCHIV ============ -->
   <section class="view" id="view-archive" hidden>
     <header class="topbar">
-      <button class="link" data-nav="settings">Zurück</button>
+      <button class="link back" data-nav="settings"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
       <h1>Archiv</h1>
       <span class="count" id="arch-count"></span>
     </header>
     <div class="scroll">
       <div id="arch-list" class="list"></div>
-      <p class="empty" id="arch-empty" hidden>Das Archiv ist leer.</p>
+      <div class="empty" id="arch-empty" hidden>
+        <span class="empty-badge muted"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg></span>
+        <p>Das Archiv ist leer.</p>
+      </div>
     </div>
   </section>
 
   <!-- ============ EINSTELLUNGEN ============ -->
   <section class="view" id="view-settings" hidden>
-    <header class="topbar"><h1>Einstellungen</h1></header>
-    <div class="scroll">
+    <header class="topbar large"><h1>Einstellungen</h1></header>
+    <div class="scroll settings">
 
       <h2 class="sec">Sicherung</h2>
       <div class="card">
-        <p class="hint">Sichert alles: Einträge, Kategorien, Räume, Archiv und Fotos in einer Datei. Der API-Key wird aus Sicherheitsgründen nicht mitgesichert.</p>
+        <p class="hint lead">Sichert alles: Einträge, Kategorien, Räume, Archiv und Fotos in einer Datei. Der API-Key wird aus Sicherheitsgründen nicht mitgesichert.</p>
         <label class="check"><input type="checkbox" id="exp-photos" checked> <span>Fotos mitsichern</span></label>
         <button class="btn primary block" id="exp-build">Sicherung erstellen</button>
         <p class="hint" id="exp-out"></p>
@@ -218,7 +296,7 @@
         <button class="btn block" id="set-test">Verbindung testen</button>
         <p class="hint" id="set-test-out"></p>
         <details class="help">
-          <summary>Kostenlosen API-Key besorgen – Anleitung</summary>
+          <summary>Kostenlosen API-Key besorgen – Anleitung<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
           <ol>
             <li>Öffne <b>aistudio.google.com/app/apikey</b> im Browser.</li>
             <li>Mit deinem Google-Konto anmelden.</li>
@@ -231,15 +309,15 @@
       </div>
 
       <h2 class="sec">Kategorien</h2>
-      <div class="card">
+      <div class="card list-card">
         <div id="cat-mgr" class="mgr"></div>
-        <div class="row-btns"><input id="cat-new" type="text" placeholder="Neue Kategorie"><button class="btn" id="cat-add">Anlegen</button></div>
+        <div class="row-btns add-row"><input id="cat-new" type="text" placeholder="Neue Kategorie"><button class="btn" id="cat-add">Anlegen</button></div>
       </div>
 
       <h2 class="sec">Räume</h2>
-      <div class="card">
+      <div class="card list-card">
         <div id="room-mgr" class="mgr"></div>
-        <div class="row-btns"><input id="room-new" type="text" placeholder="Neuer Raum"><button class="btn" id="room-add">Anlegen</button></div>
+        <div class="row-btns add-row"><input id="room-new" type="text" placeholder="Neuer Raum"><button class="btn" id="room-add">Anlegen</button></div>
       </div>
 
       <h2 class="sec">Fotos &amp; Speicher</h2>
@@ -253,57 +331,144 @@
           </select>
         </label>
         <p class="hint">Fotos werden beim Speichern auf diese Kantenlänge verkleinert, damit die Datenbank nicht zuläuft.</p>
-        <p class="hint" id="storage-info"></p>
+        <p class="hint strong" id="storage-info"></p>
         <button class="btn block" id="diag-run">Datenbank prüfen</button>
         <p class="hint" id="diag-out"></p>
-        <button class="btn block" data-nav="archive">Archiv öffnen</button>
+        <button class="btn block" data-nav="archive"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg>Archiv öffnen</button>
       </div>
 
       <h2 class="sec">Über</h2>
-      <div class="card">
+      <div class="card about">
         <p class="hint">Alle Einträge und Fotos liegen ausschließlich in der lokalen Datenbank dieses Geräts (IndexedDB). Es gibt keinen Server und kein Konto. Nur die Bilderkennung schickt das jeweilige Foto an Google Gemini.</p>
         <p class="hint">Die Daten hängen an dieser Web-Adresse und an dieser Installation. Sie gehen verloren, wenn du die App vom Home-Bildschirm löschst, in Safari die Website-Daten löschst oder die App unter einer anderen Adresse aufrufst. Mach dir deshalb regelmäßig eine Sicherung.</p>
-        <p class="hint" id="ver-info"></p>
+        <p class="hint ver" id="ver-info"></p>
       </div>
     </div>
   </section>
 
   <!-- ============ NAV ============ -->
   <nav id="nav">
-    <button data-nav="list" class="active"><span>📋</span>Liste</button>
-    <button data-nav="add" class="add"><span>＋</span>Hinzufügen</button>
-    <button data-nav="settings"><span>⚙️</span>Einstellungen</button>
+    <button data-nav="list" class="active"><svg class="ic" aria-hidden="true"><use href="#i-shelf"/></svg><span>Liste</span></button>
+    <button data-nav="add" class="add"><span class="fab"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span><span>Hinzufügen</span></button>
+    <button data-nav="settings"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span>Einstellungen</span></button>
   </nav>
 </div>
 
 <div id="lightbox" class="lightbox" hidden>
   <div class="lb-scroll" id="lb-scroll"><img id="lb-img" alt=""></div>
-  <button class="lb-close" id="lb-close" aria-label="Schließen">×</button>
+  <button class="lb-close" id="lb-close" aria-label="Schließen"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
   <p class="lb-hint">Bild antippen zum Hineinzoomen</p>
 </div>
 <div id="toast" class="toast" hidden></div>
-<div id="update-bar" class="update-bar" hidden><span>Neue Version verfügbar</span><button id="update-go">Neu laden</button></div>
+<div id="update-bar" class="update-bar" hidden><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span>Neue Version verfügbar</span><button id="update-go">Neu laden</button></div>
 
 <script>
+// Rettung aus einem Mischstand: Ein älterer Service Worker (bis 1.4.0) konnte neues
+// index.html neben veraltete Skripte in seinen Cache legen. Dann startet die App nicht,
+// und Neuladen hilft nicht, solange er die Seite ausliefert. In diesem Fall den neuen
+// Service Worker (wartet schon oder wird jetzt gesucht) sofort übernehmen lassen und
+// genau einmal neu laden. Steht bewusst hier inline – es muss auch dann laufen, wenn
+// ein veraltetes app.js geladen ist und abstürzt.
+(function () {
+  var VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || '';
+  var KEY = 'inventar-rettung';
+  var running = null;
+
+  // Schleifenschutz: höchstens ein automatisches Neuladen alle zwei Minuten.
+  function allowed() {
+    try {
+      var last = Number(sessionStorage.getItem(KEY)) || 0;
+      return Date.now() - last > 120000;
+    } catch (_) { void _; return false; }   // ohne sessionStorage lieber gar nicht automatisch
+  }
+
+  // Liefert den wartenden Service Worker – wartet dazu notfalls, bis er installiert ist.
+  function waitingWorker(reg) {
+    if (reg.waiting) return Promise.resolve(reg.waiting);
+    var nw = reg.installing;
+    if (!nw) return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      var t = setTimeout(function () { resolve(reg.waiting || null); }, 30000);
+      nw.addEventListener('statechange', function () {
+        if (nw.state === 'installed' || nw.state === 'redundant') { clearTimeout(t); resolve(reg.waiting || null); }
+      });
+    });
+  }
+
+  function attempt(why) {
+    if (!('serviceWorker' in navigator) || !allowed()) return Promise.resolve(false);
+    return navigator.serviceWorker.getRegistration().then(function (reg) {
+      if (!reg) return null;
+      return Promise.resolve(reg.update()).catch(function () { return null; })
+        .then(function () { return waitingWorker(reg); });
+    }).then(function (w) {
+      if (!w || !allowed()) return false;
+      try { sessionStorage.setItem(KEY, String(Date.now())); } catch (_) { void _; return false; }
+      console.warn('Heim-Inventar: neue Version wird übernommen (' + why + ').');
+      var done = false;
+      var reload = function () { if (!done) { done = true; location.reload(); } };
+      navigator.serviceWorker.addEventListener('controllerchange', reload);
+      w.postMessage({ type: 'SKIP_WAITING' });
+      setTimeout(reload, 6000);   // Rückfall, falls das Ereignis ausbleibt
+      window.__inventarRescuing = true;
+      var d = document.getElementById('boot-error-detail');
+      if (d) d.textContent = 'Eine neue Version wird eingerichtet – die App lädt gleich neu.';
+      return true;
+    }).catch(function () { return false; });
+  }
+
+  // Ergebnis: true = neue Version wird übernommen, die Seite lädt gleich neu.
+  // Läuft schon ein Versuch, dessen Ergebnis teilen; ein erfolgloser darf später wiederholt werden.
+  window.__inventarRescue = function (why) {
+    if (!running) {
+      running = attempt(why || '?').then(function (ok) { if (!ok) running = null; return ok; });
+    }
+    return running;
+  };
+
+  // Skriptfehler vor dem Start (z. B. altes app.js zu neuem index.html).
+  var early = function (e) {
+    if (window.__inventarReady) return;
+    var t = e && e.target;
+    if (e && e.type === 'error' && t && t !== window && t.tagName !== 'SCRIPT') return;   // z. B. ein fehlendes Bild
+    window.__inventarRescue('Startfehler');
+  };
+  window.addEventListener('error', early, true);
+  window.addEventListener('unhandledrejection', early);
+
+  // Module sind vor DOMContentLoaded ausgeführt: meldet app.js eine andere (oder gar
+  // keine) Version, passt es nicht zu diesem index.html.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.__inventarVersion !== VERSION) window.__inventarRescue('Version ' + (window.__inventarVersion || 'alt') + ' statt ' + VERSION);
+  });
+})();
+
 // Startet die App nicht (z. B. fehlende Datei), darf der Nutzer nicht vor einer
 // leeren Liste stehen und denken, seine Daten seien weg.
 setTimeout(function () {
-  if (window.__inventarReady) return;
-  document.getElementById('boot-error').hidden = false;
-  document.getElementById('app').hidden = true;
+  // __inventarFailed: app.js hat selbst schon eine genauere Meldung gezeigt.
+  if (window.__inventarReady || window.__inventarFailed) return;
+  // Vielleicht ein Mischstand nach einem Update – dann rettet sich die App selbst.
+  window.__inventarRescue('Zeitüberschreitung').then(function (rescuing) {
+    if (window.__inventarReady || window.__inventarFailed) return;
+    document.getElementById('boot-error').hidden = false;
+    document.getElementById('app').hidden = true;
+    if (rescuing) return;
 
-  // Nachsehen, welche Datei tatsächlich fehlt – das erspart das Raten.
-  var files = ['./js/app.js', './js/db.js', './js/img.js', './js/gemini.js',
-               './js/combo.js', './js/backup.js', './css/app.css', './manifest.webmanifest'];
-  var missing = [];
-  Promise.all(files.map(function (f) {
-    return fetch(f, { cache: 'no-store' })
-      .then(function (r) { if (!r.ok) missing.push(f + ' (' + r.status + ')'); })
-      .catch(function () { missing.push(f + ' (nicht erreichbar)'); });
-  })).then(function () {
-    document.getElementById('boot-error-detail').textContent = missing.length
-      ? 'Fehlt auf dem Server: ' + missing.join(', ')
-      : 'Alle Dateien sind erreichbar. Dann liegt es an einem Skriptfehler – lade die Seite neu.';
+    // Nachsehen, welche Datei tatsächlich fehlt – das erspart das Raten.
+    var files = ['./js/app.js', './js/db.js', './js/img.js', './js/gemini.js',
+                 './js/combo.js', './js/backup.js', './js/queue.js', './css/app.css', './manifest.webmanifest'];
+    var missing = [];
+    Promise.all(files.map(function (f) {
+      return fetch(f, { cache: 'no-store' })
+        .then(function (r) { if (!r.ok) missing.push(f + ' (' + r.status + ')'); })
+        .catch(function () { missing.push(f + ' (nicht erreichbar)'); });
+    })).then(function () {
+      if (window.__inventarReady || window.__inventarFailed) return;
+      document.getElementById('boot-error-detail').textContent = missing.length
+        ? 'Fehlt auf dem Server: ' + missing.join(', ')
+        : 'Alle Dateien sind erreichbar. Dann liegt es an einem Skriptfehler – lade die Seite neu.';
+    });
   });
 }, 6000);
 </script>

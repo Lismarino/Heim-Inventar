@@ -1,15 +1,51 @@
 import * as db from './db.js';
 import * as img from './img.js';
 import * as ai from './gemini.js';
-import { initCombos, hideCombo } from './combo.js';
+import { initCombos, hideCombo, norm } from './combo.js';
 import * as backup from './backup.js';
+import * as queue from './queue.js';
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.4.1';
+// Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
+window.__inventarVersion = APP_VERSION;
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dtf = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+
+/* ---------- rein darstellende Helfer ---------- */
+
+// Symbol aus dem SVG-Sprite in index.html.
+const icon = (name, cls = '') => `<svg class="ic${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+
+// Platzhalter für Einträge ohne Foto: Initiale auf einer gedeckten Farbe, die sich
+// stabil aus dem Namen ergibt – so sieht derselbe Eintrag immer gleich aus.
+const PH_TONES = 6;
+function placeholderHTML(it, cls) {
+  const name = String(it.name || '').trim();
+  if (!name) return `<div class="${cls} ph ph-none">${icon('box')}</div>`;
+  let h = 0;
+  for (const ch of name.toLowerCase()) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  const initial = Array.from(name)[0].toLocaleUpperCase('de-DE');
+  return `<div class="${cls} ph ph-${h % PH_TONES}" aria-hidden="true">${esc(initial)}</div>`;
+}
+
+// Kleine Illustration für die leere Liste: ein Regal, das auf Dinge wartet.
+const EMPTY_ART = `<svg class="empty-art" viewBox="0 0 200 150" aria-hidden="true">
+  <ellipse class="ea-floor" cx="100" cy="136" rx="84" ry="7"/>
+  <path class="ea-shelf" d="M22 58h156M22 104h156"/>
+  <path class="ea-line" d="M30 58v76M170 58v76"/>
+  <rect class="ea-jar" x="40" y="26" width="26" height="32" rx="6"/>
+  <rect class="ea-lid" x="38" y="20" width="30" height="8" rx="3"/>
+  <path class="ea-line" d="M45 40h16"/>
+  <rect class="ea-box" x="80" y="30" width="38" height="28" rx="3"/>
+  <path class="ea-line" d="M80 38h38M99 30v8"/>
+  <path class="ea-pot" d="M134 44h24l-3 14h-18z"/>
+  <path class="ea-leaf" d="M146 44c-6-8-4-16 0-20 4 4 6 12 0 20zM146 44c4-6 10-8 14-7-1 4-6 8-14 7z"/>
+  <rect class="ea-slot" x="44" y="72" width="112" height="32" rx="8"/>
+  <path class="ea-plus" d="M100 80v16M92 88h16"/>
+</svg>`;
 
 const state = {
   settings: {},
@@ -17,9 +53,12 @@ const state = {
   cats: [],
   rooms: [],
   view: 'list',
-  prevView: 'list',
-  draft: { source: null, previewURL: null, cards: [] },
+  origin: {},       // Ansicht -> woher man kam (für „Zurück“)
+  capture: { ids: [], busy: '' },   // Schnellerfassung: in dieser Runde erfasste Einträge
+  roomSel: new Set(),               // „Ohne Raum“: markierte Einträge
+  scrollPos: {},                    // Ansicht -> Scroll-Position beim Verlassen
   currentId: null,
+  shown: {},        // Detail: zuletzt angezeigte Feldwerte – gespeichert wird nur, was davon abweicht
   detailURL: null,
   lightboxURL: null,
   aiSearch: null,   // { question, answer, matches:[{item, why}] }
@@ -27,26 +66,66 @@ const state = {
 
 const catName = (id) => state.cats.find(c => c.id === id)?.name || '';
 const roomName = (id) => state.rooms.find(r => r.id === id)?.name || '';
+const hasKey = () => !!(state.settings.apiKey || '').trim();
+// Raum zählt nur, wenn es ihn auch gibt – eine Sicherung kann tote Verweise enthalten.
+const hasRoom = (it) => !!(it.roomId && roomName(it.roomId));
+// Wartet ein Eintrag auf die Erkennung, geht das nur mit Key voran. Ohne Key nicht
+// ewig „wird erkannt …“ drehen, sondern sagen, woran es hängt.
+const aiBusy = (it) => it.aiState === 'pending' && hasKey();
+const aiNeedsKey = (it) => it.aiState === 'pending' && !hasKey();
+const noRoomItems = () => state.items
+  .filter(i => !i.archived && !hasRoom(i))
+  .sort((a, b) => b.createdAt - a.createdAt);
 
 /* =========================== Boot =========================== */
 
 async function boot() {
+  // Passt index.html nicht zu diesem Skript (Mischstand nach einem Update), lieber die
+  // neue Version übernehmen und neu laden, statt halb zu starten.
+  const pageVersion = document.querySelector('meta[name="app-version"]')?.content || '';
+  if (pageVersion !== APP_VERSION) {
+    console.warn(`Versionen passen nicht zusammen: index.html ${pageVersion || 'alt'}, app.js ${APP_VERSION}.`);
+    if (await rescueUpdate('Version')) return;
+  }
   try {
     await db.openDB();
   } catch (e) {
-    document.body.innerHTML = `<p style="padding:40px;text-align:center">Die lokale Datenbank konnte nicht geöffnet werden.<br><br>${esc(e.message)}<br><br>Im privaten Modus von Safari steht IndexedDB nicht zur Verfügung.</p>`;
+    showBootError('Die lokale Datenbank konnte nicht geöffnet werden. Im privaten Modus von Safari steht IndexedDB nicht zur Verfügung.', e);
     return;
   }
-  await reloadAll();
-  wire();
-  initCombos(kind => (kind === 'categories' ? state.cats : state.rooms).map(x => x.name));
-  fillSettingsForm();
-  navigate('list');
-  $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
+  try {
+    await reloadAll();
+    wire();
+    initCombos(kind => (kind === 'categories' ? state.cats : state.rooms).map(x => x.name));
+    queue.initQueue({ settings: () => state.settings, onChange: onDataChanged });
+    fillSettingsForm();
+    navigate('list');
+    $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
+  } catch (e) {
+    showBootError('Die gespeicherten Daten konnten nicht geladen werden. Lade die Seite neu; hilft das nicht, schließe andere Tabs mit der App.', e);
+    return;
+  }
+  // Hat der Wächter in index.html schon Alarm geschlagen, weil der Start länger dauerte: zurücknehmen.
+  $('#boot-error').hidden = true;
+  $('#app').hidden = false;
   window.__inventarReady = true;
+  // Die App kann mitten in der Erkennung geschlossen worden sein – liegen Gebliebenes abarbeiten.
+  queue.kick();
   registerSW();
   requestPersist();
   updateStorageInfo();
+}
+
+// Zeigt die Startfehler-Seite aus index.html mit einer passenden Meldung.
+function showBootError(msg, err) {
+  window.__inventarFailed = true;   // der Wächter in index.html überschreibt dann nichts mehr
+  rescueUpdate('Startfehler');      // liegt womöglich nur an einem halben Update
+  const box = $('#boot-error');
+  box.querySelector('p').textContent = msg;
+  $('#boot-error-detail').textContent = err?.message || String(err || '');
+  box.hidden = false;
+  $('#app').hidden = true;
+  console.error('Start fehlgeschlagen:', err);
 }
 
 async function reloadAll() {
@@ -58,6 +137,38 @@ async function reloadAll() {
   state.cats = cats.sort((a, b) => a.name.localeCompare(b.name, 'de'));
   state.rooms = rooms.sort((a, b) => a.name.localeCompare(b.name, 'de'));
   refreshPickers();
+}
+
+// Leichter als reloadAll(): nur Einträge und Kategorien – für die Hintergrund-Erkennung.
+async function refreshItems() {
+  const [items, cats] = await Promise.all([db.getAll('items'), db.getAll('categories')]);
+  state.items = items;
+  const before = state.cats.map(c => c.id + c.name).join('|');
+  state.cats = cats.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  if (state.cats.map(c => c.id + c.name).join('|') !== before) refreshPickers();
+}
+
+// Die Warteschlange hat etwas geändert: Daten neu holen und nur die aktuelle Ansicht
+// auffrischen – ohne offene Eingabefelder oder die Detail-Ansicht zu zerstören.
+let changeTimer = null;
+function onDataChanged() {
+  clearTimeout(changeTimer);
+  changeTimer = setTimeout(async () => {
+    try {
+      await refreshItems();
+      renderCurrent();
+    } catch (e) {
+      console.warn('Aktualisieren fehlgeschlagen:', e);
+    }
+  }, 120);
+}
+
+function renderCurrent() {
+  if (state.view === 'list') renderList();
+  else if (state.view === 'add') renderCapture();
+  else if (state.view === 'rooms') renderRooms();
+  else if (state.view === 'archive') renderArchive();
+  else if (state.view === 'item') syncItemAi();
 }
 
 function refreshPickers() {
@@ -74,22 +185,32 @@ function fillSelect(sel, rows, allLabel) {
 /* =========================== Navigation =========================== */
 
 function navigate(view) {
-  if (view === 'back') view = state.prevView === 'archive' ? 'archive' : 'list';
-  if (view !== state.view) state.prevView = state.view;
+  const from = state.view;
+  if (view === 'back') view = state.origin[from] || 'list';
+  else if (view !== from) state.origin[view] = from;
 
   closeLightbox();
   hideCombo();
   if (state.detailURL && view !== 'item') { URL.revokeObjectURL(state.detailURL); state.detailURL = null; }
-  if (view === 'add' && state.view !== 'add') resetDraft();
+  // Neue Erfassungsrunde – außer man kommt nur aus einem Eintrag oder „Ohne Raum“ zurück.
+  if (view === 'add' && !['add', 'item', 'rooms'].includes(from)) resetCapture();
+  if (view === 'rooms' && !['rooms', 'item'].includes(from)) resetRoomSel();
+
+  const leaving = $('#view-' + from + ' .scroll');
+  if (leaving) state.scrollPos[from] = leaving.scrollTop;
 
   state.view = view;
+  document.body.dataset.view = view;
   $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
   $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.nav === view));
-  const sc = $('#view-' + view + ' .scroll');
-  if (sc) sc.scrollTop = 0;
 
   if (view === 'list') renderList();
+  if (view === 'add') renderCapture();
+  if (view === 'rooms') renderRooms();
   if (view === 'archive') renderArchive();
+  // Aus einem Eintrag zurück: dort weitermachen, wo man war.
+  const sc = $('#view-' + view + ' .scroll');
+  if (sc) sc.scrollTop = from === 'item' && view !== 'item' ? (state.scrollPos[view] || 0) : 0;
   if (view === 'settings') { renderManagers(); updateStorageInfo(); }
 }
 
@@ -97,33 +218,42 @@ function navigate(view) {
 
 function haystack(it) {
   return [it.name, catName(it.categoryId), roomName(it.roomId), it.locationDetail, it.quantity, it.note]
-    .filter(Boolean).join(' ').toLowerCase();
+    .filter(Boolean).join(' ');
 }
 
 function visibleItems() {
-  const q = $('#q').value.trim().toLowerCase();
+  const q = norm($('#q').value);
   const cat = $('#f-cat').value;
   const room = $('#f-room').value;
   return state.items
     .filter(i => !i.archived)
     .filter(i => !cat || i.categoryId === cat)
     .filter(i => !room || i.roomId === room)
-    .filter(i => !q || haystack(i).includes(q))
+    .filter(i => !q || norm(haystack(i)).includes(q))
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
+// Nur echte Bild-Data-URLs – der Wert kann aus einer fremden Sicherungsdatei stammen.
+const isThumb = (v) => typeof v === 'string' && v.startsWith('data:image/');
+
 function rowHTML(it, why) {
-  const thumb = it.thumb
-    ? `<img class="thumb" src="${it.thumb}" alt="">`
-    : `<div class="thumb">📦</div>`;
+  const thumb = isThumb(it.thumb)
+    ? `<img class="thumb" src="${esc(it.thumb)}" alt="">`
+    : placeholderHTML(it, 'thumb');
   const cat = catName(it.categoryId);
   const place = [roomName(it.roomId), it.locationDetail].filter(Boolean).join(' · ');
-  const meta = [it.quantity, place].filter(Boolean).join(' · ');
-  return `<button class="row" data-id="${esc(it.id)}">
+  const title = aiBusy(it)
+    ? `<div class="name pending"><span class="spin"></span>${esc(it.name || 'wird erkannt …')}</div>`
+    : it.name
+      ? `<div class="name">${esc(it.name)}</div>`
+      : aiNeedsKey(it)
+        ? '<div class="name unnamed">Wartet auf API-Key</div>'
+        : '<div class="name unnamed">Unbenannt – antippen zum Benennen</div>';
+  return `<button class="row${aiBusy(it) ? ' is-pending' : ''}" data-id="${esc(it.id)}">
     ${thumb}
     <div class="body">
-      <div class="name">${esc(it.name || '(ohne Namen)')}</div>
-      <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${esc(meta)}</div>
+      ${title}
+      <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${place ? `<span class="place">${icon('pin')}<span>${esc(place)}</span></span>` : ''}${it.quantity ? `<span class="qty">${esc(it.quantity)}</span>` : ''}</div>
       ${why ? `<div class="why">${esc(why)}</div>` : `<div class="when">${dtf.format(new Date(it.createdAt))}</div>`}
     </div>
   </button>`;
@@ -133,15 +263,22 @@ function renderList() {
   if (state.aiSearch) { renderAiResult(); return; }
   $('#ai-answer').hidden = true;
   $('#filters').hidden = false;
+  const nr = noRoomItems().length;
+  const hint = $('#noroom-hint');
+  hint.hidden = !nr;
+  if (nr) hint.innerHTML = `<span class="nr-ic">${icon('pin')}</span>`
+    + `<span class="nr-txt"><b>${plural(nr, 'Eintrag', 'Einträge')} ohne Raum</b><small>Jetzt gesammelt zuordnen</small></span>`
+    + icon('chev-r', 'go');
   const rows = visibleItems();
   const total = state.items.filter(i => !i.archived).length;
-  $('#list').innerHTML = rows.map(rowHTML).join('');
+  $('#list').innerHTML = rows.map(it => rowHTML(it)).join('');
   $('#list-count').textContent = total ? (rows.length === total ? `${total}` : `${rows.length}/${total}`) : '';
   const empty = $('#list-empty');
   empty.hidden = rows.length > 0;
+  empty.classList.toggle('first', total === 0);
   empty.innerHTML = total === 0
-    ? 'Noch nichts erfasst.<br>Tippe unten auf <b>＋ Hinzufügen</b>.'
-    : 'Keine Treffer für diese Suche oder Filter.';
+    ? `${EMPTY_ART}<p><strong>Noch nichts erfasst</strong>Tippe unten auf die Kamera und fotografiere, was du aufbewahrst – Stück für Stück.</p>`
+    : `<span class="empty-badge muted">${icon('search')}</span><p>Keine Treffer für diese Suche oder Filter.</p>`;
 }
 
 /* ---------------- KI-Suche ---------------- */
@@ -149,6 +286,7 @@ function renderList() {
 function renderAiResult() {
   const a = state.aiSearch;
   $('#filters').hidden = true;
+  $('#noroom-hint').hidden = true;
   $('#ai-answer').hidden = false;
   $('#ai-answer-q').textContent = a.question;
   $('#ai-answer-text').textContent = a.answer || 'Keine Antwort erhalten.';
@@ -156,7 +294,8 @@ function renderAiResult() {
   $('#list-count').textContent = a.matches.length || '';
   const empty = $('#list-empty');
   empty.hidden = a.matches.length > 0;
-  empty.textContent = 'Dazu passt nichts aus deinem Bestand.';
+  empty.classList.remove('first');
+  empty.innerHTML = `<span class="empty-badge muted">${icon('sparkle')}</span><p>Dazu passt nichts aus deinem Bestand.</p>`;
 }
 
 function clearAiSearch() {
@@ -217,157 +356,253 @@ async function runAiSearch() {
 
 function renderArchive() {
   const rows = state.items.filter(i => i.archived).sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
-  $('#arch-list').innerHTML = rows.map(rowHTML).join('');
+  $('#arch-list').innerHTML = rows.map(it => rowHTML(it)).join('');
   $('#arch-count').textContent = rows.length || '';
   $('#arch-empty').hidden = rows.length > 0;
 }
 
-/* =========================== Hinzufügen =========================== */
+/* =========================== Hinzufügen: Schnellerfassung =========================== */
 
-// Dekodierte Bitmap freigeben – auf dem iPhone sonst schnell viel Speicher.
-function releaseSource() {
-  const s = state.draft.source;
-  if (s && typeof s.close === 'function') { try { s.close(); } catch (_) { void _; } }
-  state.draft.source = null;
+// Neue Erfassungsrunde: Zähler leeren, gemerkten Raum vorbelegen.
+function resetCapture() {
+  state.capture = { ids: [], busy: state.capture.busy };
+  $('#cap-room').value = state.settings.lastRoom || '';
+  $('#cap-loc').value = state.settings.lastLoc || '';
+  $('#manual').open = false;
+  resetManual();
 }
 
-function resetDraft() {
-  releaseSource();
-  if (state.draft.previewURL) URL.revokeObjectURL(state.draft.previewURL);
-  state.draft = { source: null, previewURL: null, cards: [] };
-  $('#photo-preview').hidden = true;
-  $('#photo-preview').removeAttribute('src');
-  $('#photo-placeholder').hidden = false;
-  $('#photo-clear').hidden = true;
-  $('#photo-expand').hidden = true;
-  $('#photo-input').value = '';
-  $('#ai-hint').value = '';
-  $('#ai-status').textContent = '';
-  $('#ai-status').className = 'hint';
-  $('#in-room').value = '';
-  $('#in-loc').value = '';
-  $('#in-qty').value = '';
-  $('#in-note').value = '';
-  setCards([{ name: '', category: '', confidence: null }]);
-  updateAiButton();
+function resetManual() {
+  for (const id of ['#man-name', '#man-cat', '#man-qty', '#man-note']) $(id).value = '';
+  $('#man-more').open = false;
 }
 
-function setCards(cards) {
-  state.draft.cards = cards;
-  $('#cards').innerHTML = cards.map((c, i) => `
-    <div class="icard" data-i="${i}">
-      ${cards.length > 1 ? '<button class="del" data-del="' + i + '" aria-label="Entfernen">×</button>' : ''}
-      <label class="field"><span>Name</span><input class="c-name" type="text" value="${esc(c.name)}" placeholder="z. B. Akkuschrauber" autocomplete="off"></label>
-      <label class="field"><span>Kategorie</span><input class="c-cat" data-combo="categories" value="${esc(c.category)}" placeholder="z. B. Werkzeug" autocomplete="off"></label>
-      ${c.confidence != null ? `<p class="conf">KI-Sicherheit: ${Math.round(c.confidence * 100)} %</p>` : ''}
-    </div>`).join('');
+// Raum und Ort-Details merken, bis die Nutzerin sie ändert. Leer ist erlaubt.
+async function rememberWhere() {
+  const room = $('#cap-room').value.trim();
+  const loc = $('#cap-loc').value.trim();
+  if (room !== (state.settings.lastRoom || '')) { state.settings.lastRoom = room; await db.setSetting('lastRoom', room); }
+  if (loc !== (state.settings.lastLoc || '')) { state.settings.lastLoc = loc; await db.setSetting('lastLoc', loc); }
+  return { room, loc };
 }
 
-function readCards() {
-  return $$('#cards .icard').map(el => ({
-    name: el.querySelector('.c-name').value.trim(),
-    category: el.querySelector('.c-cat').value.trim(),
-  })).filter(c => c.name);
+function renderCapture() {
+  const hint = $('#cap-hint');
+  hint.hidden = hasKey();
+  hint.textContent = 'Ohne API-Key in den Einstellungen werden Fotos nicht erkannt. Sie landen als „Unbenannt“ in der Liste – trägst du später einen Key ein, werden sie automatisch erkannt.';
+
+  const mine = state.capture.ids.map(id => state.items.find(i => i.id === id)).filter(Boolean);
+  const busy = state.capture.busy;
+  const pending = mine.filter(aiBusy).length;
+  const needKey = mine.filter(aiNeedsKey).length;
+  $('#cap-status').hidden = !mine.length && !busy;
+
+  const parts = [`${mine.length} erfasst`];
+  if (pending) parts.push(`${pending} ${pending === 1 ? 'wird' : 'werden'} erkannt`);
+  if (needKey) parts.push(`${needKey} ${needKey === 1 ? 'wartet' : 'warten'} auf API-Key`);
+  if (busy) parts.push(busy);
+  $('#cap-summary').innerHTML = (busy || pending ? '<span class="spin"></span>' : '') + esc(parts.join(' · '));
+
+  $('#cap-strip').innerHTML = mine.slice(-20).reverse().map(it => {
+    const wait = aiBusy(it);
+    const pic = isThumb(it.thumb) ? `<img src="${esc(it.thumb)}" alt="">` : placeholderHTML(it, 'cap-ph');
+    const label = wait ? 'wird erkannt' : (it.name || (aiNeedsKey(it) ? 'wartet auf API-Key' : 'Unbenannt'));
+    const badge = wait ? '<span class="spin"></span>'
+      : it.aiState === 'failed' || aiNeedsKey(it) ? `<span class="cap-badge bad">${icon('alert')}</span>`
+        : `<span class="cap-badge">${icon('check')}</span>`;
+    return `<button class="cap-thumb${wait ? ' pending' : ''}" data-id="${esc(it.id)}" title="${esc(label)}" aria-label="${esc(label)}">
+      ${pic}${badge}</button>`;
+  }).join('');
+
+  const note = pending ? queue.status().note : '';
+  $('#cap-note').hidden = !note;
+  $('#cap-note').textContent = note;
+
+  const nr = noRoomItems().length;
+  const link = $('#cap-noroom');
+  link.hidden = !nr;
+  link.textContent = `${plural(nr, 'Eintrag', 'Einträge')} ohne Raum – zuordnen`;
 }
 
-function updateAiButton() {
-  $('#ai-run').disabled = !state.draft.source;
+// Mehrere Auswahlen nacheinander abarbeiten, nie parallel (Speicher auf dem iPhone).
+let captureChain = Promise.resolve();
+function capturePhotos(files) {
+  if (!files.length) return captureChain;
+  captureChain = captureChain.then(() => captureBatch(files)).catch((e) => toast('Speichern fehlgeschlagen: ' + e.message, true));
+  return captureChain;
 }
 
-async function onPhotoChosen(file) {
-  if (!file) return;
-  try {
-    $('#ai-status').className = 'hint';
-    $('#ai-status').textContent = 'Bild wird geladen …';
-    const source = await img.decode(file);
-    releaseSource();
-    if (state.draft.previewURL) URL.revokeObjectURL(state.draft.previewURL);
-    state.draft.source = source;
-    state.draft.previewURL = URL.createObjectURL(file);
-    const p = $('#photo-preview');
-    p.src = state.draft.previewURL;
-    p.hidden = false;
-    $('#photo-placeholder').hidden = true;
-    $('#photo-clear').hidden = false;
-    $('#photo-expand').hidden = false;
-    $('#ai-status').textContent = state.settings.apiKey
-      ? 'Bereit. Optional einen Hinweis eintragen, dann „Mit KI erkennen“.'
-      : 'Hinweis: Ohne API-Key in den Einstellungen ist keine Erkennung möglich – du kannst den Namen aber selbst eintragen.';
-  } catch (e) {
-    toast(e.message, true);
-    $('#ai-status').textContent = '';
-  }
-  updateAiButton();
-}
+// Jedes Foto wird sofort ein Eintrag – erkannt wird später im Hintergrund.
+async function captureBatch(files) {
+  const { room, loc } = await rememberWhere();
+  const roomId = await db.ensureNamed('rooms', room);
+  if (roomId && !state.rooms.some(r => r.id === roomId)) await reloadAll();
+  const pending = hasKey();
+  const max = Number(state.settings.imgMax) || 1600;
+  let failed = 0;
 
-async function runAI() {
-  if (!state.draft.source) return;
-  const btn = $('#ai-run');
-  const st = $('#ai-status');
-  btn.disabled = true;
-  st.className = 'hint';
-  st.innerHTML = '<span class="spin"></span>Gemini analysiert das Foto …';
-  try {
-    const blob = await img.toBlob(state.draft.source, 1024, 0.82);
-    const b64 = await img.blobToBase64(blob);
-    const found = await ai.analyzePhoto(state.settings, b64, $('#ai-hint').value.trim(), state.cats.map(c => c.name));
-    setCards(found);
-    st.className = 'hint ok';
-    st.textContent = found.length === 1
-      ? 'Ein Gegenstand erkannt. Du kannst alles vor dem Speichern ändern.'
-      : `${found.length} Gegenstände erkannt. Du kannst alles vor dem Speichern ändern.`;
-  } catch (e) {
-    st.className = 'hint err';
-    st.textContent = e.message;
-  } finally {
-    btn.disabled = false;
-    updateAiButton();
-  }
-}
-
-async function saveDraft() {
-  const cards = readCards();
-  if (!cards.length) { toast('Bitte mindestens einen Namen eintragen.', true); return; }
-
-  const btn = $('#add-save');
-  btn.disabled = true;
-  try {
-    const roomId = await db.ensureNamed('rooms', $('#in-room').value);
-    const catIds = [];
-    for (const c of cards) catIds.push(await db.ensureNamed('categories', c.category));
-
-    let photo = null, photoId = null, thumb = '';
-    if (state.draft.source) {
-      const max = Number(state.settings.imgMax) || 1600;
-      const blob = await img.toBlob(state.draft.source, max, 0.82);
-      thumb = img.toDataURL(state.draft.source, 160, 0.62);
-      photoId = db.uid();
-      photo = { id: photoId, buf: await blob.arrayBuffer(), type: 'image/jpeg', createdAt: Date.now() };
+  for (let i = 0; i < files.length; i++) {
+    state.capture.busy = files.length > 1 ? `Foto ${i + 1} von ${files.length} wird gespeichert …` : 'Foto wird gespeichert …';
+    if (state.view === 'add') renderCapture();
+    let src = null;
+    try {
+      src = await img.decode(files[i]);
+      const blob = await img.toBlob(src, max, 0.82);
+      const thumb = img.toDataURL(src, 160, 0.62);
+      img.release(src);
+      src = null;
+      const now = Date.now();
+      const photo = { id: db.uid(), buf: await blob.arrayBuffer(), type: 'image/jpeg', createdAt: now };
+      const it = db.newItem({
+        roomId,
+        locationDetail: loc,
+        photoId: photo.id,
+        thumb,
+        aiState: pending ? 'pending' : null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.saveItems([it], photo);
+      state.items.push(it);
+      state.capture.ids.push(it.id);
+      if (pending) queue.kick();
+    } catch (e) {
+      failed++;
+      console.warn('Foto nicht übernommen:', e);
+    } finally {
+      img.release(src);
     }
+  }
 
-    const now = Date.now();
-    const items = cards.map((c, i) => db.newItem({
-      name: c.name,
-      categoryId: catIds[i],
+  state.capture.busy = '';
+  renderCurrent();
+  if (failed) toast(`${plural(failed, 'Foto konnte', 'Fotos konnten')} nicht gelesen werden.`, true);
+  updateStorageInfo();
+}
+
+// „Ohne Foto eintragen“: Name, Kategorie, optional Bestand und Notiz.
+async function saveManual() {
+  const name = $('#man-name').value.trim();
+  if (!name) { toast('Bitte einen Namen eintragen.', true); $('#man-name').focus(); return; }
+  const btn = $('#man-save');
+  btn.disabled = true;
+  try {
+    const { room, loc } = await rememberWhere();
+    const roomId = await db.ensureNamed('rooms', room);
+    const categoryId = await db.ensureNamed('categories', $('#man-cat').value);
+    const it = db.newItem({
+      name,
+      categoryId,
       roomId,
-      locationDetail: $('#in-loc').value.trim(),
-      quantity: $('#in-qty').value.trim(),
-      note: $('#in-note').value.trim(),
-      photoId, thumb,
-      confidence: null,
-      createdAt: now, updatedAt: now,
-    }));
-
-    await db.saveItems(items, photo);
+      locationDetail: loc,
+      quantity: $('#man-qty').value.trim(),
+      note: $('#man-note').value.trim(),
+    });
+    await db.saveItems([it]);
+    state.capture.ids.push(it.id);
     await reloadAll();
-    resetDraft();
-    navigate('list');
-    toast(`${plural(items.length, 'Eintrag', 'Einträge')} gespeichert.`);
+    resetManual();
+    renderCapture();
+    toast(`„${name}“ gespeichert.`);
     updateStorageInfo();
+    if (!categoryId) suggestCategoryLater(it.id, name);
   } catch (e) {
     toast('Speichern fehlgeschlagen: ' + e.message, true);
   } finally {
     btn.disabled = false;
+  }
+}
+
+// Kategorie im Hintergrund vorschlagen lassen – blockiert nichts, Fehler sind egal.
+async function suggestCategoryLater(id, name) {
+  if (!hasKey() || !navigator.onLine) return;
+  try {
+    const cat = await ai.suggestCategory(state.settings, name, state.cats.map(c => c.name));
+    if (!cat) return;
+    const cur = await db.get('items', id);
+    if (!cur || cur.categoryId) return;
+    const categoryId = await db.ensureNamed('categories', cat);
+    await db.patchItem(id, { categoryId }, x => !x.categoryId);
+    onDataChanged();
+  } catch (e) {
+    console.warn('Kategorie-Vorschlag fehlgeschlagen:', e);
+  }
+}
+
+/* =========================== Ohne Raum =========================== */
+
+function resetRoomSel() {
+  state.roomSel.clear();
+  $('#rs-room').value = '';
+  $('#rs-loc').value = '';
+}
+
+// Das Ankreuzfeld (role=checkbox) und der Stift sind Geschwister – ein Knopf darf
+// nicht in einem anderen bedienbaren Element stecken.
+function pickHTML(it) {
+  const on = state.roomSel.has(it.id);
+  const wait = aiBusy(it);
+  const pic = isThumb(it.thumb) ? `<img src="${esc(it.thumb)}" alt="">` : placeholderHTML(it, 'pick-ph');
+  const label = it.name || (wait ? 'wird erkannt' : aiNeedsKey(it) ? 'wartet auf API-Key' : 'Unbenannt');
+  const name = wait
+    ? `<span class="spin"></span>${esc(it.name || 'wird erkannt …')}`
+    : esc(label);
+  return `<div class="pick${on ? ' on' : ''}" data-id="${esc(it.id)}">
+    <div class="pick-toggle" role="checkbox" aria-checked="${on}" tabindex="0" aria-label="${esc(label)}">
+      <div class="pick-img">${pic}<span class="pick-check" aria-hidden="true">${icon('check')}</span></div>
+      <div class="pick-name${!it.name && !wait ? ' unnamed' : ''}">${name}</div>
+    </div>
+    <button class="pick-edit" data-edit aria-label="${esc(label)} öffnen">${icon('pencil')}</button>
+  </div>`;
+}
+
+function renderRooms() {
+  const rows = noRoomItems();
+  const ids = new Set(rows.map(r => r.id));
+  for (const id of [...state.roomSel]) if (!ids.has(id)) state.roomSel.delete(id);
+  $('#rs-count').textContent = rows.length || '';
+  $('#rs-main').hidden = !rows.length;
+  $('#rs-bar').hidden = !rows.length;
+  $('#rs-empty').hidden = rows.length > 0;
+  $('#rs-grid').innerHTML = rows.map(pickHTML).join('');
+  updateAssignButton();
+}
+
+function updateAssignButton() {
+  const n = state.roomSel.size;
+  const btn = $('#rs-assign');
+  btn.disabled = !n;
+  btn.textContent = n ? `${n} zuweisen` : 'Zuweisen';
+}
+
+function togglePick(el) {
+  const id = el.dataset.id;
+  const on = !state.roomSel.has(id);
+  if (on) state.roomSel.add(id); else state.roomSel.delete(id);
+  el.classList.toggle('on', on);
+  el.querySelector('.pick-toggle').setAttribute('aria-checked', String(on));
+  updateAssignButton();
+}
+
+async function assignRooms() {
+  const ids = [...state.roomSel];
+  if (!ids.length) return;
+  const room = $('#rs-room').value.trim();
+  if (!room) { toast('Bitte einen Raum eintragen.', true); $('#rs-room').focus(); return; }
+  const btn = $('#rs-assign');
+  btn.disabled = true;
+  try {
+    const roomId = await db.ensureNamed('rooms', room);
+    const res = await db.assignRoom(ids, roomId, $('#rs-loc').value);
+    state.roomSel.clear();
+    hideCombo();
+    await reloadAll();
+    renderRooms();
+    toast(`${plural(res.changed, 'Eintrag', 'Einträge')} → ${roomName(roomId)}`);
+  } catch (e) {
+    toast('Zuweisen fehlgeschlagen: ' + e.message, true);
+  } finally {
+    updateAssignButton();
   }
 }
 
@@ -411,12 +646,16 @@ async function openItem(id) {
   if (!it) return;
   state.currentId = id;
 
-  $('#it-name').value = it.name || '';
-  $('#it-cat').value = catName(it.categoryId);
-  $('#it-room').value = roomName(it.roomId);
-  $('#it-loc').value = it.locationDetail || '';
-  $('#it-qty').value = it.quantity || '';
-  $('#it-note').value = it.note || '';
+  state.shown = {};
+  showField('name', it.name || '');
+  showField('cat', catName(it.categoryId));
+  showField('room', roomName(it.roomId));
+  showField('loc', it.locationDetail || '');
+  showField('qty', it.quantity || '');
+  showField('note', it.note || '');
+  // Selten gebrauchte Felder einklappen – außer sie sind schon befüllt.
+  $('#it-more').open = !!(it.locationDetail || it.quantity || it.note);
+  renderItemAi(it);
   $('#it-meta').textContent =
     `Hinzugefügt: ${dtf.format(new Date(it.createdAt))}` +
     (it.updatedAt && it.updatedAt !== it.createdAt ? ` · Geändert: ${dtf.format(new Date(it.updatedAt))}` : '') +
@@ -445,22 +684,95 @@ async function openItem(id) {
   }
 }
 
+// Detail-Feld befüllen und den angezeigten Wert merken (Schlüssel: it-<key>).
+function showField(key, val) {
+  $('#it-' + key).value = val;
+  state.shown[key] = val;
+}
+
+// Hat die Nutzerin das Feld seit dem Anzeigen geändert?
+const fieldChanged = (key) => $('#it-' + key).value.trim() !== String(state.shown[key] ?? '').trim();
+
+// Status der Hintergrund-Erkennung im Eintrag.
+function renderItemAi(it) {
+  const pending = it.aiState === 'pending';
+  const needKey = aiNeedsKey(it);
+  const failed = it.aiState === 'failed';
+  // Ohne Key erfasste Fotos lassen sich nachträglich erkennen.
+  const fresh = !pending && !failed && !!it.photoId && !it.name;
+  const box = $('#it-ai');
+  box.hidden = it.archived || !(pending || failed || fresh);
+  const txt = $('#it-ai-text');
+  if (needKey) {
+    txt.className = 'hint';
+    txt.textContent = 'Wartet auf die Erkennung – dafür fehlt noch ein API-Key in den Einstellungen.';
+  } else if (pending) {
+    const note = queue.status().note;
+    txt.className = 'hint';
+    txt.innerHTML = '<span class="spin"></span>Wird gerade erkannt … Raum oder Name kannst du trotzdem schon eintragen.'
+      + (note ? ` ${esc(note)}` : '');
+  } else if (failed) {
+    txt.className = 'hint err';
+    txt.textContent = 'Erkennung fehlgeschlagen: ' + (it.aiError || 'unbekannter Fehler');
+  } else {
+    txt.className = 'hint';
+    txt.textContent = 'Dieses Foto wurde noch nicht erkannt.';
+  }
+  const retry = $('#it-retry');
+  retry.hidden = pending;
+  retry.textContent = failed ? 'Erneut erkennen' : 'Mit KI erkennen';
+  $('#it-name').placeholder = pending && !needKey ? 'wird erkannt …' : '';
+}
+
+// Nach einer Änderung im Hintergrund: Status neu zeichnen und frisch erkannte
+// Werte in noch leere Felder übernehmen – nie Eingaben überschreiben.
+function syncItemAi() {
+  const it = state.items.find(x => x.id === state.currentId);
+  if (!it) return;
+  renderItemAi(it);
+  // Nur übernehmen, was die Nutzerin nicht angefasst hat. Bleibt ein fokussiertes Feld
+  // leer, bleibt auch der gemerkte Wert leer – Speichern lässt das KI-Ergebnis dann stehen.
+  const fill = (key, val) => {
+    const el = $('#it-' + key);
+    if (val && !el.value && document.activeElement !== el) showField(key, val);
+  };
+  fill('name', it.name);
+  fill('cat', catName(it.categoryId));
+}
+
+async function retryItem() {
+  if (!hasKey()) { toast('Für die Erkennung brauchst du einen API-Key in den Einstellungen.', true); return; }
+  try {
+    await db.patchItem(state.currentId, { aiState: 'pending', aiError: null });
+    await refreshItems();
+    syncItemAi();
+    queue.kick();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// Gespeichert wird nur, was die Nutzerin im Detail tatsächlich geändert hat. So bleibt
+// ein Ergebnis der Erkennung stehen, das eingetroffen ist, während ein Feld leer im
+// Fokus war – und ein bewusst geleertes Feld wird trotzdem geleert.
 async function saveItem() {
   const it = state.items.find(x => x.id === state.currentId);
   if (!it) return;
   const name = $('#it-name').value.trim();
-  if (!name) { toast('Der Name darf nicht leer sein.', true); return; }
+  const pending = it.aiState === 'pending';
+  // Solange die KI noch arbeitet, darf der Name leer bleiben – sie trägt ihn dann ein.
+  if (fieldChanged('name') && !name && !pending) { toast('Der Name darf nicht leer sein.', true); return; }
   try {
-    it.name = name;
-    it.categoryId = await db.ensureNamed('categories', $('#it-cat').value);
-    it.roomId = await db.ensureNamed('rooms', $('#it-room').value);
-    it.locationDetail = $('#it-loc').value.trim();
-    it.quantity = $('#it-qty').value.trim();
-    it.note = $('#it-note').value.trim();
-    it.updatedAt = Date.now();
-    await db.put('items', it);
+    const patch = {};
+    if (fieldChanged('name') && name) patch.name = name;
+    if (fieldChanged('cat')) patch.categoryId = await db.ensureNamed('categories', $('#it-cat').value);
+    if (fieldChanged('room')) patch.roomId = await db.ensureNamed('rooms', $('#it-room').value);
+    if (fieldChanged('loc')) patch.locationDetail = $('#it-loc').value.trim();
+    if (fieldChanged('qty')) patch.quantity = $('#it-qty').value.trim();
+    if (fieldChanged('note')) patch.note = $('#it-note').value.trim();
+    if (Object.keys(patch).length) await db.patchItem(it.id, patch);
     await reloadAll();
-    navigate(it.archived ? 'archive' : 'list');
+    navigate('back');
     toast('Gespeichert.');
   } catch (e) {
     toast('Speichern fehlgeschlagen: ' + e.message, true);
@@ -484,10 +796,31 @@ function selectModel(id) {
   sel.value = id;
 }
 
+// Neuer oder geänderter API-Key: speichern, Warteschlange neu starten und Fotos,
+// die ohne Key erfasst wurden, jetzt erkennen lassen. Liefert die Zahl der vorgemerkten.
+async function applyKey(key) {
+  state.settings.apiKey = key;
+  await db.setSetting('apiKey', key);
+  let marked = 0;
+  if (key) {
+    try {
+      marked = await db.markUnrecognized();
+    } catch (e) {
+      console.warn('Vormerken zur Erkennung fehlgeschlagen:', e);
+    }
+    if (marked) await refreshItems();
+  }
+  queue.kick({ reset: true });
+  renderCurrent();
+  return marked;
+}
+
+const markedMsg = (n) => (n ? ` ${plural(n, 'Foto wird', 'Fotos werden')} jetzt erkannt.` : '');
+
 async function loadModelList() {
   const out = $('#set-models-out');
   const key = $('#set-key').value.trim();
-  if (key !== state.settings.apiKey) { state.settings.apiKey = key; await db.setSetting('apiKey', key); }
+  if (key !== state.settings.apiKey) { const n = await applyKey(key); if (n) toast(markedMsg(n).trim()); }
   out.className = 'hint';
   out.innerHTML = '<span class="spin"></span>Lade Modellliste …';
   try {
@@ -514,9 +847,9 @@ function renderManagers() {
   const draw = (el, rows, used, kind) => {
     el.innerHTML = rows.length
       ? rows.map(r => `<div class="m" data-id="${esc(r.id)}" data-kind="${kind}">
-          <input value="${esc(r.name)}" data-rename>
+          <input value="${esc(r.name)}" data-rename aria-label="${labelOf(kind)} umbenennen">
           <span class="cnt">${used.get(r.id) || 0}</span>
-          <button data-drop aria-label="Löschen">🗑</button>
+          <button data-drop aria-label="${labelOf(kind)} „${esc(r.name)}“ löschen">${icon('trash')}</button>
         </div>`).join('')
       : `<div class="none">Noch nichts angelegt – entsteht automatisch beim Hinzufügen.</div>`;
   };
@@ -528,36 +861,51 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const fieldOf = (kind) => (kind === 'categories' ? 'categoryId' : 'roomId');
 const labelOf = (kind) => (kind === 'categories' ? 'Kategorie' : 'Raum');
 
+// Der gemerkte Raum der Schnellerfassung ist ein Name – bei Umbenennen/Löschen mitziehen.
+async function followLastRoom(oldName, newName) {
+  if (!oldName || norm(state.settings.lastRoom) !== norm(oldName)) return;
+  state.settings.lastRoom = newName;
+  await db.setSetting('lastRoom', newName);
+  if (norm($('#cap-room').value) === norm(oldName)) $('#cap-room').value = newName;
+}
+
 async function renameNamed(kind, id, name) {
   const clean = name.trim();
   if (!clean) { renderManagers(); return; }
-  const rec = await db.get(kind, id);
-  if (!rec || rec.name === clean) return;
+  try {
+    const rec = await db.get(kind, id);
+    if (!rec || rec.name === clean) return;
 
-  // Gibt es den Namen schon? Dann zusammenführen statt ein Duplikat anzulegen.
-  const list = kind === 'categories' ? state.cats : state.rooms;
-  const twin = list.find(x => x.id !== id && x.name.toLowerCase() === clean.toLowerCase());
-  if (twin) {
-    const field = fieldOf(kind);
-    const affected = state.items.filter(i => i[field] === id);
-    const msg = `„${clean}“ gibt es bereits. Zusammenführen?` +
-      (affected.length ? ` ${plural(affected.length, 'Eintrag wird', 'Einträge werden')} umgehängt.` : '');
-    if (!confirm(msg)) { renderManagers(); return; }
-    for (const it of affected) { it[field] = twin.id; it.updatedAt = Date.now(); await db.put('items', it); }
-    await db.del(kind, id);
+    // Gibt es den Namen schon? Dann zusammenführen statt ein Duplikat anzulegen.
+    const list = kind === 'categories' ? state.cats : state.rooms;
+    const twin = list.find(x => x.id !== id && x.name.toLowerCase() === clean.toLowerCase());
+    if (twin) {
+      const field = fieldOf(kind);
+      const affected = state.items.filter(i => i[field] === id);
+      const msg = `„${clean}“ gibt es bereits. Zusammenführen?` +
+        (affected.length ? ` ${plural(affected.length, 'Eintrag wird', 'Einträge werden')} umgehängt.` : '');
+      if (!confirm(msg)) { renderManagers(); return; }
+      await db.moveAndDropNamed(kind, id, twin.id);
+      if (kind === 'rooms') await followLastRoom(rec.name, twin.name);
+      await reloadAll();
+      renderManagers();
+      renderList();
+      toast('Zusammengeführt.');
+      return;
+    }
+
+    const oldName = rec.name;
+    rec.name = clean;
+    await db.put(kind, rec);
+    if (kind === 'rooms') await followLastRoom(oldName, clean);
     await reloadAll();
     renderManagers();
     renderList();
-    toast('Zusammengeführt.');
-    return;
+    toast('Umbenannt.');
+  } catch (e) {
+    renderManagers();
+    toast(e.message, true);
   }
-
-  rec.name = clean;
-  await db.put(kind, rec);
-  await reloadAll();
-  renderManagers();
-  renderList();
-  toast('Umbenannt.');
 }
 
 async function dropNamed(kind, id) {
@@ -568,12 +916,17 @@ async function dropNamed(kind, id) {
     ? `${label} löschen? Bei ${plural(affected.length, 'Eintrag', 'Einträgen')} wird das Feld geleert. Die Einträge selbst bleiben erhalten.`
     : `${label} löschen?`;
   if (!confirm(msg)) return;
-  for (const it of affected) { it[field] = null; it.updatedAt = Date.now(); await db.put('items', it); }
-  await db.del(kind, id);
-  await reloadAll();
-  renderManagers();
-  renderList();
-  toast(`${label} gelöscht.`);
+  try {
+    const oldName = kind === 'rooms' ? roomName(id) : '';
+    await db.moveAndDropNamed(kind, id, null);
+    if (oldName) await followLastRoom(oldName, '');
+    await reloadAll();
+    renderManagers();
+    renderList();
+    toast(`${label} gelöscht.`);
+  } catch (e) {
+    toast(e.message, true);
+  }
 }
 
 async function updateStorageInfo() {
@@ -658,7 +1011,13 @@ async function readImportFile(file) {
   out.className = 'hint';
   out.innerHTML = '<span class="spin"></span>Datei wird gelesen …';
   try {
-    importData = backup.parseBackup(await file.text());
+    let text;
+    try {
+      text = await file.text();
+    } catch (e) {
+      throw new Error('Die Datei konnte nicht gelesen werden: ' + e.message);
+    }
+    importData = backup.parseBackup(text);
     const c = importData.counts || {};
     const when = importData.exportedAt ? dtf.format(new Date(importData.exportedAt)) : 'unbekannt';
     out.className = 'hint';
@@ -667,6 +1026,8 @@ async function readImportFile(file) {
       + `${(importData.rooms || []).length} Räume. Wie soll eingelesen werden?`;
     $('#imp-choice').hidden = false;
   } catch (e) {
+    importData = null;
+    $('#imp-input').value = '';
     out.className = 'hint err';
     out.textContent = e.message;
   }
@@ -690,12 +1051,14 @@ async function runImport(mode) {
     renderManagers();
     renderList();
     updateStorageInfo();
+    queue.kick();   // mitgebrachte, noch nicht erkannte Fotos jetzt abarbeiten
     out.className = 'hint ok';
     out.textContent = `${plural(stats.items, 'Eintrag', 'Einträge')} und ${stats.photos} Fotos eingelesen`
       + (stats.skipped ? `, ${stats.skipped} waren schon vorhanden.` : '.');
   } catch (e) {
     out.className = 'hint err';
-    out.textContent = 'Import fehlgeschlagen: ' + e.message;
+    // Geschrieben wird in einer einzigen Transaktion – der alte Stand ist unverändert.
+    out.textContent = 'Import fehlgeschlagen: ' + e.message + ' Es wurde nichts verändert.';
   }
 }
 
@@ -770,73 +1133,97 @@ function wire() {
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
   $('#item-photo').addEventListener('click', () => openLightbox(state.detailURL, false));
+  $('#item-photo').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(state.detailURL, false); }
+  });
 
-  // --- Hinzufügen ---
-  $('#photo-pick').addEventListener('click', () => $('#photo-input').click());
-  $('#photo-slot').addEventListener('click', () => {
-    if (state.draft.source) openLightbox(state.draft.previewURL, false);
-    else $('#photo-input').click();
+  // --- Hinzufügen (Schnellerfassung) ---
+  $('#cap-camera').addEventListener('click', () => $('#cap-camera-input').click());
+  $('#cap-library').addEventListener('click', () => $('#cap-library-input').click());
+  const onFiles = (e) => {
+    const input = e.target;
+    const files = Array.from(input.files || []);   // sofort kopieren, die FileList ist „live“
+    // Erst nach der Verarbeitung leeren (dasselbe Foto soll sich noch einmal wählen
+    // lassen) – Safari macht die Dateien sonst u. U. schon vorher unlesbar.
+    capturePhotos(files).finally(() => { input.value = ''; });
+  };
+  $('#cap-camera-input').addEventListener('change', onFiles);
+  $('#cap-library-input').addEventListener('change', onFiles);
+  $('#cap-room').addEventListener('change', rememberWhere);
+  $('#cap-loc').addEventListener('change', rememberWhere);
+  $('#cap-strip').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-id]');
+    if (b) openItem(b.dataset.id);
   });
-  $('#photo-input').addEventListener('change', (e) => onPhotoChosen(e.target.files[0]));
-  $('#photo-clear').addEventListener('click', () => {
-    releaseSource();
-    if (state.draft.previewURL) URL.revokeObjectURL(state.draft.previewURL);
-    state.draft.previewURL = null;
-    $('#photo-preview').hidden = true;
-    $('#photo-preview').removeAttribute('src');
-    $('#photo-placeholder').hidden = false;
-    $('#photo-clear').hidden = true;
-    $('#photo-expand').hidden = true;
-    $('#photo-input').value = '';
-    $('#ai-status').textContent = '';
-    updateAiButton();
-  });
-  $('#ai-run').addEventListener('click', runAI);
-  $('#add-save').addEventListener('click', saveDraft);
-  $('#card-add').addEventListener('click', () => {
-    setCards([...readCardsRaw(), { name: '', category: '', confidence: null }]);
-  });
-  $('#cards').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-del]');
-    if (!btn) return;
-    const i = Number(btn.dataset.del);
-    setCards(readCardsRaw().filter((_, k) => k !== i));
-  });
+  $('#man-save').addEventListener('click', saveManual);
+  $('#man-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveManual(); } });
   $('#qty-chips').addEventListener('click', (e) => {
     const chip = e.target.closest('[data-qty]');
-    if (chip) $('#in-qty').value = chip.dataset.qty;
+    if (chip) $('#man-qty').value = chip.dataset.qty;
   });
+
+  // --- Ohne Raum ---
+  $('#rs-grid').addEventListener('click', (e) => {
+    const pick = e.target.closest('.pick');
+    if (!pick) return;
+    if (e.target.closest('[data-edit]')) { openItem(pick.dataset.id); return; }
+    togglePick(pick);
+  });
+  $('#rs-grid').addEventListener('keydown', (e) => {
+    if ((e.key === ' ' || e.key === 'Enter') && e.target.matches('.pick-toggle')) { e.preventDefault(); togglePick(e.target.closest('.pick')); }
+  });
+  $('#rs-all').addEventListener('click', () => {
+    for (const it of noRoomItems()) state.roomSel.add(it.id);
+    renderRooms();
+  });
+  $('#rs-none').addEventListener('click', () => { state.roomSel.clear(); renderRooms(); });
+  $('#rs-assign').addEventListener('click', assignRooms);
 
   // --- Detail ---
   $('#item-save').addEventListener('click', saveItem);
+  $('#it-retry').addEventListener('click', retryItem);
   $('#it-archive').addEventListener('click', async () => {
     if (!confirm('Eintrag ins Archiv verschieben? Er bleibt dort wiederherstellbar.')) return;
-    await db.archiveItem(state.currentId);
-    await reloadAll();
-    navigate('list');
-    toast('Ins Archiv verschoben.');
+    try {
+      await db.archiveItem(state.currentId);
+      await reloadAll();
+      navigate('back');
+      toast('Ins Archiv verschoben.');
+    } catch (e) {
+      toast(e.message, true);
+    }
   });
   $('#it-restore').addEventListener('click', async () => {
-    await db.restoreItem(state.currentId);
-    await reloadAll();
-    navigate('list');
-    toast('Wiederhergestellt.');
+    try {
+      await db.restoreItem(state.currentId);
+      await reloadAll();
+      navigate('list');
+      toast('Wiederhergestellt.');
+      queue.kick();   // war es noch nicht erkannt, geht es jetzt weiter
+    } catch (e) {
+      toast(e.message, true);
+    }
   });
   $('#it-purge').addEventListener('click', async () => {
     if (!confirm('Endgültig löschen? Eintrag und Foto sind danach unwiderruflich weg.')) return;
-    await db.purgeItem(state.currentId);
-    await reloadAll();
-    navigate('archive');
-    toast('Endgültig gelöscht.');
-    updateStorageInfo();
+    try {
+      await db.purgeItem(state.currentId);
+      await reloadAll();
+      navigate('archive');
+      toast('Endgültig gelöscht.');
+      updateStorageInfo();
+    } catch (e) {
+      toast(e.message, true);
+    }
   });
 
   // --- Einstellungen ---
   $('#set-key').addEventListener('change', async (e) => {
-    state.settings.apiKey = e.target.value.trim();
-    e.target.value = state.settings.apiKey;
-    await db.setSetting('apiKey', state.settings.apiKey);
-    toast(state.settings.apiKey ? 'API-Key gespeichert.' : 'API-Key entfernt.');
+    const key = e.target.value.trim();
+    e.target.value = key;
+    if (key === (state.settings.apiKey || '')) return;
+    const n = await applyKey(key);   // liegen gebliebene Fotos jetzt erkennen
+    toast(key ? 'API-Key gespeichert.' + markedMsg(n) : 'API-Key entfernt.');
   });
   $('#set-key-show').addEventListener('change', (e) => {
     $('#set-key').type = e.target.checked ? 'text' : 'password';
@@ -844,6 +1231,7 @@ function wire() {
   $('#set-model').addEventListener('change', async (e) => {
     state.settings.model = e.target.value;
     await db.setSetting('model', e.target.value);
+    queue.kick({ reset: true });
   });
   $('#set-imgmax').addEventListener('change', async (e) => {
     state.settings.imgMax = Number(e.target.value);
@@ -869,7 +1257,7 @@ function wire() {
   $('#set-test').addEventListener('click', async () => {
     const out = $('#set-test-out');
     const key = $('#set-key').value.trim();
-    if (key !== state.settings.apiKey) { state.settings.apiKey = key; await db.setSetting('apiKey', key); }
+    if (key !== state.settings.apiKey) { const n = await applyKey(key); if (n) toast(markedMsg(n).trim()); }
     out.className = 'hint';
     out.innerHTML = '<span class="spin"></span>Teste …';
     try {
@@ -903,23 +1291,18 @@ function wire() {
   $('#room-add').addEventListener('click', () => addNamed('rooms', $('#room-new')));
 }
 
-// Wie readCards(), behält aber auch leere Karten und die KI-Sicherheit.
-function readCardsRaw() {
-  return $$('#cards .icard').map((el, i) => ({
-    name: el.querySelector('.c-name').value,
-    category: el.querySelector('.c-cat').value,
-    confidence: state.draft.cards[i]?.confidence ?? null,
-  }));
-}
-
 async function addNamed(kind, input) {
   const name = input.value.trim();
   if (!name) return;
-  await db.ensureNamed(kind, name);
-  input.value = '';
-  await reloadAll();
-  renderManagers();
-  toast('Angelegt.');
+  try {
+    await db.ensureNamed(kind, name);
+    input.value = '';
+    await reloadAll();
+    renderManagers();
+    toast('Angelegt.');
+  } catch (e) {
+    toast(e.message, true);
+  }
 }
 
 /* =========================== Toast & Service Worker =========================== */
@@ -934,13 +1317,63 @@ function toast(msg, isError) {
   toastTimer = setTimeout(() => { t.hidden = true; }, isError ? 5200 : 2600);
 }
 
+// Mischstand nach einem Update beheben: den neuen Service Worker übernehmen lassen und
+// einmal neu laden. Die eigentliche Rettung steht inline in index.html (sie muss auch
+// laufen, wenn app.js veraltet ist). Stammt index.html noch aus einer Fassung ohne sie,
+// hier eine knappe Nachbildung. Liefert true, wenn gleich neu geladen wird.
+async function rescueUpdate(why) {
+  if (window.__inventarRescue) return window.__inventarRescue(why);
+  if (!('serviceWorker' in navigator)) return false;
+  const KEY = 'inventar-rettung';
+  try {
+    if (Date.now() - (Number(sessionStorage.getItem(KEY)) || 0) < 120000) return false;
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return false;
+    await reg.update().catch(() => null);
+    let w = reg.waiting;
+    const nw = reg.installing;
+    if (!w && nw) {
+      await new Promise((res) => {
+        const t = setTimeout(res, 30000);
+        nw.addEventListener('statechange', () => { if (nw.state === 'installed' || nw.state === 'redundant') { clearTimeout(t); res(); } });
+      });
+      w = reg.waiting;
+    }
+    if (!w) return false;
+    sessionStorage.setItem(KEY, String(Date.now()));
+    let done = false;
+    const reload = () => { if (!done) { done = true; location.reload(); } };
+    navigator.serviceWorker.addEventListener('controllerchange', reload);
+    w.postMessage({ type: 'SKIP_WAITING' });
+    setTimeout(reload, 6000);
+    return true;
+  } catch (e) {
+    console.warn('Update-Rettung fehlgeschlagen:', e);
+    return false;
+  }
+}
+
 async function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.register('./sw.js');
+    // Wartet schon eine neue Fassung (z. B. vom letzten Start), gleich anbieten.
+    if (reg.waiting) $('#update-bar').hidden = false;
+
+    let reloading = false;
+    const reloadOnce = () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    };
     $('#update-go').addEventListener('click', () => {
-      reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
-      setTimeout(() => location.reload(), 250);
+      const w = reg.waiting;
+      if (!w) { reloadOnce(); return; }
+      $('#update-go').disabled = true;
+      // Erst neu laden, wenn der neue Service Worker wirklich übernommen hat.
+      navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
+      w.postMessage({ type: 'SKIP_WAITING' });
+      setTimeout(reloadOnce, 4000);   // Rückfall, falls das Ereignis ausbleibt
     });
     reg.addEventListener('updatefound', () => {
       const nw = reg.installing;
