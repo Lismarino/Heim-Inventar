@@ -5,12 +5,45 @@ import { initCombos, hideCombo, norm } from './combo.js';
 import * as backup from './backup.js';
 import * as queue from './queue.js';
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dtf = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+
+/* ---------- rein darstellende Helfer ---------- */
+
+// Symbol aus dem SVG-Sprite in index.html.
+const icon = (name, cls = '') => `<svg class="ic${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+
+// Platzhalter für Einträge ohne Foto: Initiale auf einer gedeckten Farbe, die sich
+// stabil aus dem Namen ergibt – so sieht derselbe Eintrag immer gleich aus.
+const PH_TONES = 6;
+function placeholderHTML(it, cls) {
+  const name = String(it.name || '').trim();
+  if (!name) return `<div class="${cls} ph ph-none">${icon('box')}</div>`;
+  let h = 0;
+  for (const ch of name.toLowerCase()) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  const initial = Array.from(name)[0].toLocaleUpperCase('de-DE');
+  return `<div class="${cls} ph ph-${h % PH_TONES}" aria-hidden="true">${esc(initial)}</div>`;
+}
+
+// Kleine Illustration für die leere Liste: ein Regal, das auf Dinge wartet.
+const EMPTY_ART = `<svg class="empty-art" viewBox="0 0 200 150" aria-hidden="true">
+  <ellipse class="ea-floor" cx="100" cy="136" rx="84" ry="7"/>
+  <path class="ea-shelf" d="M22 58h156M22 104h156"/>
+  <path class="ea-line" d="M30 58v76M170 58v76"/>
+  <rect class="ea-jar" x="40" y="26" width="26" height="32" rx="6"/>
+  <rect class="ea-lid" x="38" y="20" width="30" height="8" rx="3"/>
+  <path class="ea-line" d="M45 40h16"/>
+  <rect class="ea-box" x="80" y="30" width="38" height="28" rx="3"/>
+  <path class="ea-line" d="M80 38h38M99 30v8"/>
+  <path class="ea-pot" d="M134 44h24l-3 14h-18z"/>
+  <path class="ea-leaf" d="M146 44c-6-8-4-16 0-20 4 4 6 12 0 20zM146 44c4-6 10-8 14-7-1 4-6 8-14 7z"/>
+  <rect class="ea-slot" x="44" y="72" width="112" height="32" rx="8"/>
+  <path class="ea-plus" d="M100 80v16M92 88h16"/>
+</svg>`;
 
 const state = {
   settings: {},
@@ -191,20 +224,19 @@ const isThumb = (v) => typeof v === 'string' && v.startsWith('data:image/');
 function rowHTML(it, why) {
   const thumb = isThumb(it.thumb)
     ? `<img class="thumb" src="${esc(it.thumb)}" alt="">`
-    : `<div class="thumb">📦</div>`;
+    : placeholderHTML(it, 'thumb');
   const cat = catName(it.categoryId);
   const place = [roomName(it.roomId), it.locationDetail].filter(Boolean).join(' · ');
-  const meta = [it.quantity, place].filter(Boolean).join(' · ');
   const title = it.aiState === 'pending'
     ? `<div class="name pending"><span class="spin"></span>${esc(it.name || 'wird erkannt …')}</div>`
     : it.name
       ? `<div class="name">${esc(it.name)}</div>`
       : '<div class="name unnamed">Unbenannt – antippen zum Benennen</div>';
-  return `<button class="row" data-id="${esc(it.id)}">
+  return `<button class="row${it.aiState === 'pending' ? ' is-pending' : ''}" data-id="${esc(it.id)}">
     ${thumb}
     <div class="body">
       ${title}
-      <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${esc(meta)}</div>
+      <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${place ? `<span class="place">${icon('pin')}<span>${esc(place)}</span></span>` : ''}${it.quantity ? `<span class="qty">${esc(it.quantity)}</span>` : ''}</div>
       ${why ? `<div class="why">${esc(why)}</div>` : `<div class="when">${dtf.format(new Date(it.createdAt))}</div>`}
     </div>
   </button>`;
@@ -217,16 +249,19 @@ function renderList() {
   const nr = noRoomItems().length;
   const hint = $('#noroom-hint');
   hint.hidden = !nr;
-  if (nr) hint.innerHTML = `<b>${plural(nr, 'Eintrag', 'Einträge')} ohne Raum</b> – jetzt zuordnen <span class="go">›</span>`;
+  if (nr) hint.innerHTML = `<span class="nr-ic">${icon('pin')}</span>`
+    + `<span class="nr-txt"><b>${plural(nr, 'Eintrag', 'Einträge')} ohne Raum</b><small>Jetzt gesammelt zuordnen</small></span>`
+    + icon('chev-r', 'go');
   const rows = visibleItems();
   const total = state.items.filter(i => !i.archived).length;
   $('#list').innerHTML = rows.map(it => rowHTML(it)).join('');
   $('#list-count').textContent = total ? (rows.length === total ? `${total}` : `${rows.length}/${total}`) : '';
   const empty = $('#list-empty');
   empty.hidden = rows.length > 0;
+  empty.classList.toggle('first', total === 0);
   empty.innerHTML = total === 0
-    ? 'Noch nichts erfasst.<br>Tippe unten auf <b>＋ Hinzufügen</b>.'
-    : 'Keine Treffer für diese Suche oder Filter.';
+    ? `${EMPTY_ART}<p><strong>Noch nichts erfasst</strong>Tippe unten auf die Kamera und fotografiere, was du aufbewahrst – Stück für Stück.</p>`
+    : `<span class="empty-badge muted">${icon('search')}</span><p>Keine Treffer für diese Suche oder Filter.</p>`;
 }
 
 /* ---------------- KI-Suche ---------------- */
@@ -242,7 +277,8 @@ function renderAiResult() {
   $('#list-count').textContent = a.matches.length || '';
   const empty = $('#list-empty');
   empty.hidden = a.matches.length > 0;
-  empty.textContent = 'Dazu passt nichts aus deinem Bestand.';
+  empty.classList.remove('first');
+  empty.innerHTML = `<span class="empty-badge muted">${icon('sparkle')}</span><p>Dazu passt nichts aus deinem Bestand.</p>`;
 }
 
 function clearAiSearch() {
@@ -350,10 +386,13 @@ function renderCapture() {
 
   $('#cap-strip').innerHTML = mine.slice(-20).reverse().map(it => {
     const wait = it.aiState === 'pending';
-    const pic = isThumb(it.thumb) ? `<img src="${esc(it.thumb)}" alt="">` : '<span class="ph">📦</span>';
+    const pic = isThumb(it.thumb) ? `<img src="${esc(it.thumb)}" alt="">` : placeholderHTML(it, 'cap-ph');
     const label = wait ? 'wird erkannt' : (it.name || 'Unbenannt');
+    const badge = wait ? '<span class="spin"></span>'
+      : it.aiState === 'failed' ? `<span class="cap-badge bad">${icon('alert')}</span>`
+        : `<span class="cap-badge">${icon('check')}</span>`;
     return `<button class="cap-thumb${wait ? ' pending' : ''}" data-id="${esc(it.id)}" title="${esc(label)}" aria-label="${esc(label)}">
-      ${pic}${wait ? '<span class="spin"></span>' : ''}</button>`;
+      ${pic}${badge}</button>`;
   }).join('');
 
   const note = pending ? queue.status().note : '';
@@ -482,14 +521,14 @@ function resetRoomSel() {
 function pickHTML(it) {
   const on = state.roomSel.has(it.id);
   const wait = it.aiState === 'pending';
-  const pic = isThumb(it.thumb) ? `<img src="${esc(it.thumb)}" alt="">` : '<span class="ph">📦</span>';
+  const pic = isThumb(it.thumb) ? `<img src="${esc(it.thumb)}" alt="">` : placeholderHTML(it, 'pick-ph');
   const name = wait
     ? `<span class="spin"></span>${esc(it.name || 'wird erkannt …')}`
     : esc(it.name || 'Unbenannt');
   return `<div class="pick${on ? ' on' : ''}" data-id="${esc(it.id)}" role="checkbox" aria-checked="${on}" tabindex="0">
-    <div class="pick-img">${pic}<span class="pick-check" aria-hidden="true">✓</span></div>
+    <div class="pick-img">${pic}<span class="pick-check" aria-hidden="true">${icon('check')}</span></div>
     <div class="pick-name${!it.name && !wait ? ' unnamed' : ''}">${name}</div>
-    <button class="pick-edit" data-edit aria-label="Eintrag öffnen">✎</button>
+    <button class="pick-edit" data-edit aria-label="Eintrag öffnen">${icon('pencil')}</button>
   </div>`;
 }
 
@@ -751,7 +790,7 @@ function renderManagers() {
       ? rows.map(r => `<div class="m" data-id="${esc(r.id)}" data-kind="${kind}">
           <input value="${esc(r.name)}" data-rename>
           <span class="cnt">${used.get(r.id) || 0}</span>
-          <button data-drop aria-label="Löschen">🗑</button>
+          <button data-drop aria-label="Löschen">${icon('trash')}</button>
         </div>`).join('')
       : `<div class="none">Noch nichts angelegt – entsteht automatisch beim Hinzufügen.</div>`;
   };

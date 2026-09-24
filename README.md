@@ -199,10 +199,10 @@ Ein Datei-Update auf dem Server kann die Datenbank nicht löschen. Prüfe der Re
 ## 5. Aufbau
 
 ```
-index.html              alle Ansichten
+index.html              alle Ansichten und die SVG-Symbole (Sprite ganz oben im <body>)
 manifest.webmanifest    Name, Icons, Vollbildmodus
 sw.js                   Service Worker – App offline verfügbar (VERSION hochzählen!)
-css/app.css             Gestaltung, hell und dunkel
+css/app.css             Gestaltung, hell und dunkel – Farben, Radien, Schatten als Variablen oben
 js/app.js               Ansichten, Bedienung, Abläufe
 js/db.js                IndexedDB: Einträge, Fotos, Kategorien, Räume, Einstellungen
 js/img.js               Bilder dekodieren, drehen, verkleinern, kodieren
