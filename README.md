@@ -15,7 +15,20 @@ und die Liste als Text, wenn du die KI-Suche benutzt.
 4. Die App vom Home-Bildschirm starten. Sie läuft im Vollbild ohne Safari-Leiste.
 
 Beim ersten Start braucht sie Internet, danach funktioniert sie offline –
-nur die KI-Bilderkennung braucht weiterhin eine Verbindung.
+nur die KI-Bilderkennung braucht weiterhin eine Verbindung. Beim Öffnen zeigt iOS kurz ein
+Startbild (Einmachglas auf Leinen), bis die App steht. Eine dunkle Fassung auf Espresso ist
+hinterlegt; ob iOS sie im Dunkelmodus auch nimmt, entscheidet iOS selbst – sonst erscheint
+die helle. iOS holt die Startbilder nur beim Hinzufügen zum Home-Bildschirm: Wer die App
+schon vor Version 1.5.1 installiert hat, sieht das (neue) Startbild unter Umständen erst,
+nachdem er sie einmal vom Home-Bildschirm entfernt und neu hinzugefügt hat – **vorher eine
+Sicherung machen**, denn das Entfernen löscht die Daten (siehe Abschnitt 4).
+
+**Erster Start:** Eine kurze Einführung in drei Schritten – Willkommen, **Welche Räume hast
+du?** (antippen, eigene dazuschreiben) und optional der **Gemini-API-Key**. Alles lässt sich
+überspringen – **Überspringen** (oder Escape am Rechner) übernimmt nichts von dem, was du dort
+angetippt hast. **Los geht’s – erstes Foto** öffnet gleich die Kamera-Ansicht. Wer die App schon
+eingerichtet hat (Einträge, Räume oder einen API-Key), sieht die Einführung nicht. Erneut
+aufrufen: **Einstellungen → Über → Einführung erneut zeigen**.
 
 ---
 
@@ -36,7 +49,7 @@ locker reicht.
 
 ### In der App hinterlegen
 
-**Einstellungen** (unten rechts) → Abschnitt **Google Gemini API** → Feld **API-Key**
+**Einstellungen** (unten ganz rechts) → Abschnitt **Google Gemini API** → Feld **API-Key**
 → einfügen → einmal aus dem Feld tippen, damit gespeichert wird → **Verbindung testen**.
 
 ### Modellwahl
@@ -66,6 +79,55 @@ noch woanders im Einsatz ist.
 
 ## 3. Bedienung
 
+Unten liegen fünf gleich breite Plätze: **Zuhause · Alles · Kamera · Räume · Einstellungen** –
+der runde Kamera-Knopf zum Hinzufügen sitzt genau in der Mitte.
+
+**Zuhause** ist die Startseite: Begrüßung und „127 Dinge in 8 Räumen“, darunter ein Suchfeld
+(führt in **Alles**, die KI-Suche funktioniert dort wie gewohnt). Die Karte **Zu erledigen**
+erscheint nur, wenn etwas ansteht – „N ohne Raum“ (öffnet **Ohne Raum**), „N unbenannt“ (zeigt
+in **Alles** nur diese; der kleine Chip oben hebt den Filter wieder auf), „N werden erkannt“ und
+„N warten auf API-Key“ (führt zum Key in den Einstellungen). Dann **Zuletzt hinzugefügt** als
+Streifen zum Wischen und die ersten sechs **Räume** als große Kacheln mit dem neuesten Foto des
+Raums; gibt es mehr, führt **Alle** in den Tab **Räume**. Ist noch nichts erfasst, steht dort ein
+großer Kamera-Knopf. Zuhause aktualisiert sich von selbst, sobald die KI etwas erkannt hat.
+
+**Räume** (Tab) zeigt alle Räume als Kacheln, vorneweg in Terrakotta **Ohne Raum**, solange es
+Einträge ohne Raum gibt (öffnet das Zuordnen-Raster), am Ende die gestrichelte Kachel **Raum
+hinzufügen**. Langes Drücken auf eine Kachel öffnet wie auf Zuhause das Raum-Menü.
+Eine Kachel antippen öffnet den Raum: großer Titel, alle Dinge darin nach Kategorie
+gruppiert und **Hier fotografieren** – das öffnet Hinzufügen mit diesem Raum schon eingetragen.
+Über **⋯** oben rechts: Hier fotografieren, Umbenennen, Raum löschen (die Dinge bleiben, nur
+ohne Raum).
+
+Die Titelfotos der Kacheln lädt die App in einer schärferen Fassung nach – aber nur für
+Kacheln, die gerade zu sehen sind, und gibt sie wieder frei, sobald keine Kachel sie mehr zeigt.
+
+**Gesten** – wie in anderen iPhone-Apps:
+- **Zurückwischen:** in Eintrag, Raum, Ohne Raum und Archiv vom linken Bildschirmrand (unterhalb
+  der Kopfzeile) nach rechts ziehen. Die Ansicht folgt dem Finger; ab gut einem Drittel oder mit
+  Schwung geht es zurück. Beginnt der Finger auf einem Eingabefeld, passiert nichts.
+- **Zurück** führt immer eine Ansicht zurück, auf dem Weg, den du gekommen bist; ein Tab in der
+  Leiste beginnt dort neu. Eintrag → Kamera → Foto im Streifen → Zurück → **Fertig** endet also
+  wieder dort, wo du angefangen hast, statt im Kreis zu laufen.
+- **Zeile nach links wischen** (in **Alles** und im Raum): dahinter erscheint **Archiv**. Weit
+  durchziehen archiviert sofort, halb aufziehen lässt den Knopf stehen. Unten erscheint 5 Sekunden
+  lang **Rückgängig**; wischst du mehrere nacheinander weg, zählt der Hinweis mit („3 archiviert“),
+  und Rückgängig holt alle zurück. Auch „Ins Archiv verschieben“ im Eintrag fragt nicht mehr nach,
+  sondern bietet Rückgängig an.
+- **Lange drücken** auf eine Zeile oder ein Bild in „Zuletzt hinzugefügt“: Menü mit **Raum ändern**
+  (Vorschläge wie gewohnt, ein Tipp übernimmt), **Umbenennen**, **Archivieren**. Auf einer
+  Raumkachel: **Hier fotografieren**, **Umbenennen**, **Raum löschen**. Am Rechner geht das per
+  Rechtsklick.
+- Den Tab, in dem man schon ist, noch einmal antippen: springt nach oben.
+
+Ansichten gleiten von rechts herein, Hinzufügen kommt von unten; bei „Bewegung reduzieren“ in
+den iOS-Einstellungen springt alles ohne Animation. Beim Speichern eines Fotos, beim Zuweisen,
+Wegwischen und langen Drücken gibt es ein leichtes Tippen als Rückmeldung – sofern iOS das für
+Web-Apps unterstützt (das ist nicht dokumentiert und klappt womöglich nicht auf jedem iPhone).
+
+Aktionsblatt und Einführung sperren, solange sie offen sind, den Rest der App (auch für
+VoiceOver und die Tab-Taste); danach steht der Fokus wieder auf dem Knopf, der sie geöffnet hat.
+
 **Hinzufügen – Schnellerfassung.** Foto, Foto, Foto, fertig: Oben steht, in welchem
 Raum du gerade bist („Du bist gerade in: Keller“), optional mit Ort-Details. Die App merkt
 sich beides und trägt es beim nächsten Mal wieder ein, bis du es änderst. Leer lassen geht
@@ -76,7 +138,8 @@ nimmt beliebig viele Fotos auf einmal. Jedes Foto wird **sofort** als Eintrag ge
 ohne auf die KI zu warten; du bleibst in der Ansicht und kannst gleich weiterknipsen. Ein
 kleiner Streifen zeigt die Fotos dieser Runde („5 erfasst · 2 werden erkannt“), ein Tipp
 darauf öffnet den Eintrag. Viele Fotos aus der Mediathek werden nacheinander verarbeitet,
-damit dem iPhone nicht der Speicher ausgeht. **Fertig** führt zur Liste.
+damit dem iPhone nicht der Speicher ausgeht. **Fertig** führt dorthin zurück, wo du herkamst
+(Zuhause, Alles, Räume oder der Raum).
 
 **Erkennung im Hintergrund.** Die KI benennt die Fotos, während du weitermachst – höchstens
 zwei gleichzeitig, an Gemini geht nur eine kleine 768-px-Fassung. Bis dahin steht in der
@@ -131,7 +194,7 @@ formatfüllend, ohne den Eintrag zu öffnen; ein Tipp auf den Text daneben öffn
 den Eintrag. In der Detail-Ansicht öffnet ein Tipp auf das Bild dasselbe Vollbild. Dort noch einmal antippen zoomt auf die Originalgröße und man kann im
 Bild herumschieben; das × oben rechts oder ein Tipp neben das Bild schließt wieder.
 
-**Liste** zeigt Vorschaubild, Name, Bestand, Ort sowie Datum und Uhrzeit. Die Suche geht
+**Alles** (früher „Liste“) zeigt Vorschaubild, Name, Bestand, Ort sowie Datum und Uhrzeit. Die Suche geht
 über Name, Kategorie, Raum, Ortdetail, Bestand und Notiz; dazu kommen Filter nach
 Kategorie und Raum.
 
@@ -209,12 +272,19 @@ Ein Datei-Update auf dem Server kann die Datenbank nicht löschen. Prüfe der Re
 ## 5. Aufbau
 
 ```
-index.html              alle Ansichten und die SVG-Symbole (Sprite ganz oben im <body>)
+index.html              alle Ansichten, die SVG-Symbole (Sprite ganz oben im <body>), Start-Logo,
+                        Startbild-Links und der Start-Wächter (Dateiliste bei neuen js-Dateien ergänzen!)
 manifest.webmanifest    Name, Icons, Vollbildmodus
 sw.js                   Service Worker – App offline verfügbar (VERSION hochzählen – passend
                         zu APP_VERSION in js/app.js und <meta name="app-version"> in index.html!)
 css/app.css             Gestaltung, hell und dunkel – Farben, Radien, Schatten als Variablen oben
-js/app.js               Ansichten, Bedienung, Abläufe
+js/app.js               Ansichten, Navigation, Bedienung, Abläufe
+js/home.js              Startseite „Zuhause“, Tab „Räume“ und Raum-Ansicht (inkl. scharfer Titelbilder)
+js/ui.js                gemeinsame Darstellungs-Helfer (Escapen, Symbole, Platzhalter)
+js/motion.js            Übergänge zwischen den Ansichten (nur transform/opacity)
+js/gestures.js          Zurückwischen, Zeile wegwischen, langes Drücken, Haptik
+js/sheet.js             Aktionsblatt von unten (Kontextmenü, kleine Eingaben)
+js/onboarding.js        Einführung beim ersten Start
 js/db.js                IndexedDB: Einträge, Fotos, Kategorien, Räume, Einstellungen
 js/img.js               Bilder dekodieren, drehen, verkleinern, kodieren
 js/gemini.js            Aufrufe an die Gemini-API
@@ -222,6 +292,8 @@ js/queue.js             KI-Warteschlange: erkennt erfasste Fotos im Hintergrund
 js/combo.js             Vorschlagsliste für Kategorie und Raum
 js/backup.js            Export und Import der Sicherungsdatei
 icons/                  App-Icons
+icons/splash/           iOS-Startbilder, hell und dunkel (bewusst nicht im Service-Worker-Cache)
+tools/splash.js         erzeugt die Startbilder neu (Playwright; gehört nicht zur App)
 ```
 
 Fotos werden beim Speichern auf max. 1600 px verkleinert (in den Einstellungen

@@ -522,10 +522,11 @@ details[open]>summary .chev{transform:rotate(180deg)}
 }
 
 /* ---------- Navigation: Milchglas mit rundem Aufnahmeknopf ---------- */
+/* Fünf gleich breite Plätze mit symmetrischem Rand: die Kamera sitzt so immer genau in der Mitte. */
 #nav{
   position:absolute;left:0;right:0;bottom:0;z-index:5;
-  height:calc(var(--nav-h) + var(--safe-b));padding:0 var(--gut) var(--safe-b);
-  display:flex;background:var(--nav-bg);
+  height:calc(var(--nav-h) + var(--safe-b));padding:0 max(4px,calc((100% - 600px) / 2)) var(--safe-b);
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--nav-bg);
   -webkit-backdrop-filter:saturate(1.6) blur(20px);backdrop-filter:saturate(1.6) blur(20px);
   box-shadow:0 -1px 0 var(--line);
 }
@@ -533,18 +534,19 @@ details[open]>summary .chev{transform:rotate(180deg)}
   #nav{background:var(--surface)}
 }
 #nav button{
-  flex:1;min-width:0;background:none;border:0;color:var(--fg3);
+  min-width:0;background:none;border:0;color:var(--fg3);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  font-size:11px;font-weight:600;letter-spacing:.01em;padding:4px 0 0;
+  font-size:10.5px;font-weight:600;letter-spacing:0;padding:4px 0 0;
   transition:color .15s;
 }
+#nav button span:not(.fab){max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #nav button .ic{width:26px;height:26px;transition:transform .15s}
 #nav button:active .ic{transform:scale(.9)}
 #nav button.active{color:var(--accent-text)}
 #nav button.active .ic{stroke-width:2.1}
-#nav .add{justify-content:flex-end;padding-bottom:8px}
+#nav .add{justify-content:center;padding:0}
 #nav .fab{
-  width:60px;height:60px;margin-top:-30px;margin-bottom:2px;border-radius:50%;
+  width:58px;height:58px;margin-top:-22px;border-radius:50%;
   display:grid;place-items:center;background:var(--accent);color:var(--on-accent);
   box-shadow:0 0 0 5px var(--bg),0 10px 22px -8px var(--accent-shadow);
   transition:transform .15s ease;
@@ -782,3 +784,355 @@ body[data-view="rooms"] .toast{bottom:calc(var(--nav-h) + var(--safe-b) + 190px)
 @media (min-width:720px){
   .assign-inner{max-width:640px;margin:0 auto}
 }
+
+/* =====================================================================
+   1.5.0 – App-Gefühl: Zuhause, Räume, Übergänge, Gesten, Einführung
+   ===================================================================== */
+
+:root{
+  --toast-act:#f2b791;
+  --shade:rgba(24,16,8,.38);
+  --edge-shadow:-14px 0 34px -10px rgba(40,25,10,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --toast-act:#9a431c;
+    --shade:rgba(0,0,0,.55);
+    --edge-shadow:-14px 0 34px -10px rgba(0,0,0,.7);
+  }
+}
+
+/* ---------- Kein Web-Gefühl ---------- */
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* Was man kopieren können soll, bleibt markierbar. */
+input,textarea,select,.hint,.help,.ai-answer p,.boot-error,.onb-steps,.about{
+  -webkit-user-select:text;user-select:text;-webkit-touch-callout:default;
+}
+/* Kein Doppeltipp-Zoom, keine Verzögerung beim Tippen; Bilder lassen sich nicht wegziehen. */
+*{touch-action:manipulation}
+img{-webkit-user-drag:none}
+.scroll{overscroll-behavior:contain}
+html{overscroll-behavior:none}
+
+/* Ansichten: Versteckte bleiben im Layout (unsichtbar) – so behalten sie ihre
+   Scroll-Position, und beim Zurückwischen liegt die vorige Ansicht schon bereit. */
+.view{background:var(--bg)}
+.view[hidden]{display:flex !important;visibility:hidden;pointer-events:none}
+.view.moving{box-shadow:var(--edge-shadow)}
+.view.sheet{border-radius:var(--r-lg) var(--r-lg) 0 0;overflow:hidden;box-shadow:0 -10px 40px -10px rgba(20,12,4,.35)}
+
+/* ---------- Start-Logo ---------- */
+.splash{
+  position:fixed;inset:0;z-index:150;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
+}
+.splash img{width:104px;height:104px;border-radius:24px;box-shadow:0 18px 36px -16px rgba(46,94,69,.6)}
+.splash b{font-family:var(--font-round);font-size:24px;font-weight:700;letter-spacing:-.01em;color:var(--fg)}
+.update-bar{z-index:95}
+.toast{z-index:96}
+
+/* ---------- Zuhause ---------- */
+.veil{position:absolute;left:0;right:0;top:0;z-index:3;height:var(--safe-t);background:var(--bg);opacity:.96;pointer-events:none}
+.scroll.home{padding-top:calc(var(--safe-t) + 12px)}
+.home-head{padding:14px 4px 18px}
+.home-date{margin:0;font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--fg3)}
+.home-hello{margin:6px 0 0;font-family:var(--font-round);font-size:34px;line-height:1.1;font-weight:750;letter-spacing:-.025em}
+.home-sum{margin:10px 0 0;font-family:var(--font-round);font-size:22px;line-height:1.25;font-weight:650;letter-spacing:-.012em;font-variant-numeric:tabular-nums}
+.home-sum .n{color:var(--accent-text)}
+.home-sum .in{color:var(--fg2)}
+
+.home-search{
+  display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:0 14px 0 12px;margin:0 0 20px;
+  border:0;border-radius:var(--r-md);background:var(--fill-strong);color:var(--ph-text);font-size:16px;text-align:left;
+  transition:transform .12s ease,background-color .15s;
+}
+.home-search .ic{width:20px;height:20px;color:var(--fg3);stroke-width:2}
+.home-search:active{transform:scale(.985);background:var(--line-strong)}
+
+/* Zu erledigen */
+.todo{padding:4px 0;overflow:hidden;box-shadow:var(--sh-1),inset 0 0 0 1px var(--clay-line)}
+.todo-title{margin:12px 16px 4px;font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--clay)}
+.todo-row{
+  position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:62px;padding:8px 12px 8px 14px;
+  border:0;background:none;color:inherit;text-align:left;transition:background-color .15s;
+}
+.todo-row + .todo-row::before{content:"";position:absolute;top:0;left:64px;right:0;border-top:1px solid var(--line)}
+.todo-row:active{background:var(--press)}
+.todo-ic{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center}
+.todo-ic .ic{width:21px;height:21px;stroke-width:2}
+.todo-ic.clay{background:var(--clay);color:var(--on-clay)}
+.todo-ic.busy{background:var(--accent-tint);color:var(--accent-text)}
+.todo-ic .spin{margin:0;width:18px;height:18px}
+.todo-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.todo-txt b{font-size:16px;font-weight:650;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.todo-txt small{font-size:13px;line-height:1.35;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.todo-row .go{width:18px;height:18px;color:var(--fg3);stroke-width:2.2}
+
+/* Abschnittsköpfe mit Link rechts */
+.sec-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:26px 4px 10px}
+.sec-row .sec{margin:0;display:flex;align-items:center;gap:8px}
+.sec-n{padding:1px 8px;border-radius:999px;background:var(--fill);font-size:12px;letter-spacing:0;font-variant-numeric:tabular-nums}
+.sec-n:empty{display:none}
+.sec-link{min-height:32px;padding:0 2px;border:0;background:none;color:var(--accent-text);font-size:15px;font-weight:600;transition:opacity .15s}
+.sec-link:active{opacity:.5}
+#home-recent-sec .sec-row{margin-top:6px}
+
+/* Zuletzt hinzugefügt: waagerechter Streifen, rastet ein */
+.recent{
+  display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+  scroll-snap-type:x mandatory;scroll-padding-inline:16px;overscroll-behavior-x:contain;
+  margin:0 -16px;padding:2px 16px 8px;scrollbar-width:none;
+}
+.recent::-webkit-scrollbar{display:none}
+.rtile{flex:0 0 auto;width:112px;padding:0;border:0;background:none;color:inherit;text-align:left;scroll-snap-align:start}
+.rtile-img{
+  position:relative;display:grid;place-items:center;width:112px;height:112px;border-radius:20px;overflow:hidden;
+  background:var(--surface-2);box-shadow:var(--sh-1);transition:transform .15s ease;
+}
+.rtile-img::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(60,40,20,.08);pointer-events:none}
+.rtile-pic{width:100%;height:100%;object-fit:cover;display:block}
+.rtile-img .ph{font-size:36px}
+.rtile-name{display:block;margin:8px 3px 0;font-size:14px;font-weight:620;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rtile-room{display:block;margin:1px 3px 0;font-size:12px;color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rtile.unnamed .rtile-name{color:var(--clay-ink)}
+.rtile.pending .rtile-name{color:var(--fg2);font-weight:500}
+.rtile.pending .rtile-img::before{content:"";position:absolute;inset:0;z-index:1;background:rgba(24,16,8,.34)}
+.rtile .spin{position:absolute;inset:0;z-index:2;margin:auto;width:24px;height:24px;border-width:2.5px;color:#fff}
+.rtile:active .rtile-img,.rtile.pressing .rtile-img{transform:scale(.95)}
+.rtile.pressing .rtile-img{transition-duration:.45s}
+
+/* Räume: große Kacheln, zwei Spalten */
+.room-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.rt{
+  position:relative;display:block;aspect-ratio:1/1;min-width:0;padding:0;border:0;border-radius:var(--r-xl);overflow:hidden;
+  background:var(--ph-bg,var(--surface-2));color:var(--ph-fg,var(--fg));text-align:left;box-shadow:var(--sh-1);
+  isolation:isolate;transition:transform .18s ease;
+}
+.rt:active{transform:scale(.97)}
+.rt.pressing{transform:scale(.95);transition-duration:.45s}
+.rt-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.rt-shade{position:absolute;inset:0;background:linear-gradient(to top,rgba(18,10,4,.72) 0%,rgba(18,10,4,.5) 20%,rgba(18,10,4,.24) 40%,rgba(18,10,4,.08) 56%,rgba(18,10,4,0) 70%)}
+.rt::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(60,40,20,.08);pointer-events:none}
+.rt-ph{position:absolute;inset:0}
+.rt-initial{position:absolute;left:16px;top:10px;font-family:var(--font-round);font-size:64px;font-weight:750;line-height:1;letter-spacing:-.03em;opacity:.9}
+.rt-door{position:absolute;right:14px;top:14px;width:26px;height:26px;opacity:.45;stroke-width:1.7}
+.rt-txt{position:absolute;left:14px;right:12px;bottom:12px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.rt-txt b{font-family:var(--font-round);font-size:18px;font-weight:720;letter-spacing:-.012em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt-txt small{font-size:13px;font-weight:600;opacity:.82;font-variant-numeric:tabular-nums}
+.rt.has-pic{background:var(--surface-2);color:#fff}
+.rt.has-pic .rt-txt{text-shadow:0 1px 10px rgba(0,0,0,.28)}
+.rt-add{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  background:transparent;box-shadow:none;color:var(--accent-text);
+  border:2px dashed var(--line-strong);
+}
+.rt-add::after{display:none}
+.rt-plus{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:var(--accent-tint);color:var(--accent-ink)}
+.rt-plus .ic{width:26px;height:26px;stroke-width:2.2}
+.rt-add-txt{font-size:15px;font-weight:650}
+
+/* Leer: großer Kamera-Aufruf */
+.home-empty{padding:4px 0 8px}
+.home-empty .empty-art{width:200px;height:150px}
+.home-empty strong{margin-top:6px}
+.home-empty p{max-width:300px}
+.home-cta{margin-top:22px;width:100%}
+
+/* ---------- Alles: Filter-Chip ---------- */
+.flag{
+  align-self:flex-start;display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 10px 0 14px;
+  border:0;border-radius:999px;background:var(--clay-tint);color:var(--clay-ink);font-size:14px;font-weight:650;
+  box-shadow:inset 0 0 0 1px var(--clay-line);transition:transform .12s;
+}
+.flag .ic{width:16px;height:16px;stroke-width:2.4}
+.flag:active{transform:scale(.96)}
+
+/* ---------- Raum ---------- */
+.bar-title{opacity:0;transition:opacity .2s}
+#view-room.scrolled .bar-title{opacity:1}
+#view-room .topbar{transition:box-shadow .2s}
+#view-room.scrolled .topbar{box-shadow:0 1px 0 var(--line)}
+.topbar .link.icon{justify-content:flex-end}
+.topbar .link.icon .ic{width:26px;height:26px;margin:0;stroke-width:1.8}
+.room-hero{padding:2px 4px 4px}
+.room-title{font-family:var(--font-round);font-size:34px;line-height:1.1;font-weight:750;letter-spacing:-.025em;overflow-wrap:anywhere}
+.room-sub{margin:6px 0 0;color:var(--fg2);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
+.btn.room-shoot{margin:16px 0 22px;min-height:52px;border-radius:16px;font-size:17px}
+.btn.room-shoot .ic{width:22px;height:22px}
+.sec.grp{display:flex;align-items:center;justify-content:space-between;margin:22px 16px 8px}
+.sec.grp:first-child{margin-top:0}
+.sec.grp span{font-variant-numeric:tabular-nums;color:var(--fg3)}
+#room-list .list{margin-bottom:6px}
+#room-empty{padding-top:24px}
+
+/* ---------- Zeile wegwischen / lang drücken ---------- */
+.list{position:relative}
+.list .row{z-index:1;background-color:var(--surface)}
+.list .row:active{background-image:linear-gradient(var(--press),var(--press))}
+.row.pressing{transform:scale(.975);transition:transform .45s ease,background-color .15s;border-radius:var(--r-md)}
+.row.swiping{transition:none}
+.swipe-act{
+  position:absolute;left:0;right:0;z-index:0;display:flex;justify-content:flex-end;align-items:stretch;
+  padding:0;border:0;background:var(--clay);color:var(--on-clay);font-size:13px;font-weight:700;
+}
+.swipe-act .sa-in{
+  width:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  transform:translateX(var(--reveal,0px));
+}
+.swipe-act .ic{width:24px;height:24px;stroke-width:2;transition:transform .15s}
+.swipe-act.armed .ic{transform:scale(1.18)}
+
+/* ---------- Aktionsblatt ---------- */
+.sheet-wrap{position:fixed;inset:0;z-index:70}
+.sheet-backdrop{position:absolute;inset:0;background:var(--shade)}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;
+  padding:6px 16px calc(var(--safe-b) + 14px);border-radius:var(--r-xl) var(--r-xl) 0 0;
+  background:var(--surface);box-shadow:var(--sh-3);
+}
+.sheet.kb{padding-bottom:14px}
+.sheet-grab{width:40px;height:5px;margin:4px auto 12px;border-radius:3px;background:var(--line-strong)}
+.sheet-head{display:flex;align-items:center;gap:12px;padding:0 2px 14px}
+.sh-pic{flex:none;width:54px;height:54px;border-radius:15px;object-fit:cover;font-size:24px;background:var(--surface-2)}
+.sh-pic.ph-none .ic{width:26px;height:26px}
+.sh-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.sh-txt b{font-size:17px;font-weight:650;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sh-txt small{font-size:14px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet-actions{display:flex;flex-direction:column;border-radius:var(--r-lg);overflow:hidden;background:var(--field);box-shadow:inset 0 0 0 1px var(--line)}
+.sheet-act{
+  position:relative;display:flex;align-items:center;gap:14px;min-height:56px;padding:0 16px;
+  border:0;background:none;color:var(--fg);font-size:17px;font-weight:560;text-align:left;transition:background-color .12s;
+}
+.sheet-act + .sheet-act::before{content:"";position:absolute;top:0;left:54px;right:0;border-top:1px solid var(--line)}
+.sheet-act .ic{width:24px;height:24px;color:var(--accent-text)}
+.sheet-act:active{background:var(--press)}
+.sheet-act.danger,.sheet-act.danger .ic{color:var(--danger)}
+.sheet-cancel{
+  display:block;width:100%;min-height:52px;margin-top:10px;border:0;border-radius:var(--r-lg);
+  background:var(--fill-strong);color:var(--fg);font-size:17px;font-weight:650;transition:transform .12s,background-color .15s;
+}
+.sheet-cancel:active{transform:scale(.985);background:var(--line-strong)}
+.sheet-title{margin:2px 2px 14px;font-family:var(--font-round);font-size:21px;font-weight:720;letter-spacing:-.01em}
+.sheet-head + .sheet-form{padding-top:14px;border-top:1px solid var(--line)}
+.sheet-form .btn.block{margin-top:14px}
+/* Vorschläge im Blatt nach oben öffnen – unten liegen Knopf und Tastatur. */
+.sheet .combo-list{top:auto;bottom:calc(100% + 6px)}
+
+/* ---------- Toast mit Rückgängig ---------- */
+.toast.has-act{display:flex;align-items:center;gap:10px;padding:7px 7px 7px 18px;text-align:left}
+.toast-msg{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast-act{
+  flex:none;display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 14px 0 11px;border:0;border-radius:10px;
+  background:rgba(255,255,255,.1);color:var(--toast-act);font-size:15px;font-weight:700;
+}
+.toast-act .ic{width:18px;height:18px;stroke-width:2.2}
+.toast-act:active{background:rgba(255,255,255,.2)}
+@media (prefers-color-scheme: dark){ .toast-act{background:rgba(0,0,0,.06)} }
+
+/* ---------- Einführung ---------- */
+.onb{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;background:var(--bg);padding-top:var(--safe-t)}
+.onb-skip{
+  position:absolute;top:calc(var(--safe-t) + 8px);right:10px;z-index:2;min-height:44px;padding:0 12px;
+  border:0;background:none;color:var(--fg2);font-size:16px;font-weight:600;transition:opacity .15s;
+}
+.onb-skip:active{opacity:.5}
+.onb-pages{
+  flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+  scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;
+}
+.onb-pages::-webkit-scrollbar{display:none}
+.onb-page{
+  flex:0 0 100%;min-width:0;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior-y:contain;
+  scroll-snap-align:start;scroll-snap-stop:always;padding:64px max(28px,calc((100% - 460px) / 2)) 16px;
+}
+.onb-1{align-items:center;justify-content:center;text-align:center;padding-top:40px}
+.onb-art{position:relative;width:132px;height:132px;margin:0 auto 34px}
+.onb-art img{position:relative;width:132px;height:132px;border-radius:30px;box-shadow:0 26px 44px -18px rgba(46,94,69,.7),0 2px 6px rgba(40,25,10,.12)}
+.onb-glow{position:absolute;inset:-70px;border-radius:50%;background:radial-gradient(closest-side,var(--accent-tint),rgba(0,0,0,0))}
+.onb-eyebrow{margin:0 0 10px;font-size:13px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text)}
+.onb h2{margin:0;font-family:var(--font-round);font-size:31px;line-height:1.12;font-weight:750;letter-spacing:-.022em;text-wrap:balance}
+.onb-lead{margin:14px 0 0;font-size:17px;line-height:1.5;color:var(--fg2)}
+.onb-1 .onb-lead{max-width:330px}
+.onb-private{
+  display:inline-flex;align-items:center;gap:8px;margin:28px 0 0;padding:10px 16px 10px 12px;border-radius:999px;
+  background:var(--accent-tint);color:var(--accent-ink);font-size:14px;font-weight:650;
+}
+.onb-private .ic{width:20px;height:20px;stroke-width:2}
+.onb-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+.onb-chip{
+  display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 17px;border-radius:999px;
+  border:1.5px solid var(--line-strong);background:var(--surface);color:var(--fg);font-size:16px;font-weight:600;
+  transition:transform .12s ease,background-color .15s,border-color .15s,color .15s;
+}
+.onb-chip .onb-tick{display:none;width:18px;height:18px;margin-left:-5px;stroke-width:2.8}
+.onb-chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);box-shadow:0 6px 14px -10px var(--accent-shadow)}
+.onb-chip.on .onb-tick{display:block}
+.onb-chip[aria-disabled="true"]{opacity:.7}
+.onb-chip:active{transform:scale(.94)}
+.onb-add{display:flex;gap:8px;margin-top:18px}
+.onb-add input{
+  flex:1;min-width:0;min-height:46px;padding:11px 14px;border:1px solid var(--line);border-radius:var(--r-md);
+  background:var(--field);appearance:none;-webkit-appearance:none;transition:border-color .15s,box-shadow .15s;
+}
+.onb-add input:focus{outline:none;border-color:var(--accent-text);background:var(--surface);box-shadow:0 0 0 4px var(--ring)}
+.onb-add .btn{flex:none;min-height:46px;color:var(--accent-text)}
+.onb-picked{margin:12px 2px 0;font-size:14px;color:var(--fg3);font-variant-numeric:tabular-nums}
+.onb-keyfield{margin-top:26px}
+.onb-keyfield>span{display:flex;align-items:center;gap:6px}
+.onb-keyfield>span .ic{width:17px;height:17px;stroke-width:2}
+.onb-keyfield input{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em}
+.onb-steps{margin:18px 0 0;padding:0;list-style:none;counter-reset:s}
+.onb-steps li{counter-increment:s;display:flex;align-items:flex-start;gap:12px;padding:7px 0;font-size:15px;line-height:1.45;color:var(--fg2)}
+.onb-steps li::before{
+  content:counter(s);flex:none;width:24px;height:24px;margin-top:-1px;border-radius:50%;display:grid;place-items:center;
+  background:var(--accent-tint);color:var(--accent-ink);font-size:13px;font-weight:750;
+}
+.onb-steps a{color:var(--accent-text);font-weight:650;text-decoration:none;overflow-wrap:anywhere}
+.onb-steps b{color:var(--fg);font-weight:650}
+.onb-note{margin:14px 0 0;padding:12px 14px;border-radius:var(--r-md);background:var(--fill);font-size:14px;line-height:1.5;color:var(--fg2)}
+.onb-foot{flex:none;padding:10px max(24px,calc((100% - 460px) / 2)) calc(var(--safe-b) + 14px)}
+.onb-dots{display:flex;justify-content:center;gap:8px;margin-bottom:16px}
+.onb-dots i{width:8px;height:8px;border-radius:50%;background:var(--line-strong);transition:transform .25s ease,background-color .25s}
+.onb-dots i.on{background:var(--accent-text);transform:scale(1.3)}
+#onb-next{min-height:54px;margin-top:0;border-radius:16px;font-size:17px}
+#onb-next .ic{width:22px;height:22px}
+.onb-foot .btn.ghost{margin-top:4px;min-height:44px;font-size:15px}
+
+/* ---------- Bewegung reduzieren (Ergänzungen) ---------- */
+@media (prefers-reduced-motion: reduce){
+  .home-search:active,.rt:active,.rt.pressing,.rtile:active .rtile-img,.rtile.pressing .rtile-img,.row.pressing,
+  .flag:active,.onb-chip:active,.sheet-cancel:active,.onb-dots i.on{transform:none}
+}
+
+/* =====================================================================
+   1.5.1 – Räume als eigener Tab, Randstreifen zum Zurückwischen, Kleinkram
+   ===================================================================== */
+
+/* ---------- Zurückwischen: Randstreifen nur in Push-Ansichten ----------
+   Fängt Berührungen am linken Rand ab, damit am Dokument kein blockierender
+   touchmove-Listener hängen muss. Beginnt unter der Kopfzeile (Zurück-Knopf bleibt frei). */
+.edge-strip{
+  position:absolute;left:0;top:calc(var(--safe-t) + 52px);bottom:calc(var(--nav-h) + var(--safe-b));
+  width:20px;z-index:4;display:none;touch-action:none;
+}
+body[data-view="item"] .edge-strip,body[data-view="rooms"] .edge-strip,
+body[data-view="room"] .edge-strip,body[data-view="archive"] .edge-strip{display:block}
+
+/* ---------- Räume (Tab) ---------- */
+.scroll.places{padding-top:8px}
+.rt-noroom{background:var(--clay-tint);color:var(--clay-ink);box-shadow:var(--sh-1),inset 0 0 0 1px var(--clay-line)}
+.rt-noroom::after{display:none}
+.rt-noroom .rt-pin{
+  position:absolute;left:14px;top:14px;width:46px;height:46px;border-radius:var(--r-md);
+  display:grid;place-items:center;background:var(--clay);color:var(--on-clay);
+}
+.rt-noroom .rt-pin .ic{width:24px;height:24px;stroke-width:2}
+.rt-noroom .rt-txt small{opacity:.9}
+
+/* ---------- Platzhalter-Initiale mittig (auch im Streifen) ---------- */
+.rtile-img .ph,.cap-thumb .ph,.pick-img .ph{display:grid;place-items:center}
+
+/* ---------- Zeilen: senkrecht scrollt der Browser, waagerecht wischt die App ---------- */
+.list .row{touch-action:pan-y}
+/* Beim Ausblenden der Einführung ist die App darunter schon bedienbar. */
+.onb.leaving{pointer-events:none}

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
-<meta name="app-version" content="1.4.1">
+<meta name="app-version" content="1.5.1">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -16,6 +16,37 @@
 <meta name="apple-mobile-web-app-title" content="Inventar">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
 <link rel="icon" href="./icons/icon-192.png">
+<!-- Startbildschirm beim Öffnen vom Home-Bildschirm (iOS wählt per Media Query). Erzeugt mit tools/splash.js.
+     Erst die dunklen Varianten mit Farbschema-Bedingung, danach die hellen ohne – die gelten als
+     Standard, falls iOS prefers-color-scheme hier nicht auswertet. -->
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1320x2868-dark.png" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1260x2736-dark.png" media="screen and (device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1206x2622-dark.png" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1290x2796-dark.png" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1179x2556-dark.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1284x2778-dark.png" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1170x2532-dark.png" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1125x2436-dark.png" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1080x2340-dark.png" media="screen and (device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1242x2688-dark.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-828x1792-dark.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1242x2208-dark.png" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-750x1334-dark.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-640x1136-dark.png" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1320x2868-light.png" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1260x2736-light.png" media="screen and (device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1206x2622-light.png" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1290x2796-light.png" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1179x2556-light.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1284x2778-light.png" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1170x2532-light.png" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1125x2436-light.png" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1080x2340-light.png" media="screen and (device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1242x2688-light.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-828x1792-light.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1242x2208-light.png" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-750x1334-light.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-640x1136-light.png" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="stylesheet" href="./css/app.css">
 </head>
 <body>
@@ -42,8 +73,22 @@
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.6a2 2 0 0 1 3.4 0l7 12.1a2 2 0 0 1-1.7 3H5a2 2 0 0 1-1.7-3z"/><path d="M12 9.5v4.25M12 16.6v.1"/></symbol>
   <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.5"/><path d="M5 9v8.5A2 2 0 0 0 7 19.5h10a2 2 0 0 0 2-2V9M10 13h4"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.3-5.4M19.5 4.5V8.5h-4"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.4 12 4l8 6.4v8.1a2 2 0 0 1-2 2h-3.25v-5.25a1.5 1.5 0 0 0-1.5-1.5h-2.5a1.5 1.5 0 0 0-1.5 1.5v5.25H6a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.4 12h.1M12 12h.1M15.6 12h.1" stroke-width="2.6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+  <symbol id="i-door" viewBox="0 0 24 24"><path d="M6.5 20.5V5A1.5 1.5 0 0 1 8 3.5h8A1.5 1.5 0 0 1 17.5 5v15.5M4 20.5h16M14.25 12.5v.1"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8.25" cy="15.75" r="4.25"/><path d="m11.3 12.7 8.2-8.2M16.5 7.5l2.5 2.5M14.25 9.75l2 2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14.5 4.5 10 9 5.5"/><path d="M4.5 10h10a5 5 0 0 1 0 10H12"/></symbol>
+  <symbol id="i-rooms" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M11 3.5v5.25M11 12.25v8.25M3.5 12.25H8M11 12.25h9.5"/></symbol>
   <symbol id="i-done" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.25 12.25 2.5 2.5 5-5.25"/></symbol>
 </svg>
+
+<!-- Start-Logo: liegt über allem, bis die App bereit ist (gleiches Bild wie der iOS-Startbildschirm) -->
+<div id="splash" class="splash" aria-hidden="true">
+  <img src="./icons/icon-192.png" alt="" width="104" height="104">
+  <b>Inventar</b>
+</div>
 
 <div id="boot-error" class="boot-error" hidden>
   <h2>Die App konnte nicht starten</h2>
@@ -58,10 +103,35 @@
 
 <div id="app">
 
-  <!-- ============ LISTE ============ -->
-  <section class="view" id="view-list">
+  <!-- ============ ZUHAUSE ============ -->
+  <section class="view" id="view-home">
+    <div class="veil" aria-hidden="true"></div>
+    <div class="scroll home">
+      <header class="home-head">
+        <p class="home-date" id="home-date"></p>
+        <h1 class="home-hello" id="home-hello">Hallo</h1>
+        <p class="home-sum" id="home-sum"></p>
+      </header>
+      <button class="home-search" id="home-search" type="button">
+        <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><span>Suchen oder KI fragen …</span>
+      </button>
+      <div class="card todo" id="home-todo" hidden></div>
+      <div class="empty home-empty" id="home-empty" hidden></div>
+      <section id="home-recent-sec">
+        <div class="sec-row"><h2 class="sec">Zuletzt hinzugefügt</h2><button class="sec-link" data-nav="list">Alle</button></div>
+        <div class="recent" id="home-recent"></div>
+      </section>
+      <section>
+        <div class="sec-row"><h2 class="sec">Räume <span class="sec-n" id="home-rooms-count"></span></h2><button class="sec-link" data-nav="places" id="home-rooms-all" hidden>Alle</button></div>
+        <div class="room-grid" id="home-rooms"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============ ALLES (Liste) ============ -->
+  <section class="view" id="view-list" hidden>
     <header class="topbar large">
-      <h1>Inventar</h1>
+      <h1>Alles</h1>
       <span class="count" id="list-count"></span>
     </header>
     <div class="toolbar">
@@ -73,6 +143,7 @@
         <select id="f-cat" required aria-label="Kategorie filtern"><option value="">Alle Kategorien</option></select>
         <select id="f-room" required aria-label="Raum filtern"><option value="">Alle Räume</option></select>
       </div>
+      <button class="flag" id="f-flag" hidden><span id="f-flag-txt"></span><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
       <button class="btn block ask" id="ai-search" hidden>Stattdessen die KI fragen</button>
     </div>
     <div class="scroll">
@@ -87,11 +158,22 @@
     </div>
   </section>
 
+  <!-- ============ RÄUME (Tab) ============ -->
+  <section class="view" id="view-places" hidden>
+    <header class="topbar large">
+      <h1>Räume</h1>
+      <span class="count" id="places-count"></span>
+    </header>
+    <div class="scroll places">
+      <div class="room-grid" id="places-grid"></div>
+    </div>
+  </section>
+
   <!-- ============ HINZUFÜGEN (Schnellerfassung) ============ -->
   <section class="view" id="view-add" hidden>
     <header class="topbar large">
       <h1>Hinzufügen</h1>
-      <button class="link strong" data-nav="list">Fertig</button>
+      <button class="link strong" data-nav="back" id="cap-done">Fertig</button>
     </header>
     <div class="scroll">
 
@@ -190,6 +272,27 @@
           <label class="field"><span>Ort-Details <small>(optional)</small></span><input id="rs-loc" type="text" placeholder="z. B. Regal 2" autocomplete="off"></label>
         </div>
         <button class="btn primary block" id="rs-assign" disabled>Zuweisen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RAUM ============ -->
+  <section class="view" id="view-room" hidden>
+    <header class="topbar">
+      <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+      <h1 id="room-bar-title" class="bar-title"></h1>
+      <button class="link icon" id="room-menu" aria-label="Raum-Aktionen"><svg class="ic" aria-hidden="true"><use href="#i-more"/></svg></button>
+    </header>
+    <div class="scroll">
+      <div class="room-hero">
+        <h2 class="room-title" id="room-title"></h2>
+        <p class="room-sub" id="room-sub"></p>
+        <button class="btn primary block room-shoot" id="room-shoot"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg>Hier fotografieren</button>
+      </div>
+      <div id="room-list"></div>
+      <div class="empty" id="room-empty" hidden>
+        <span class="empty-badge"><svg class="ic" aria-hidden="true"><use href="#i-door"/></svg></span>
+        <p>Noch nichts in diesem Raum. Fotografiere, was hier steht – es landet gleich richtig.</p>
       </div>
     </div>
   </section>
@@ -341,17 +444,81 @@
       <div class="card about">
         <p class="hint">Alle Einträge und Fotos liegen ausschließlich in der lokalen Datenbank dieses Geräts (IndexedDB). Es gibt keinen Server und kein Konto. Nur die Bilderkennung schickt das jeweilige Foto an Google Gemini.</p>
         <p class="hint">Die Daten hängen an dieser Web-Adresse und an dieser Installation. Sie gehen verloren, wenn du die App vom Home-Bildschirm löschst, in Safari die Website-Daten löschst oder die App unter einer anderen Adresse aufrufst. Mach dir deshalb regelmäßig eine Sicherung.</p>
+        <button class="btn block" id="onb-again">Einführung erneut zeigen</button>
         <p class="hint ver" id="ver-info"></p>
       </div>
     </div>
   </section>
 
   <!-- ============ NAV ============ -->
+  <!-- Zurückwischen: schmaler Streifen am linken Rand, nur in Push-Ansichten da (CSS) -->
+  <div id="edge" class="edge-strip" aria-hidden="true"></div>
+
+  <!-- ============ NAV: fünf gleich breite Plätze, die Kamera genau in der Mitte ============ -->
   <nav id="nav">
-    <button data-nav="list" class="active"><svg class="ic" aria-hidden="true"><use href="#i-shelf"/></svg><span>Liste</span></button>
-    <button data-nav="add" class="add"><span class="fab"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span><span>Hinzufügen</span></button>
+    <button data-nav="home" class="active"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Zuhause</span></button>
+    <button data-nav="list"><svg class="ic" aria-hidden="true"><use href="#i-shelf"/></svg><span>Alles</span></button>
+    <button data-nav="add" class="add" aria-label="Hinzufügen"><span class="fab"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span></button>
+    <button data-nav="places"><svg class="ic" aria-hidden="true"><use href="#i-rooms"/></svg><span>Räume</span></button>
     <button data-nav="settings"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span>Einstellungen</span></button>
   </nav>
+</div>
+
+<!-- Aktionsblatt (langes Drücken, Raum ändern, Umbenennen) -->
+<div id="sheet" class="sheet-wrap" hidden>
+  <div class="sheet-backdrop" data-sheet-close></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Aktionen">
+    <div class="sheet-grab" aria-hidden="true"></div>
+    <div id="sheet-body"></div>
+  </div>
+</div>
+
+<!-- ============ EINFÜHRUNG (erster Start) ============ -->
+<div id="onboarding" class="onb" role="dialog" aria-modal="true" aria-label="Einführung" hidden>
+  <button class="onb-skip" id="onb-skip">Überspringen</button>
+  <div class="onb-pages" id="onb-pages">
+    <section class="onb-page onb-1">
+      <div class="onb-art">
+        <span class="onb-glow" aria-hidden="true"></span>
+        <img src="./icons/icon-512.png" alt="" width="132" height="132" draggable="false">
+      </div>
+      <p class="onb-eyebrow">Heim-Inventar</p>
+      <h2>Alles, was du besitzt – schnell gefunden.</h2>
+      <p class="onb-lead">Fotografiere Stück für Stück, was du aufbewahrst. Die App merkt sich, was es ist und in welchem Raum es liegt.</p>
+      <p class="onb-private"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>Deine Daten bleiben auf diesem iPhone.</p>
+    </section>
+    <section class="onb-page onb-2">
+      <p class="onb-eyebrow">Schritt 1 von 2</p>
+      <h2>Welche Räume hast du?</h2>
+      <p class="onb-lead">Tippe an, was es bei dir gibt. Weitere Räume entstehen später ganz von selbst.</p>
+      <div class="onb-chips" id="onb-chips"></div>
+      <div class="onb-add">
+        <input id="onb-room" type="text" placeholder="Eigener Raum, z. B. Werkstatt" autocomplete="off" enterkeyhint="done" aria-label="Eigener Raum">
+        <button class="btn" id="onb-room-add" type="button"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Dazu</button>
+      </div>
+      <p class="onb-picked" id="onb-picked"></p>
+    </section>
+    <section class="onb-page onb-3">
+      <p class="onb-eyebrow">Schritt 2 von 2 · optional</p>
+      <h2>KI-Erkennung</h2>
+      <p class="onb-lead">Mit einem kostenlosen Schlüssel von Google benennt die App deine Fotos von selbst – „Akkuschrauber“, „Pfanne“, „Wintermantel“.</p>
+      <label class="field onb-keyfield">
+        <span><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg>Gemini-API-Key</span>
+        <input id="onb-key" type="password" placeholder="AIza…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+      </label>
+      <ol class="onb-steps">
+        <li><span><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a> öffnen und mit dem Google-Konto anmelden</span></li>
+        <li><span><b>Create API key</b> tippen und den Key kopieren</span></li>
+        <li><span>Hier einfügen – er bleibt nur auf diesem Gerät</span></li>
+      </ol>
+      <p class="onb-note">Ohne Key funktioniert alles – Namen tippst du dann selbst. Nachtragen geht jederzeit in den Einstellungen.</p>
+    </section>
+  </div>
+  <div class="onb-foot">
+    <div class="onb-dots" id="onb-dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
+    <button class="btn primary block" id="onb-next"><span>Weiter</span></button>
+    <button class="btn ghost block" id="onb-later" hidden>Später – erst mal ohne KI</button>
+  </div>
 </div>
 
 <div id="lightbox" class="lightbox" hidden>
@@ -359,7 +526,7 @@
   <button class="lb-close" id="lb-close" aria-label="Schließen"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
   <p class="lb-hint">Bild antippen zum Hineinzoomen</p>
 </div>
-<div id="toast" class="toast" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <div id="update-bar" class="update-bar" hidden><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span>Neue Version verfügbar</span><button id="update-go">Neu laden</button></div>
 
 <script>
@@ -453,11 +620,14 @@ setTimeout(function () {
     if (window.__inventarReady || window.__inventarFailed) return;
     document.getElementById('boot-error').hidden = false;
     document.getElementById('app').hidden = true;
+    document.getElementById('splash').hidden = true;
     if (rescuing) return;
 
     // Nachsehen, welche Datei tatsächlich fehlt – das erspart das Raten.
     var files = ['./js/app.js', './js/db.js', './js/img.js', './js/gemini.js',
-                 './js/combo.js', './js/backup.js', './js/queue.js', './css/app.css', './manifest.webmanifest'];
+                 './js/combo.js', './js/backup.js', './js/queue.js', './js/ui.js', './js/home.js',
+                 './js/gestures.js', './js/motion.js', './js/sheet.js', './js/onboarding.js',
+                 './css/app.css', './manifest.webmanifest'];
     var missing = [];
     Promise.all(files.map(function (f) {
       return fetch(f, { cache: 'no-store' })
