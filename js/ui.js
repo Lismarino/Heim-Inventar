@@ -53,6 +53,20 @@ export const EMPTY_ART = `<svg class="empty-art" viewBox="0 0 200 150" aria-hidd
 const FOCUSABLE = 'button:not([disabled]),[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 /**
+ * Sperrt `el` (inert) aus einem bestimmten Grund oder hebt diese eine Sperre auf. Das Element
+ * bleibt inert, solange noch ein Grund besteht – so kommen sich Start-Szene und Dialoge nicht
+ * in die Quere (die Szene gibt #app frei, während die Einführung es noch sperren will).
+ */
+const locks = new WeakMap();
+export function lock(el, why, on = true) {
+  if (!el) return;
+  let set = locks.get(el);
+  if (!set) { set = new Set(); locks.set(el, set); }
+  if (on) set.add(why); else set.delete(why);
+  el.inert = set.size > 0;
+}
+
+/**
  * Öffnet einen modalen Bereich: #app wird inert (weder antipp- noch fokussierbar, für
  * Screenreader weg) und der bisher fokussierte Auslöser gemerkt. Liefert release(),
  * das die Sperre aufhebt und den Fokus an den Auslöser zurückgibt – sofern es ihn noch gibt.
@@ -60,9 +74,9 @@ const FOCUSABLE = 'button:not([disabled]),[href],input:not([disabled]):not([type
 export function modal() {
   const app = document.getElementById('app');
   const trigger = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
-  app.inert = true;
+  lock(app, 'modal');
   return ({ restore = true } = {}) => {
-    app.inert = false;
+    lock(app, 'modal', false);
     if (restore && trigger?.isConnected && !trigger.closest('[hidden], [inert]')) {
       try { trigger.focus({ preventScroll: true }); } catch (_) { void _; }
     }

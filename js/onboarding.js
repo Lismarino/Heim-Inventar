@@ -40,6 +40,19 @@ export async function maybeShow(settings, { items = 0, rooms = 0 } = {}) {
 
 export const isOpen = () => !$('#onboarding').hidden;
 
+/**
+ * Fokus auf die Überschrift der sichtbaren Seite (nach der Start-Szene): Screenreader und
+ * Tastatur beginnen dort. Eine Überschrift ist kein Eingabefeld – auf dem iPhone geht dabei
+ * keine Tastatur auf.
+ */
+export function focusStart() {
+  if (!isOpen()) return;
+  const h = $$('#onb-pages .onb-page')[page]?.querySelector('h2');
+  if (!h) return;
+  h.tabIndex = -1;
+  try { h.focus({ preventScroll: true }); } catch (_) { void _; }
+}
+
 export function show() {
   const rooms = ctx.rooms();
   existing = new Set(rooms.map(key));

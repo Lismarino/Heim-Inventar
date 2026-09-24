@@ -16,12 +16,17 @@ und die Liste als Text, wenn du die KI-Suche benutzt.
 
 Beim ersten Start braucht sie Internet, danach funktioniert sie offline –
 nur die KI-Bilderkennung braucht weiterhin eine Verbindung. Beim Öffnen zeigt iOS kurz ein
-Startbild (Einmachglas auf Leinen), bis die App steht. Eine dunkle Fassung auf Espresso ist
-hinterlegt; ob iOS sie im Dunkelmodus auch nimmt, entscheidet iOS selbst – sonst erscheint
-die helle. iOS holt die Startbilder nur beim Hinzufügen zum Home-Bildschirm: Wer die App
-schon vor Version 1.5.1 installiert hat, sieht das (neue) Startbild unter Umständen erst,
-nachdem er sie einmal vom Home-Bildschirm entfernt und neu hinzugefügt hat – **vorher eine
-Sicherung machen**, denn das Entfernen löscht die Daten (siehe Abschnitt 4).
+Startbild (ein leeres gläsernes Regalbrett auf Leinen), bis die App steht; daraus wird nahtlos
+die Start-Animation (siehe **Aussehen und Bewegung** in Abschnitt 3). Eine dunkle Fassung auf
+Espresso ist hinterlegt; ob iOS sie im Dunkelmodus auch nimmt, entscheidet iOS selbst – sonst
+erscheint die helle. iOS holt die Startbilder nur beim Hinzufügen zum Home-Bildschirm: Wer die
+App schon vor Version 1.6.0 installiert hat, sieht noch das alte Startbild (Einmachglas) und
+danach einen kleinen Sprung zum Glasregal – das neue Bild kommt erst, nachdem man die App einmal
+vom Home-Bildschirm entfernt und neu hinzugefügt hat – **vorher eine Sicherung machen**, denn
+das Entfernen löscht die Daten (siehe Abschnitt 4). Seit 1.6.1 steht im Startbild kein Schriftzug
+mehr (die runde iPhone-Schrift lässt sich nicht ins Bild übernehmen); die Start-Szene blendet
+„Inventar“ in der echten Systemschrift ein. Mit einem Startbild aus 1.6.0 verschwindet der
+Schriftzug deshalb beim Übergang kurz und taucht dann wieder auf – harmlos.
 
 **Erster Start:** Eine kurze Einführung in drei Schritten – Willkommen, **Welche Räume hast
 du?** (antippen, eigene dazuschreiben) und optional der **Gemini-API-Key**. Alles lässt sich
@@ -121,7 +126,43 @@ Kacheln, die gerade zu sehen sind, und gibt sie wieder frei, sobald keine Kachel
 - Den Tab, in dem man schon ist, noch einmal antippen: springt nach oben.
 
 Ansichten gleiten von rechts herein, Hinzufügen kommt von unten; bei „Bewegung reduzieren“ in
-den iOS-Einstellungen springt alles ohne Animation. Beim Speichern eines Fotos, beim Zuweisen,
+den iOS-Einstellungen springt alles ohne Animation.
+
+**Aussehen und Bewegung (Liquid Glass, seit 1.6.0).** Die Bedienelemente schweben wie in iOS 26
+als Glas über dem Inhalt: die Tab-Leiste als Kapsel mit etwas Abstand zum Rand, der Kamera-Knopf
+als grüner Glastropfen, Aktionsblatt, Hinweise („Rückgängig“), der Update-Hinweis, die
+Zuweisen-Leiste in **Ohne Raum** und die Knöpfe oben. Kopfzeilen sind zunächst klar und werden zu
+Glas, sobald Inhalt darunter durchscrollt. Karten, Listen und Fotos bleiben bewusst solide, damit
+alles gut lesbar ist.
+- **Start:** Beim Öffnen fallen Bücher und ein Einmachglas federnd ins Glasregal, der Schriftzug
+  „Inventar“ taucht auf, ein Lichtreflex wischt darüber, dann öffnet sich die Szene in die
+  Startseite – meist ist die App nach gut einer Sekunde bedienbar, ein Tipp nach dem Laden
+  überspringt den Rest. Kommt die App nur aus dem Hintergrund zurück, gibt es keine Szene. Hat iOS
+  sie im Hintergrund beendet, blendet sie beim nächsten Öffnen in der Regel nur kurz über; je nach
+  iOS-Version und wie lange sie beendet war, kann dann aber auch die volle Szene laufen. Sie hält
+  den Start nicht auf: Die App lädt währenddessen im Hintergrund, und dauert schon das Laden lange,
+  wird nur noch übergeblendet. Solange die Szene steht, springt die Tab-Taste (Tastatur,
+  Schaltersteuerung) nicht unsichtbar in die App dahinter.
+- **Tab-Leiste:** Die Markierung des aktiven Tabs ist eine Glas-Linse, die beim Wechsel federnd
+  hinübergleitet. Beim Runterscrollen wird die Leiste etwas kleiner, beim Hochscrollen oder
+  Anhalten wieder groß.
+- **Knöpfe aus Glas** (Tabs, Kamera-Knopf, Knöpfe oben, „Rückgängig“, „Abbrechen“ im Blatt)
+  quellen beim Drücken leicht auf, ein Glanzlicht folgt dem Finger, solange er auf dem Knopf
+  bleibt.
+- **Aktionsblatt** (langes Drücken, ⋯) wächst aus der Zeile oder dem Knopf heraus und schrumpft beim
+  Schließen dorthin zurück; **Hinzufügen** quillt als Tropfen aus dem Kamera-Knopf. Hinweise fließen
+  als Glas-Kapsel herein, **Archiv** hinter einer weggewischten Zeile ist ein Glastropfen.
+- **„Bewegung reduzieren“** (Einstellungen → Bedienungshilfen → Bewegung): keine Start-Szene
+  (nur kurzes Überblenden), keine Federn, nichts quillt oder gleitet.
+- **„Transparenz reduzieren“** bzw. **„Kontrast erhöhen“** (Bedienungshilfen → Anzeige & Textgröße):
+  alle Glasflächen werden solide, getönte Flächen ohne Unschärfe. Ob Safari „Transparenz
+  reduzieren“ an Web-Apps weitergibt, hängt von der iOS-Version ab – „Kontrast erhöhen“ wirkt
+  in jedem Fall. Browser ohne Unschärfe-Effekt bekommen ebenfalls solide Flächen.
+
+Glas mit Unschärfe ist für das iPhone rechenintensiv; deshalb liegt es nur auf den wenigen
+schwebenden Elementen (höchstens etwa fünf gleichzeitig), nie auf Listenzeilen. Echte
+Lichtbrechung an den Glaskanten gibt es nur in Chrome-basierten Browsern – Safari kann das für
+Web-Apps nicht, dort bleibt es bei Unschärfe, Tönung und Lichtkante. Beim Speichern eines Fotos, beim Zuweisen,
 Wegwischen und langen Drücken gibt es ein leichtes Tippen als Rückmeldung – sofern iOS das für
 Web-Apps unterstützt (das ist nicht dokumentiert und klappt womöglich nicht auf jedem iPhone).
 
@@ -272,16 +313,20 @@ Ein Datei-Update auf dem Server kann die Datenbank nicht löschen. Prüfe der Re
 ## 5. Aufbau
 
 ```
-index.html              alle Ansichten, die SVG-Symbole (Sprite ganz oben im <body>), Start-Logo,
+index.html              alle Ansichten, die SVG-Symbole (Sprite ganz oben im <body>), Start-Szene,
                         Startbild-Links und der Start-Wächter (Dateiliste bei neuen js-Dateien ergänzen!)
 manifest.webmanifest    Name, Icons, Vollbildmodus
 sw.js                   Service Worker – App offline verfügbar (VERSION hochzählen – passend
                         zu APP_VERSION in js/app.js und <meta name="app-version"> in index.html!)
-css/app.css             Gestaltung, hell und dunkel – Farben, Radien, Schatten als Variablen oben
+css/app.css             Gestaltung, hell und dunkel – Farben, Radien, Schatten als Variablen oben,
+                        das Glas-System (--glass-*, --lite-*) und die Start-Szene im letzten Abschnitt
 js/app.js               Ansichten, Navigation, Bedienung, Abläufe
 js/home.js              Startseite „Zuhause“, Tab „Räume“ und Raum-Ansicht (inkl. scharfer Titelbilder)
 js/ui.js                gemeinsame Darstellungs-Helfer (Escapen, Symbole, Platzhalter)
-js/motion.js            Übergänge zwischen den Ansichten (nur transform/opacity)
+js/motion.js            Übergänge zwischen den Ansichten (nur transform/opacity) und die Federn
+js/glass.js             Liquid Glass: Tab-Linse, schrumpfende Leiste, Glas-Kopfzeilen, Aufquellen,
+                        Kamera-Tropfen, Herkunft für wachsende Aktionsblätter
+js/intro.js             Start-Szene „Glasregal“ (nur beim echten Start)
 js/gestures.js          Zurückwischen, Zeile wegwischen, langes Drücken, Haptik
 js/sheet.js             Aktionsblatt von unten (Kontextmenü, kleine Eingaben)
 js/onboarding.js        Einführung beim ersten Start
@@ -293,7 +338,8 @@ js/combo.js             Vorschlagsliste für Kategorie und Raum
 js/backup.js            Export und Import der Sicherungsdatei
 icons/                  App-Icons
 icons/splash/           iOS-Startbilder, hell und dunkel (bewusst nicht im Service-Worker-Cache)
-tools/splash.js         erzeugt die Startbilder neu (Playwright; gehört nicht zur App)
+tools/splash.js         erzeugt die Startbilder aus der Start-Szene in index.html (Playwright;
+                        gehört nicht zur App) – nach Änderungen an der Szene neu ausführen
 ```
 
 Fotos werden beim Speichern auf max. 1600 px verkleinert (in den Einstellungen

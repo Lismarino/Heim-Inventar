@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
-<meta name="app-version" content="1.5.1">
+<meta name="app-version" content="1.6.1">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -82,12 +82,27 @@
   <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14.5 4.5 10 9 5.5"/><path d="M4.5 10h10a5 5 0 0 1 0 10H12"/></symbol>
   <symbol id="i-rooms" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M11 3.5v5.25M11 12.25v8.25M3.5 12.25H8M11 12.25h9.5"/></symbol>
   <symbol id="i-done" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.25 12.25 2.5 2.5 5-5.25"/></symbol>
+  <!-- Liquid Glass: Lichtbrechung an den Rändern – nur Chromium kann backdrop-filter: url(…),
+       js/glass.js schaltet sie dort per Klasse „refract“ zu. Safari bleibt bei blur() + saturate(). -->
+  <filter id="lg-refract" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feImage result="map" preserveAspectRatio="none" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3ClinearGradient id='x'%3E%3Cstop offset='0' stop-color='%23f00'/%3E%3Cstop offset='.16' stop-color='%23800'/%3E%3Cstop offset='.84' stop-color='%23800'/%3E%3Cstop offset='1' stop-color='%23000'/%3E%3C/linearGradient%3E%3ClinearGradient id='y' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%230f0'/%3E%3Cstop offset='.3' stop-color='%23080'/%3E%3Cstop offset='.7' stop-color='%23080'/%3E%3Cstop offset='1' stop-color='%23000'/%3E%3C/linearGradient%3E%3Crect width='100' height='100' fill='url(%23x)'/%3E%3Crect width='100' height='100' fill='url(%23y)' style='mix-blend-mode:screen'/%3E%3C/svg%3E"/>
+    <feDisplacementMap in="SourceGraphic" in2="map" scale="22" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
 </svg>
 
-<!-- Start-Logo: liegt über allem, bis die App bereit ist (gleiches Bild wie der iOS-Startbildschirm) -->
+<!-- Start-Szene „Glas-Regal“: liegt über allem, bis die App bereit ist. Ihr Ruhezustand
+     (leeres Glasregal) ist zugleich das iOS-Startbild – tools/splash.js fotografiert genau
+     dieses Markup. js/intro.js lässt dann Bücher und ein Einmachglas hineinfallen. -->
 <div id="splash" class="splash" aria-hidden="true">
-  <img src="./icons/icon-192.png" alt="" width="104" height="104">
-  <b>Inventar</b>
+  <div class="intro">
+    <span class="i-caustic"></span>
+    <div class="i-row">
+      <i class="i-item i-book i-b1"></i><i class="i-item i-book i-b2"></i><i class="i-item i-book i-b3"></i><span class="i-item i-jar"><i class="i-lid"></i><i class="i-label"></i></span><i class="i-item i-book i-b4"></i><i class="i-item i-book i-b5"></i>
+      <i class="i-shine"></i>
+    </div>
+    <div class="i-shelf"><i class="i-glint"></i></div>
+    <b class="i-name">Inventar</b>
+  </div>
 </div>
 
 <div id="boot-error" class="boot-error" hidden>
@@ -130,21 +145,23 @@
 
   <!-- ============ ALLES (Liste) ============ -->
   <section class="view" id="view-list" hidden>
-    <header class="topbar large">
-      <h1>Alles</h1>
-      <span class="count" id="list-count"></span>
-    </header>
-    <div class="toolbar">
-      <label class="search">
-        <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
-        <input id="q" type="search" placeholder="Suchen oder KI fragen …" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="Suchen">
-      </label>
-      <div class="filters" id="filters">
-        <select id="f-cat" required aria-label="Kategorie filtern"><option value="">Alle Kategorien</option></select>
-        <select id="f-room" required aria-label="Raum filtern"><option value="">Alle Räume</option></select>
+    <div class="head">
+      <header class="topbar large">
+        <h1>Alles</h1>
+        <span class="count" id="list-count"></span>
+      </header>
+      <div class="toolbar">
+        <label class="search">
+          <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+          <input id="q" type="search" placeholder="Suchen oder KI fragen …" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="Suchen">
+        </label>
+        <div class="filters" id="filters">
+          <select id="f-cat" required aria-label="Kategorie filtern"><option value="">Alle Kategorien</option></select>
+          <select id="f-room" required aria-label="Raum filtern"><option value="">Alle Räume</option></select>
+        </div>
+        <button class="flag" id="f-flag" hidden><span id="f-flag-txt"></span><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+        <button class="btn block ask" id="ai-search" hidden>Stattdessen die KI fragen</button>
       </div>
-      <button class="flag" id="f-flag" hidden><span id="f-flag-txt"></span><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
-      <button class="btn block ask" id="ai-search" hidden>Stattdessen die KI fragen</button>
     </div>
     <div class="scroll">
       <div class="card ai-answer" id="ai-answer" hidden>
@@ -160,10 +177,12 @@
 
   <!-- ============ RÄUME (Tab) ============ -->
   <section class="view" id="view-places" hidden>
-    <header class="topbar large">
-      <h1>Räume</h1>
-      <span class="count" id="places-count"></span>
-    </header>
+    <div class="head">
+      <header class="topbar large">
+        <h1>Räume</h1>
+        <span class="count" id="places-count"></span>
+      </header>
+    </div>
     <div class="scroll places">
       <div class="room-grid" id="places-grid"></div>
     </div>
@@ -171,10 +190,12 @@
 
   <!-- ============ HINZUFÜGEN (Schnellerfassung) ============ -->
   <section class="view" id="view-add" hidden>
-    <header class="topbar large">
-      <h1>Hinzufügen</h1>
-      <button class="link strong" data-nav="back" id="cap-done">Fertig</button>
-    </header>
+    <div class="head">
+      <header class="topbar large">
+        <h1>Hinzufügen</h1>
+        <button class="link strong" data-nav="back" id="cap-done">Fertig</button>
+      </header>
+    </div>
     <div class="scroll">
 
       <div class="card cap-where">
@@ -245,11 +266,13 @@
 
   <!-- ============ OHNE RAUM ============ -->
   <section class="view" id="view-rooms" hidden>
-    <header class="topbar">
-      <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
-      <h1>Ohne Raum</h1>
-      <span class="count" id="rs-count"></span>
-    </header>
+    <div class="head">
+      <header class="topbar">
+        <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+        <h1>Ohne Raum</h1>
+        <span class="count" id="rs-count"></span>
+      </header>
+    </div>
     <div class="scroll">
       <div id="rs-main">
         <p class="hint rs-intro">Antippen zum Auswählen, dann unten den Raum eintragen.</p>
@@ -278,11 +301,13 @@
 
   <!-- ============ RAUM ============ -->
   <section class="view" id="view-room" hidden>
-    <header class="topbar">
-      <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
-      <h1 id="room-bar-title" class="bar-title"></h1>
-      <button class="link icon" id="room-menu" aria-label="Raum-Aktionen"><svg class="ic" aria-hidden="true"><use href="#i-more"/></svg></button>
-    </header>
+    <div class="head">
+      <header class="topbar">
+        <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+        <h1 id="room-bar-title" class="bar-title"></h1>
+        <button class="link icon" id="room-menu" aria-label="Raum-Aktionen"><svg class="ic" aria-hidden="true"><use href="#i-more"/></svg></button>
+      </header>
+    </div>
     <div class="scroll">
       <div class="room-hero">
         <h2 class="room-title" id="room-title"></h2>
@@ -299,11 +324,13 @@
 
   <!-- ============ DETAIL ============ -->
   <section class="view" id="view-item" hidden>
-    <header class="topbar">
-      <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
-      <h1>Eintrag</h1>
-      <button class="link strong" id="item-save">Speichern</button>
-    </header>
+    <div class="head">
+      <header class="topbar">
+        <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+        <h1>Eintrag</h1>
+        <button class="link strong" id="item-save">Speichern</button>
+      </header>
+    </div>
     <div class="scroll">
       <div class="card photo-card">
         <div class="photo-slot">
@@ -340,11 +367,13 @@
 
   <!-- ============ ARCHIV ============ -->
   <section class="view" id="view-archive" hidden>
-    <header class="topbar">
-      <button class="link back" data-nav="settings"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
-      <h1>Archiv</h1>
-      <span class="count" id="arch-count"></span>
-    </header>
+    <div class="head">
+      <header class="topbar">
+        <button class="link back" data-nav="settings"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+        <h1>Archiv</h1>
+        <span class="count" id="arch-count"></span>
+      </header>
+    </div>
     <div class="scroll">
       <div id="arch-list" class="list"></div>
       <div class="empty" id="arch-empty" hidden>
@@ -356,7 +385,9 @@
 
   <!-- ============ EINSTELLUNGEN ============ -->
   <section class="view" id="view-settings" hidden>
-    <header class="topbar large"><h1>Einstellungen</h1></header>
+    <div class="head">
+      <header class="topbar large"><h1>Einstellungen</h1></header>
+    </div>
     <div class="scroll settings">
 
       <h2 class="sec">Sicherung</h2>
@@ -454,9 +485,11 @@
   <!-- Zurückwischen: schmaler Streifen am linken Rand, nur in Push-Ansichten da (CSS) -->
   <div id="edge" class="edge-strip" aria-hidden="true"></div>
 
-  <!-- ============ NAV: fünf gleich breite Plätze, die Kamera genau in der Mitte ============ -->
+  <!-- ============ NAV: schwebende Glas-Kapsel, fünf gleich breite Plätze, die Kamera genau in der Mitte.
+       Die Linse markiert den aktiven Tab und gleitet zwischen ihnen (js/glass.js). ============ -->
   <nav id="nav">
-    <button data-nav="home" class="active"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Zuhause</span></button>
+    <span class="lens" aria-hidden="true"></span>
+    <button data-nav="home" class="active" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Zuhause</span></button>
     <button data-nav="list"><svg class="ic" aria-hidden="true"><use href="#i-shelf"/></svg><span>Alles</span></button>
     <button data-nav="add" class="add" aria-label="Hinzufügen"><span class="fab"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span></button>
     <button data-nav="places"><svg class="ic" aria-hidden="true"><use href="#i-rooms"/></svg><span>Räume</span></button>
@@ -627,7 +660,7 @@ setTimeout(function () {
     var files = ['./js/app.js', './js/db.js', './js/img.js', './js/gemini.js',
                  './js/combo.js', './js/backup.js', './js/queue.js', './js/ui.js', './js/home.js',
                  './js/gestures.js', './js/motion.js', './js/sheet.js', './js/onboarding.js',
-                 './css/app.css', './manifest.webmanifest'];
+                 './js/glass.js', './js/intro.js', './css/app.css', './manifest.webmanifest'];
     var missing = [];
     Promise.all(files.map(function (f) {
       return fetch(f, { cache: 'no-store' })

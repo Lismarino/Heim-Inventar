@@ -2,14 +2,33 @@
 // Eingaben (Raum ändern, Umbenennen). Schließt per Tipp daneben, „Abbrechen“,
 // Escape oder nach unten ziehen. Solange es offen ist, ist der Rest der App inert;
 // beim Schließen geht der Fokus an den Auslöser zurück.
+// Liquid Glass (1.6.0): Das Blatt schwebt als Glas über der App und wächst federnd aus
+// dem Element, das es geöffnet hat (Zeile, Kachel, ⋯); beim Schließen schrumpft es dorthin zurück.
 import { esc, icon, modal, trapTab } from './ui.js';
-import { reduced } from './motion.js';
+import { reduced, springAnimate, num } from './motion.js';
+import { origin } from './glass.js';
 
 const $ = (s) => document.querySelector(s);
 let onAction = null;
 let onSubmit = null;
 let closing = null;
 let release = null;   // hebt die Sperre des Hintergrunds auf (aus ui.modal)
+let source = null;    // Element, aus dem das Blatt gewachsen ist (für den Rückweg)
+
+// Verschiebung und Maßstab, mit denen das Blatt über `r` (Auslöser) liegt.
+function toward(sheet, r) {
+  const b = sheet.getBoundingClientRect();
+  if (!b.width || !b.height) return null;
+  const s = Math.max(0.18, Math.min(0.92, Math.max(r.width / b.width, r.height / b.height)));
+  return { dx: (r.left + r.width / 2) - (b.left + b.width / 2), dy: (r.top + r.height / 2) - (b.top + b.height / 2), s };
+}
+
+// Liegt der Auslöser noch sichtbar im Bild? Nur dann schrumpft das Blatt dorthin zurück.
+function visibleRect(el) {
+  if (!el?.isConnected || el.closest('[hidden]')) return null;
+  const r = el.getBoundingClientRect();
+  return r.width && r.bottom > 0 && r.top < window.innerHeight ? r : null;
+}
 
 export const isOpen = () => !$('#sheet').hidden && !closing;
 
@@ -19,11 +38,22 @@ function show(html) {
   $('#sheet-body').innerHTML = html;
   if (!wrap.hidden && !closing) return;   // schon offen: nur Inhalt tauschen
   closing = null;
+  const from = origin();   // vor modal() – danach ist der Auslöser inert
+  source = from?.el || null;
   if (!release) release = modal();
   wrap.hidden = false;
   sheet.style.transform = '';
   if (!reduced() && sheet.animate) {
-    sheet.animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.32,.72,0,1)' });
+    const m = from && toward(sheet, from.rect);
+    if (m) {
+      // Aus dem Auslöser herauswachsen: erst schnell sichtbar, dann federnd an seinen Platz.
+      springAnimate(sheet, (p) => ({
+        transform: `translate(${num(m.dx * (1 - p))}px, ${num(m.dy * (1 - p))}px) scale(${num(m.s + (1 - m.s) * p)})`,
+        opacity: num(Math.min(1, p * 3.2)),
+      }), { stiffness: 330, damping: 27 });
+    } else {
+      springAnimate(sheet, (p) => ({ transform: `translateY(${num((1 - p) * 110)}%)` }), { stiffness: 300, damping: 30 });
+    }
     wrap.querySelector('.sheet-backdrop').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-out' });
   }
   followKeyboard(true);
@@ -85,8 +115,18 @@ export function close() {
   };
   if (reduced() || !sheet.animate) { done(); return Promise.resolve(); }
   const from = sheet.style.transform || 'none';
-  const o = { duration: 260, easing: 'cubic-bezier(.4,0,.8,.6)', fill: 'forwards' };
-  const a = sheet.animate([{ transform: from }, { transform: 'translateY(110%)' }], o);
+  const back = from === 'none' ? visibleRect(source) : null;
+  source = null;
+  const m = back && toward(sheet, back);
+  const o = { duration: m ? 280 : 260, easing: m ? 'cubic-bezier(.4,0,.2,1)' : 'cubic-bezier(.4,0,.8,.6)', fill: 'forwards' };
+  const a = m
+    // Zurück in den Auslöser schrumpfen.
+    ? sheet.animate([
+      { transform: 'none', opacity: 1 },
+      { transform: `translate(${num(m.dx * 0.8)}px, ${num(m.dy * 0.8)}px) scale(${num(m.s + (1 - m.s) * 0.2)})`, opacity: 0.6, offset: 0.7 },
+      { transform: `translate(${num(m.dx)}px, ${num(m.dy)}px) scale(${num(m.s)})`, opacity: 0 },
+    ], o)
+    : sheet.animate([{ transform: from }, { transform: 'translateY(110%)' }], o);
   const b = wrap.querySelector('.sheet-backdrop').animate([{ opacity: 1 }, { opacity: 0 }], o);
   closing = Promise.all([a.finished, b.finished]).catch(() => null).then(() => { done(); a.cancel(); b.cancel(); });
   return closing;
@@ -103,7 +143,7 @@ function followKeyboard(on) {
   if (!on) return;
   vvHandler = () => {
     const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    sheet.style.bottom = kb > 40 ? kb + 'px' : '';
+    sheet.style.bottom = kb > 40 ? kb + 8 + 'px' : '';
     sheet.classList.toggle('kb', kb > 40);
   };
   vv.addEventListener('resize', vvHandler);
