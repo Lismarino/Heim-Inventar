@@ -1,7 +1,13 @@
 // Service Worker – App-Shell offline verfügbar halten.
 // Bei jeder Änderung an den App-Dateien VERSION hochzählen, sonst sieht das
-// iPhone die neue Fassung nicht.
-const VERSION = 'v1.4.0';
+// iPhone die neue Fassung nicht. VERSION, APP_VERSION in js/app.js und
+// <meta name="app-version"> in index.html müssen übereinstimmen.
+//
+// Aktualisiert wird NUR über einen neuen Service Worker: install holt alle Dateien
+// frisch vom Server in einen neuen Cache. Der Fetch-Handler schreibt nie in den
+// Cache – sonst landen neues index.html und (per HTTP-Cache) veraltetes app.js
+// nebeneinander, und die App startet nicht mehr.
+const VERSION = 'v1.4.1';
 const CACHE = 'heim-inventar-' + VERSION;
 
 const ASSETS = [
@@ -44,23 +50,20 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;        // nichts Fremdes cachen
 
+  // Erst der eigene Versions-Cache, sonst das Netz, offline die App-Shell.
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const hit = await cache.match(req, { ignoreSearch: true });
-
-    const fromNet = fetch(req).then((res) => {
-      if (res && res.ok && res.type === 'basic') cache.put(req, res.clone());
-      return res;
-    }).catch(() => null);
-
-    if (hit) { e.waitUntil(fromNet); return hit; }        // erst Cache, Update im Hintergrund
-
-    const net = await fromNet;
-    if (net) return net;
-    if (req.mode === 'navigate') {
-      const shell = await cache.match('./index.html') || await cache.match('./');
-      if (shell) return shell;
+    if (hit) return hit;
+    try {
+      return await fetch(req);
+    } catch (_) {
+      void _;
+      if (req.mode === 'navigate') {
+        const shell = await cache.match('./index.html') || await cache.match('./');
+        if (shell) return shell;
+      }
+      return new Response('Offline', { status: 503, statusText: 'Offline' });
     }
-    return new Response('Offline', { status: 503, statusText: 'Offline' });
   })());
 });

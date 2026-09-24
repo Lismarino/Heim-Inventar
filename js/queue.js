@@ -10,6 +10,7 @@ const AI_EDGE = 768;          // an Gemini geht eine kleine Fassung – das spar
 const AI_QUALITY = 0.7;
 const MAX_TRIES = 3;          // vorübergehende Fehler je Eintrag, danach 'failed'
 const SLOW_GAP = 4000;        // nach einem 429: Abstand zwischen zwei Anfragen
+const SLOW_RECOVER = 5;       // so viele Erfolge in Folge ohne 429 – dann wieder normal schnell
 
 let getSettings = () => ({});
 let notify = () => {};
@@ -19,6 +20,7 @@ let blocked = '';             // Key abgelehnt, Modell weg … – erst nach Än
 let pausedUntil = 0;
 let slow = false;             // nach einem 429 nur noch eine Anfrage gleichzeitig
 let quotaHits = 0;
+let okStreak = 0;             // Erfolge in Folge seit dem letzten 429
 let lastStart = 0;
 let timer = null, timerAt = 0;
 let pumping = false, again = false;
@@ -36,6 +38,8 @@ export function kick({ reset = false } = {}) {
     blocked = '';
     pausedUntil = 0;
     quotaHits = 0;
+    slow = false;
+    okStreak = 0;
     tries.clear();
   }
   pump();
@@ -49,7 +53,7 @@ export function status() {
   else if (blocked) note = 'Erkennung angehalten: ' + blocked;
   else if (!navigator.onLine) note = 'Offline – Erkennung geht weiter, sobald du wieder online bist.';
   else if (pausedUntil > Date.now()) note = 'Kurze Pause, Gemini ist gerade ausgelastet …';
-  return { active: running.size, note };
+  return { active: running.size, note, slow };
 }
 
 // Frühestens nach `ms` wieder anstoßen (ein einziger Timer, der früheste gewinnt).
@@ -119,16 +123,12 @@ async function work(id) {
     const cats = (await db.getAll('categories')).map(c => c.name);
     const found = await ai.analyzePhoto(getSettings(), b64, '', cats);
 
-    // Kategorie des ersten Gegenstands nur anlegen, wenn der Eintrag noch keine hat.
-    const withIds = [];
-    for (let i = 0; i < found.length; i++) {
-      const f = found[i];
-      const categoryId = i === 0 && it.categoryId ? null : await db.ensureNamed('categories', f.category);
-      withIds.push({ name: f.name, categoryId, confidence: f.confidence });
-    }
-    await db.applyRecognition(id, withIds);
+    // Kategorien legt applyRecognition selbst an – in derselben Transaktion und nur,
+    // wenn der Eintrag dann noch existiert und auf die Erkennung wartet.
+    await db.applyRecognition(id, found.map(f => ({ name: f.name, category: f.category, confidence: f.confidence })));
     tries.delete(id);
     quotaHits = 0;
+    if (slow && ++okStreak >= SLOW_RECOVER) { slow = false; okStreak = 0; }
     changed = true;
   } catch (e) {
     changed = await onError(id, e);
@@ -152,6 +152,7 @@ async function onError(id, e) {
   if (code === 'quota') {
     quotaHits++;
     slow = true;
+    okStreak = 0;
     const ms = Math.min(300000, 15000 * 2 ** (quotaHits - 1));
     pausedUntil = Date.now() + ms;
     later(ms);

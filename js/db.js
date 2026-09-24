@@ -137,8 +137,8 @@ export function setSetting(key, value) {
 const norm = (s) => String(s || '').trim().toLowerCase();
 
 // Findet eine bestehende Kategorie/Raum per Name (case-insensitiv) oder legt sie an.
-// Aufrufe laufen nacheinander: Die KI-Warteschlange arbeitet parallel und würde
-// sonst dieselbe neue Kategorie zweimal anlegen.
+// Aufrufe laufen nacheinander, jeder in einer eigenen Transaktion – so entsteht
+// dieselbe neue Kategorie nie zweimal, auch nicht neben der KI-Warteschlange.
 let namedLock = Promise.resolve();
 export function ensureNamed(storeName, name) {
   const run = namedLock.then(() => ensureNamedNow(storeName, name));
@@ -146,15 +146,23 @@ export function ensureNamed(storeName, name) {
   return run;
 }
 
-async function ensureNamedNow(storeName, name) {
+// Suchen und Anlegen in EINER Transaktion – sonst könnte die Erkennung
+// (applyRecognition) dazwischen denselben Namen anlegen.
+function ensureNamedNow(storeName, name) {
   const clean = String(name || '').trim();
-  if (!clean) return null;
-  const all = await getAll(storeName);
-  const hit = all.find(x => norm(x.name) === norm(clean));
-  if (hit) return hit.id;
-  const rec = { id: uid(), name: clean, createdAt: Date.now() };
-  await put(storeName, rec);
-  return rec.id;
+  if (!clean) return Promise.resolve(null);
+  return withTx([storeName], 'readwrite', (tx) => {
+    const box = { id: null };
+    const s = tx.objectStore(storeName);
+    s.getAll().onsuccess = (ev) => {
+      const hit = ev.target.result.find(x => norm(x.name) === norm(clean));
+      if (hit) { box.id = hit.id; return; }
+      const rec = { id: uid(), name: clean, createdAt: Date.now() };
+      s.put(rec);
+      box.id = rec.id;
+    };
+    return box;
+  }).then(box => box.id);
 }
 
 // Hängt alle Einträge von oldId auf newId um (null leert das Feld) und löscht
@@ -198,6 +206,7 @@ export function newItem(patch = {}) {
     aiConfidence: null,
     aiState: null,     // null | 'pending' | 'done' | 'failed' – Hintergrund-Erkennung
     aiError: null,
+    aiSplit: false,    // true: Zusatz-Einträge aus diesem Foto sind schon angelegt
     createdAt: now,
     updatedAt: now,
     archived: 0,
@@ -235,48 +244,104 @@ export function patchItem(id, patch, cond) {
   }).then(box => box.item);
 }
 
-// Trägt das Ergebnis der Bilderkennung ein. `found`: [{ name, categoryId, confidence }].
+// Trägt das Ergebnis der Bilderkennung ein. `found`: [{ name, category, confidence }]
+// (Kategorie als Name; alternativ schon aufgelöst als `categoryId`).
+// Alles in EINER Transaktion über Einträge und Kategorien: Ist der Eintrag inzwischen
+// gelöscht, erledigt oder die Datenbank per „Alles ersetzen“ neu befüllt, wird auch
+// keine Kategorie angelegt.
 // Der erste Gegenstand füllt den Eintrag selbst – einen inzwischen von Hand
 // eingetragenen Namen oder eine Kategorie aber NICHT überschreiben. Jeder weitere
-// Gegenstand wird ein eigener Eintrag mit demselben Foto und Ort.
+// Gegenstand wird ein eigener Eintrag mit demselben Foto und Ort – aber nur beim
+// ersten Mal: Nach „Erneut erkennen“ (aiSplit gesetzt) entstehen keine Dubletten.
 export function applyRecognition(id, found) {
-  return withTx(['items'], 'readwrite', (tx) => {
+  return withTx(['items', 'categories'], 'readwrite', (tx) => {
     const out = { applied: false, added: 0 };
     const s = tx.objectStore('items');
+    const cs = tx.objectStore('categories');
     s.get(id).onsuccess = (ev) => {
       const it = ev.target.result;
       if (!it || it.aiState !== 'pending' || !found.length) return;   // gelöscht oder schon erledigt
-      const now = Date.now();
-      const [first, ...rest] = found;
-      if (!String(it.name || '').trim()) {
-        it.name = first.name;
-        it.aiConfidence = first.confidence;
-      }
-      if (!it.categoryId) it.categoryId = first.categoryId;
-      it.aiState = 'done';
-      it.aiError = null;
-      it.updatedAt = now;
-      s.put(it);
-      out.applied = true;
-      if (it.archived) return;   // inzwischen archiviert: keine neuen Einträge dazu
-      rest.forEach((f, i) => {
-        s.put(newItem({
-          name: f.name,
-          categoryId: f.categoryId,
-          roomId: it.roomId,
-          locationDetail: it.locationDetail,
-          photoId: it.photoId,
-          thumb: it.thumb,
-          aiConfidence: f.confidence,
-          aiState: 'done',
-          createdAt: it.createdAt + i + 1,   // direkt neben dem Original einsortieren
-          updatedAt: now,
-        }));
-        out.added++;
-      });
+      cs.getAll().onsuccess = (ev2) => {
+        const byName = new Map(ev2.target.result.map(c => [norm(c.name), c.id]));
+        const catId = (f) => {
+          if (f.categoryId !== undefined) return f.categoryId || null;
+          const clean = String(f.category || '').trim();
+          if (!clean) return null;
+          let cid = byName.get(norm(clean));
+          if (!cid) {
+            const rec = { id: uid(), name: clean, createdAt: Date.now() };
+            cs.put(rec);
+            cid = rec.id;
+            byName.set(norm(clean), cid);
+          }
+          return cid;
+        };
+        const now = Date.now();
+        const [first, ...rest] = found;
+        if (!String(it.name || '').trim()) {
+          it.name = first.name;
+          it.aiConfidence = first.confidence;
+        }
+        if (!it.categoryId) it.categoryId = catId(first);
+        it.aiState = 'done';
+        it.aiError = null;
+        it.updatedAt = now;
+        out.applied = true;
+        // Inzwischen archiviert oder schon einmal aufgeteilt: keine neuen Einträge dazu.
+        if (it.archived || it.aiSplit || !rest.length) { s.put(it); return; }
+        it.aiSplit = true;
+        s.put(it);
+        // Sicherheitshalber gegen vorhandene Einträge mit demselben Foto abgleichen.
+        s.getAll().onsuccess = (ev3) => {
+          const have = new Set(ev3.target.result
+            .filter(x => x.photoId && x.photoId === it.photoId)
+            .map(x => norm(x.name)));
+          have.add(norm(it.name));
+          rest.forEach((f, i) => {
+            if (have.has(norm(f.name))) return;
+            have.add(norm(f.name));
+            s.put(newItem({
+              name: f.name,
+              categoryId: catId(f),
+              roomId: it.roomId,
+              locationDetail: it.locationDetail,
+              photoId: it.photoId,
+              thumb: it.thumb,
+              aiConfidence: f.confidence,
+              aiState: 'done',
+              createdAt: it.createdAt + i + 1,   // direkt neben dem Original einsortieren
+              updatedAt: now,
+            }));
+            out.added++;
+          });
+        };
+      };
     };
     return out;
   });
+}
+
+// Fotos, die ohne API-Key erfasst und nie erkannt wurden, zur Erkennung vormerken
+// (nicht archiviert, mit Foto, ohne Namen, aiState null). Liefert die Anzahl.
+export function markUnrecognized() {
+  return withTx(['items'], 'readwrite', (tx) => {
+    const out = { marked: 0 };
+    const now = Date.now();
+    tx.objectStore('items').openCursor().onsuccess = (ev) => {
+      const cur = ev.target.result;
+      if (!cur) return;
+      const it = cur.value;
+      if (!it.archived && it.photoId && !String(it.name || '').trim() && it.aiState == null) {
+        it.aiState = 'pending';
+        it.aiError = null;
+        it.updatedAt = now;
+        cur.update(it);
+        out.marked++;
+      }
+      cur.continue();
+    };
+    return out;
+  }).then(out => out.marked);
 }
 
 // Weist mehreren Einträgen einen Raum zu – in EINER Transaktion.
@@ -304,22 +369,14 @@ export function assignRoom(ids, roomId, locationDetail) {
   });
 }
 
-export async function archiveItem(id) {
-  const it = await get('items', id);
-  if (!it) return null;
-  it.archived = 1;
-  it.archivedAt = Date.now();
-  it.updatedAt = Date.now();
-  return put('items', it);
+// Archivieren/Wiederherstellen über patchItem: lesen und schreiben in EINER
+// Transaktion, damit eine gleichzeitig eintreffende Erkennung nicht verloren geht.
+export function archiveItem(id) {
+  return patchItem(id, { archived: 1, archivedAt: Date.now() });
 }
 
-export async function restoreItem(id) {
-  const it = await get('items', id);
-  if (!it) return null;
-  it.archived = 0;
-  it.archivedAt = null;
-  it.updatedAt = Date.now();
-  return put('items', it);
+export function restoreItem(id) {
+  return patchItem(id, { archived: 0, archivedAt: null });
 }
 
 // Endgültig löschen – inklusive Foto, falls kein anderer Eintrag es noch nutzt.

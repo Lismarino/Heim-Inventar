@@ -82,13 +82,20 @@ damit dem iPhone nicht der Speicher ausgeht. **Fertig** führt zur Liste.
 zwei gleichzeitig, an Gemini geht nur eine kleine 768-px-Fassung. Bis dahin steht in der
 Liste „wird erkannt …“. Liegen mehrere gut unterscheidbare Dinge auf einem Bild, entsteht
 pro Gegenstand ein eigener Eintrag mit demselben Foto und Ort. Hast du einen Namen schon
-selbst eingetragen, überschreibt die KI ihn nicht. Offline, ohne API-Key oder wenn Google
-gerade bremst (429), bleiben die Fotos in der Warteschlange und werden später erkannt –
-auch nach einem Neustart der App, sobald du wieder online bist oder einen Key einträgst.
-Klappt die Erkennung nicht, steht der Eintrag als **„Unbenannt – antippen zum Benennen“** in
-der Liste; im Eintrag gibt es dann **Erneut erkennen**. Ohne API-Key werden Fotos gar nicht
-erst geschickt, sondern landen direkt als „Unbenannt“ – nachträglich lässt sich im Eintrag
-**Mit KI erkennen** antippen.
+selbst eingetragen, überschreibt die KI ihn nicht. Offline oder wenn Google gerade bremst
+(429), bleiben die Fotos in der Warteschlange und werden später erkannt – auch nach einem
+Neustart der App, sobald du wieder online bist. Klappt die Erkennung nicht, steht der Eintrag
+als **„Unbenannt – antippen zum Benennen“** in der Liste; im Eintrag gibt es dann **Erneut
+erkennen**. „Erneut erkennen“ legt keine weiteren Zusatz-Einträge an, wenn aus dem Foto schon
+welche entstanden sind.
+
+**Ohne API-Key** werden Fotos gar nicht erst geschickt, sondern landen direkt als
+„Unbenannt“ in der Liste. Sobald du in den Einstellungen einen Key einträgst (oder ihn
+änderst), merkt die App alle solchen Fotos – nicht archiviert, noch ohne Namen – automatisch
+zur Erkennung vor und meldet „N Fotos werden jetzt erkannt“. Einzelne Einträge lassen sich
+auch im Eintrag über **Mit KI erkennen** anstoßen. Wartet ein Eintrag auf die Erkennung, ist
+aber kein Key hinterlegt (etwa nach dem Einlesen einer Sicherung auf einem neuen Gerät),
+steht dort „Wartet auf API-Key“ statt „wird erkannt …“.
 
 **Ohne Foto eintragen** – aufklappbar unter den Foto-Knöpfen: Name, Kategorie, Speichern.
 Raum und Ort-Details kommen aus dem Feld ganz oben. Bestand (mit Schnellauswahl) und Notiz
@@ -178,8 +185,11 @@ Mehrfaches Einlesen derselben Datei erzeugt keine Dubletten.
 
 Ein Datei-Update auf dem Server kann die Datenbank nicht löschen. Prüfe der Reihe nach:
 
-1. **Startet die App überhaupt?** Fehlt eine Datei auf dem Server, zeigt die App nach
-   wenigen Sekunden „Die App konnte nicht starten“ und nennt die fehlende Datei.
+1. **Startet die App überhaupt?** Passen nach einem Update die geladenen Dateien nicht
+   zusammen (neues `index.html`, altes `app.js` aus dem Zwischenspeicher), übernimmt die App
+   von selbst die neue Version und lädt einmal neu – dafür musst du nichts tun. Fehlt eine
+   Datei auf dem Server, zeigt die App nach wenigen Sekunden „Die App konnte nicht starten“
+   und nennt die fehlende Datei.
    Die Einträge sind dann unversehrt – sie erscheinen wieder, sobald die Datei da ist.
    **Lösche die App in dieser Lage nicht vom Home-Bildschirm**, das würde sie wirklich löschen.
 2. **Einstellungen → Datenbank prüfen.** Zeigt die tatsächlichen Satzzahlen und die
@@ -201,7 +211,8 @@ Ein Datei-Update auf dem Server kann die Datenbank nicht löschen. Prüfe der Re
 ```
 index.html              alle Ansichten und die SVG-Symbole (Sprite ganz oben im <body>)
 manifest.webmanifest    Name, Icons, Vollbildmodus
-sw.js                   Service Worker – App offline verfügbar (VERSION hochzählen!)
+sw.js                   Service Worker – App offline verfügbar (VERSION hochzählen – passend
+                        zu APP_VERSION in js/app.js und <meta name="app-version"> in index.html!)
 css/app.css             Gestaltung, hell und dunkel – Farben, Radien, Schatten als Variablen oben
 js/app.js               Ansichten, Bedienung, Abläufe
 js/db.js                IndexedDB: Einträge, Fotos, Kategorien, Räume, Einstellungen

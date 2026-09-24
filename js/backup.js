@@ -165,6 +165,13 @@ export async function applyBackup(data, mode, onProgress) {
     it.roomId = raw.roomId ? (rooms.map.get(raw.roomId) || null) : null;
     it.archived = raw.archived ? 1 : 0;
     it.thumb = safeThumb(raw.thumb);
+    // Verweis auf ein Foto, das weder in der Datei noch auf dem Gerät liegt: leeren.
+    it.photoId = isId(raw.photoId) && havePhotos.has(raw.photoId) ? raw.photoId : null;
+    // Erkennungsstatus: 'pending' nur mit Foto – sonst hinge der Eintrag ewig in der Warteschlange.
+    it.aiState = raw.aiState === 'done' || raw.aiState === 'failed' ? raw.aiState
+      : raw.aiState === 'pending' && it.photoId ? 'pending' : null;
+    it.aiError = typeof raw.aiError === 'string' ? raw.aiError : null;
+    it.aiSplit = raw.aiSplit === true;
     // Kaputte Zeitstempel würden sonst das Datumsformat in der Liste sprengen.
     it.createdAt = num(raw.createdAt, Date.now());
     it.updatedAt = num(raw.updatedAt, it.createdAt);

@@ -439,6 +439,7 @@ details[open]>summary .chev{transform:rotate(180deg)}
   max-width:100%;max-height:var(--photo-max);
   cursor:zoom-in;
 }
+.photo-slot img:focus-visible{outline:2.5px solid var(--accent-text);outline-offset:-4px}
 .photo-placeholder{text-align:center;color:var(--fg3);font-size:15px;font-weight:500;padding:24px}
 .photo-placeholder small{display:block;margin-top:4px;font-size:12px}
 .photo-placeholder .ph-icon{width:48px;height:48px;stroke-width:1.4;margin-bottom:8px}
@@ -731,7 +732,8 @@ body[data-view="rooms"] .toast{bottom:calc(var(--nav-h) + var(--safe-b) + 190px)
 .pick-img img{width:100%;height:100%;object-fit:cover;display:block}
 .pick-img .pick-ph{width:100%;height:100%;font-size:36px}
 .pick:active .pick-img{transform:scale(.96)}
-.pick:focus-visible .pick-img{outline:2.5px solid var(--accent-text);outline-offset:2px}
+.pick-toggle{outline:none}
+.pick-toggle:focus-visible .pick-img{outline:2.5px solid var(--accent-text);outline-offset:2px}
 .pick.on .pick-img{transform:scale(.95)}
 .pick.on .pick-img::after{box-shadow:inset 0 0 0 3.5px var(--accent-text)}
 .pick-check{

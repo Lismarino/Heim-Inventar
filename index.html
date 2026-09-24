@@ -2,6 +2,8 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
+<!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
+<meta name="app-version" content="1.4.1">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -202,7 +204,7 @@
     <div class="scroll">
       <div class="card photo-card">
         <div class="photo-slot">
-          <img id="item-photo" alt="" hidden>
+          <img id="item-photo" alt="" role="button" tabindex="0" aria-label="Foto vergrößern" hidden>
           <div class="photo-placeholder" id="item-nophoto"><svg class="ic ph-icon" aria-hidden="true"><use href="#i-box"/></svg><div>Kein Foto</div></div>
           <span class="expand" id="item-expand" hidden><svg class="ic" aria-hidden="true"><use href="#i-expand"/></svg>Vergrößern</span>
         </div>
@@ -361,27 +363,112 @@
 <div id="update-bar" class="update-bar" hidden><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span>Neue Version verfügbar</span><button id="update-go">Neu laden</button></div>
 
 <script>
+// Rettung aus einem Mischstand: Ein älterer Service Worker (bis 1.4.0) konnte neues
+// index.html neben veraltete Skripte in seinen Cache legen. Dann startet die App nicht,
+// und Neuladen hilft nicht, solange er die Seite ausliefert. In diesem Fall den neuen
+// Service Worker (wartet schon oder wird jetzt gesucht) sofort übernehmen lassen und
+// genau einmal neu laden. Steht bewusst hier inline – es muss auch dann laufen, wenn
+// ein veraltetes app.js geladen ist und abstürzt.
+(function () {
+  var VERSION = (document.querySelector('meta[name="app-version"]') || {}).content || '';
+  var KEY = 'inventar-rettung';
+  var running = null;
+
+  // Schleifenschutz: höchstens ein automatisches Neuladen alle zwei Minuten.
+  function allowed() {
+    try {
+      var last = Number(sessionStorage.getItem(KEY)) || 0;
+      return Date.now() - last > 120000;
+    } catch (_) { void _; return false; }   // ohne sessionStorage lieber gar nicht automatisch
+  }
+
+  // Liefert den wartenden Service Worker – wartet dazu notfalls, bis er installiert ist.
+  function waitingWorker(reg) {
+    if (reg.waiting) return Promise.resolve(reg.waiting);
+    var nw = reg.installing;
+    if (!nw) return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      var t = setTimeout(function () { resolve(reg.waiting || null); }, 30000);
+      nw.addEventListener('statechange', function () {
+        if (nw.state === 'installed' || nw.state === 'redundant') { clearTimeout(t); resolve(reg.waiting || null); }
+      });
+    });
+  }
+
+  function attempt(why) {
+    if (!('serviceWorker' in navigator) || !allowed()) return Promise.resolve(false);
+    return navigator.serviceWorker.getRegistration().then(function (reg) {
+      if (!reg) return null;
+      return Promise.resolve(reg.update()).catch(function () { return null; })
+        .then(function () { return waitingWorker(reg); });
+    }).then(function (w) {
+      if (!w || !allowed()) return false;
+      try { sessionStorage.setItem(KEY, String(Date.now())); } catch (_) { void _; return false; }
+      console.warn('Heim-Inventar: neue Version wird übernommen (' + why + ').');
+      var done = false;
+      var reload = function () { if (!done) { done = true; location.reload(); } };
+      navigator.serviceWorker.addEventListener('controllerchange', reload);
+      w.postMessage({ type: 'SKIP_WAITING' });
+      setTimeout(reload, 6000);   // Rückfall, falls das Ereignis ausbleibt
+      window.__inventarRescuing = true;
+      var d = document.getElementById('boot-error-detail');
+      if (d) d.textContent = 'Eine neue Version wird eingerichtet – die App lädt gleich neu.';
+      return true;
+    }).catch(function () { return false; });
+  }
+
+  // Ergebnis: true = neue Version wird übernommen, die Seite lädt gleich neu.
+  // Läuft schon ein Versuch, dessen Ergebnis teilen; ein erfolgloser darf später wiederholt werden.
+  window.__inventarRescue = function (why) {
+    if (!running) {
+      running = attempt(why || '?').then(function (ok) { if (!ok) running = null; return ok; });
+    }
+    return running;
+  };
+
+  // Skriptfehler vor dem Start (z. B. altes app.js zu neuem index.html).
+  var early = function (e) {
+    if (window.__inventarReady) return;
+    var t = e && e.target;
+    if (e && e.type === 'error' && t && t !== window && t.tagName !== 'SCRIPT') return;   // z. B. ein fehlendes Bild
+    window.__inventarRescue('Startfehler');
+  };
+  window.addEventListener('error', early, true);
+  window.addEventListener('unhandledrejection', early);
+
+  // Module sind vor DOMContentLoaded ausgeführt: meldet app.js eine andere (oder gar
+  // keine) Version, passt es nicht zu diesem index.html.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.__inventarVersion !== VERSION) window.__inventarRescue('Version ' + (window.__inventarVersion || 'alt') + ' statt ' + VERSION);
+  });
+})();
+
 // Startet die App nicht (z. B. fehlende Datei), darf der Nutzer nicht vor einer
 // leeren Liste stehen und denken, seine Daten seien weg.
 setTimeout(function () {
   // __inventarFailed: app.js hat selbst schon eine genauere Meldung gezeigt.
   if (window.__inventarReady || window.__inventarFailed) return;
-  document.getElementById('boot-error').hidden = false;
-  document.getElementById('app').hidden = true;
-
-  // Nachsehen, welche Datei tatsächlich fehlt – das erspart das Raten.
-  var files = ['./js/app.js', './js/db.js', './js/img.js', './js/gemini.js',
-               './js/combo.js', './js/backup.js', './js/queue.js', './css/app.css', './manifest.webmanifest'];
-  var missing = [];
-  Promise.all(files.map(function (f) {
-    return fetch(f, { cache: 'no-store' })
-      .then(function (r) { if (!r.ok) missing.push(f + ' (' + r.status + ')'); })
-      .catch(function () { missing.push(f + ' (nicht erreichbar)'); });
-  })).then(function () {
+  // Vielleicht ein Mischstand nach einem Update – dann rettet sich die App selbst.
+  window.__inventarRescue('Zeitüberschreitung').then(function (rescuing) {
     if (window.__inventarReady || window.__inventarFailed) return;
-    document.getElementById('boot-error-detail').textContent = missing.length
-      ? 'Fehlt auf dem Server: ' + missing.join(', ')
-      : 'Alle Dateien sind erreichbar. Dann liegt es an einem Skriptfehler – lade die Seite neu.';
+    document.getElementById('boot-error').hidden = false;
+    document.getElementById('app').hidden = true;
+    if (rescuing) return;
+
+    // Nachsehen, welche Datei tatsächlich fehlt – das erspart das Raten.
+    var files = ['./js/app.js', './js/db.js', './js/img.js', './js/gemini.js',
+                 './js/combo.js', './js/backup.js', './js/queue.js', './css/app.css', './manifest.webmanifest'];
+    var missing = [];
+    Promise.all(files.map(function (f) {
+      return fetch(f, { cache: 'no-store' })
+        .then(function (r) { if (!r.ok) missing.push(f + ' (' + r.status + ')'); })
+        .catch(function () { missing.push(f + ' (nicht erreichbar)'); });
+    })).then(function () {
+      if (window.__inventarReady || window.__inventarFailed) return;
+      document.getElementById('boot-error-detail').textContent = missing.length
+        ? 'Fehlt auf dem Server: ' + missing.join(', ')
+        : 'Alle Dateien sind erreichbar. Dann liegt es an einem Skriptfehler – lade die Seite neu.';
+    });
   });
 }, 6000);
 </script>

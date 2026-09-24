@@ -5,7 +5,9 @@ import { initCombos, hideCombo, norm } from './combo.js';
 import * as backup from './backup.js';
 import * as queue from './queue.js';
 
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.4.1';
+// Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
+window.__inventarVersion = APP_VERSION;
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -56,6 +58,7 @@ const state = {
   roomSel: new Set(),               // „Ohne Raum“: markierte Einträge
   scrollPos: {},                    // Ansicht -> Scroll-Position beim Verlassen
   currentId: null,
+  shown: {},        // Detail: zuletzt angezeigte Feldwerte – gespeichert wird nur, was davon abweicht
   detailURL: null,
   lightboxURL: null,
   aiSearch: null,   // { question, answer, matches:[{item, why}] }
@@ -66,6 +69,10 @@ const roomName = (id) => state.rooms.find(r => r.id === id)?.name || '';
 const hasKey = () => !!(state.settings.apiKey || '').trim();
 // Raum zählt nur, wenn es ihn auch gibt – eine Sicherung kann tote Verweise enthalten.
 const hasRoom = (it) => !!(it.roomId && roomName(it.roomId));
+// Wartet ein Eintrag auf die Erkennung, geht das nur mit Key voran. Ohne Key nicht
+// ewig „wird erkannt …“ drehen, sondern sagen, woran es hängt.
+const aiBusy = (it) => it.aiState === 'pending' && hasKey();
+const aiNeedsKey = (it) => it.aiState === 'pending' && !hasKey();
 const noRoomItems = () => state.items
   .filter(i => !i.archived && !hasRoom(i))
   .sort((a, b) => b.createdAt - a.createdAt);
@@ -73,6 +80,13 @@ const noRoomItems = () => state.items
 /* =========================== Boot =========================== */
 
 async function boot() {
+  // Passt index.html nicht zu diesem Skript (Mischstand nach einem Update), lieber die
+  // neue Version übernehmen und neu laden, statt halb zu starten.
+  const pageVersion = document.querySelector('meta[name="app-version"]')?.content || '';
+  if (pageVersion !== APP_VERSION) {
+    console.warn(`Versionen passen nicht zusammen: index.html ${pageVersion || 'alt'}, app.js ${APP_VERSION}.`);
+    if (await rescueUpdate('Version')) return;
+  }
   try {
     await db.openDB();
   } catch (e) {
@@ -105,6 +119,7 @@ async function boot() {
 // Zeigt die Startfehler-Seite aus index.html mit einer passenden Meldung.
 function showBootError(msg, err) {
   window.__inventarFailed = true;   // der Wächter in index.html überschreibt dann nichts mehr
+  rescueUpdate('Startfehler');      // liegt womöglich nur an einem halben Update
   const box = $('#boot-error');
   box.querySelector('p').textContent = msg;
   $('#boot-error-detail').textContent = err?.message || String(err || '');
@@ -227,12 +242,14 @@ function rowHTML(it, why) {
     : placeholderHTML(it, 'thumb');
   const cat = catName(it.categoryId);
   const place = [roomName(it.roomId), it.locationDetail].filter(Boolean).join(' · ');
-  const title = it.aiState === 'pending'
+  const title = aiBusy(it)
     ? `<div class="name pending"><span class="spin"></span>${esc(it.name || 'wird erkannt …')}</div>`
     : it.name
       ? `<div class="name">${esc(it.name)}</div>`
-      : '<div class="name unnamed">Unbenannt – antippen zum Benennen</div>';
-  return `<button class="row${it.aiState === 'pending' ? ' is-pending' : ''}" data-id="${esc(it.id)}">
+      : aiNeedsKey(it)
+        ? '<div class="name unnamed">Wartet auf API-Key</div>'
+        : '<div class="name unnamed">Unbenannt – antippen zum Benennen</div>';
+  return `<button class="row${aiBusy(it) ? ' is-pending' : ''}" data-id="${esc(it.id)}">
     ${thumb}
     <div class="body">
       ${title}
@@ -372,24 +389,26 @@ async function rememberWhere() {
 function renderCapture() {
   const hint = $('#cap-hint');
   hint.hidden = hasKey();
-  hint.textContent = 'Ohne API-Key in den Einstellungen werden Fotos nicht erkannt. Sie landen als „Unbenannt“ in der Liste, du benennst sie später.';
+  hint.textContent = 'Ohne API-Key in den Einstellungen werden Fotos nicht erkannt. Sie landen als „Unbenannt“ in der Liste – trägst du später einen Key ein, werden sie automatisch erkannt.';
 
   const mine = state.capture.ids.map(id => state.items.find(i => i.id === id)).filter(Boolean);
   const busy = state.capture.busy;
-  const pending = mine.filter(i => i.aiState === 'pending').length;
+  const pending = mine.filter(aiBusy).length;
+  const needKey = mine.filter(aiNeedsKey).length;
   $('#cap-status').hidden = !mine.length && !busy;
 
   const parts = [`${mine.length} erfasst`];
   if (pending) parts.push(`${pending} ${pending === 1 ? 'wird' : 'werden'} erkannt`);
+  if (needKey) parts.push(`${needKey} ${needKey === 1 ? 'wartet' : 'warten'} auf API-Key`);
   if (busy) parts.push(busy);
   $('#cap-summary').innerHTML = (busy || pending ? '<span class="spin"></span>' : '') + esc(parts.join(' · '));
 
   $('#cap-strip').innerHTML = mine.slice(-20).reverse().map(it => {
-    const wait = it.aiState === 'pending';
+    const wait = aiBusy(it);
     const pic = isThumb(it.thumb) ? `<img src="${esc(it.thumb)}" alt="">` : placeholderHTML(it, 'cap-ph');
-    const label = wait ? 'wird erkannt' : (it.name || 'Unbenannt');
+    const label = wait ? 'wird erkannt' : (it.name || (aiNeedsKey(it) ? 'wartet auf API-Key' : 'Unbenannt'));
     const badge = wait ? '<span class="spin"></span>'
-      : it.aiState === 'failed' ? `<span class="cap-badge bad">${icon('alert')}</span>`
+      : it.aiState === 'failed' || aiNeedsKey(it) ? `<span class="cap-badge bad">${icon('alert')}</span>`
         : `<span class="cap-badge">${icon('check')}</span>`;
     return `<button class="cap-thumb${wait ? ' pending' : ''}" data-id="${esc(it.id)}" title="${esc(label)}" aria-label="${esc(label)}">
       ${pic}${badge}</button>`;
@@ -518,17 +537,22 @@ function resetRoomSel() {
   $('#rs-loc').value = '';
 }
 
+// Das Ankreuzfeld (role=checkbox) und der Stift sind Geschwister – ein Knopf darf
+// nicht in einem anderen bedienbaren Element stecken.
 function pickHTML(it) {
   const on = state.roomSel.has(it.id);
-  const wait = it.aiState === 'pending';
+  const wait = aiBusy(it);
   const pic = isThumb(it.thumb) ? `<img src="${esc(it.thumb)}" alt="">` : placeholderHTML(it, 'pick-ph');
+  const label = it.name || (wait ? 'wird erkannt' : aiNeedsKey(it) ? 'wartet auf API-Key' : 'Unbenannt');
   const name = wait
     ? `<span class="spin"></span>${esc(it.name || 'wird erkannt …')}`
-    : esc(it.name || 'Unbenannt');
-  return `<div class="pick${on ? ' on' : ''}" data-id="${esc(it.id)}" role="checkbox" aria-checked="${on}" tabindex="0">
-    <div class="pick-img">${pic}<span class="pick-check" aria-hidden="true">${icon('check')}</span></div>
-    <div class="pick-name${!it.name && !wait ? ' unnamed' : ''}">${name}</div>
-    <button class="pick-edit" data-edit aria-label="Eintrag öffnen">${icon('pencil')}</button>
+    : esc(label);
+  return `<div class="pick${on ? ' on' : ''}" data-id="${esc(it.id)}">
+    <div class="pick-toggle" role="checkbox" aria-checked="${on}" tabindex="0" aria-label="${esc(label)}">
+      <div class="pick-img">${pic}<span class="pick-check" aria-hidden="true">${icon('check')}</span></div>
+      <div class="pick-name${!it.name && !wait ? ' unnamed' : ''}">${name}</div>
+    </div>
+    <button class="pick-edit" data-edit aria-label="${esc(label)} öffnen">${icon('pencil')}</button>
   </div>`;
 }
 
@@ -556,7 +580,7 @@ function togglePick(el) {
   const on = !state.roomSel.has(id);
   if (on) state.roomSel.add(id); else state.roomSel.delete(id);
   el.classList.toggle('on', on);
-  el.setAttribute('aria-checked', String(on));
+  el.querySelector('.pick-toggle').setAttribute('aria-checked', String(on));
   updateAssignButton();
 }
 
@@ -622,12 +646,13 @@ async function openItem(id) {
   if (!it) return;
   state.currentId = id;
 
-  $('#it-name').value = it.name || '';
-  $('#it-cat').value = catName(it.categoryId);
-  $('#it-room').value = roomName(it.roomId);
-  $('#it-loc').value = it.locationDetail || '';
-  $('#it-qty').value = it.quantity || '';
-  $('#it-note').value = it.note || '';
+  state.shown = {};
+  showField('name', it.name || '');
+  showField('cat', catName(it.categoryId));
+  showField('room', roomName(it.roomId));
+  showField('loc', it.locationDetail || '');
+  showField('qty', it.quantity || '');
+  showField('note', it.note || '');
   // Selten gebrauchte Felder einklappen – außer sie sind schon befüllt.
   $('#it-more').open = !!(it.locationDetail || it.quantity || it.note);
   renderItemAi(it);
@@ -659,16 +684,29 @@ async function openItem(id) {
   }
 }
 
+// Detail-Feld befüllen und den angezeigten Wert merken (Schlüssel: it-<key>).
+function showField(key, val) {
+  $('#it-' + key).value = val;
+  state.shown[key] = val;
+}
+
+// Hat die Nutzerin das Feld seit dem Anzeigen geändert?
+const fieldChanged = (key) => $('#it-' + key).value.trim() !== String(state.shown[key] ?? '').trim();
+
 // Status der Hintergrund-Erkennung im Eintrag.
 function renderItemAi(it) {
   const pending = it.aiState === 'pending';
+  const needKey = aiNeedsKey(it);
   const failed = it.aiState === 'failed';
   // Ohne Key erfasste Fotos lassen sich nachträglich erkennen.
   const fresh = !pending && !failed && !!it.photoId && !it.name;
   const box = $('#it-ai');
   box.hidden = it.archived || !(pending || failed || fresh);
   const txt = $('#it-ai-text');
-  if (pending) {
+  if (needKey) {
+    txt.className = 'hint';
+    txt.textContent = 'Wartet auf die Erkennung – dafür fehlt noch ein API-Key in den Einstellungen.';
+  } else if (pending) {
     const note = queue.status().note;
     txt.className = 'hint';
     txt.innerHTML = '<span class="spin"></span>Wird gerade erkannt … Raum oder Name kannst du trotzdem schon eintragen.'
@@ -683,7 +721,7 @@ function renderItemAi(it) {
   const retry = $('#it-retry');
   retry.hidden = pending;
   retry.textContent = failed ? 'Erneut erkennen' : 'Mit KI erkennen';
-  $('#it-name').placeholder = pending ? 'wird erkannt …' : '';
+  $('#it-name').placeholder = pending && !needKey ? 'wird erkannt …' : '';
 }
 
 // Nach einer Änderung im Hintergrund: Status neu zeichnen und frisch erkannte
@@ -692,12 +730,14 @@ function syncItemAi() {
   const it = state.items.find(x => x.id === state.currentId);
   if (!it) return;
   renderItemAi(it);
-  const fill = (sel, val) => {
-    const el = $(sel);
-    if (val && !el.value && document.activeElement !== el) el.value = val;
+  // Nur übernehmen, was die Nutzerin nicht angefasst hat. Bleibt ein fokussiertes Feld
+  // leer, bleibt auch der gemerkte Wert leer – Speichern lässt das KI-Ergebnis dann stehen.
+  const fill = (key, val) => {
+    const el = $('#it-' + key);
+    if (val && !el.value && document.activeElement !== el) showField(key, val);
   };
-  fill('#it-name', it.name);
-  fill('#it-cat', catName(it.categoryId));
+  fill('name', it.name);
+  fill('cat', catName(it.categoryId));
 }
 
 async function retryItem() {
@@ -712,27 +752,25 @@ async function retryItem() {
   }
 }
 
+// Gespeichert wird nur, was die Nutzerin im Detail tatsächlich geändert hat. So bleibt
+// ein Ergebnis der Erkennung stehen, das eingetroffen ist, während ein Feld leer im
+// Fokus war – und ein bewusst geleertes Feld wird trotzdem geleert.
 async function saveItem() {
   const it = state.items.find(x => x.id === state.currentId);
   if (!it) return;
   const name = $('#it-name').value.trim();
   const pending = it.aiState === 'pending';
   // Solange die KI noch arbeitet, darf der Name leer bleiben – sie trägt ihn dann ein.
-  if (!name && !pending) { toast('Der Name darf nicht leer sein.', true); return; }
+  if (fieldChanged('name') && !name && !pending) { toast('Der Name darf nicht leer sein.', true); return; }
   try {
-    const catText = $('#it-cat').value.trim();
-    const patch = {
-      name,
-      categoryId: await db.ensureNamed('categories', catText),
-      roomId: await db.ensureNamed('rooms', $('#it-room').value),
-      locationDetail: $('#it-loc').value.trim(),
-      quantity: $('#it-qty').value.trim(),
-      note: $('#it-note').value.trim(),
-    };
-    // Leer gelassen: nicht überschreiben, was die Erkennung inzwischen eingetragen hat.
-    if (!name) delete patch.name;
-    if (!catText && pending) delete patch.categoryId;
-    await db.patchItem(it.id, patch);
+    const patch = {};
+    if (fieldChanged('name') && name) patch.name = name;
+    if (fieldChanged('cat')) patch.categoryId = await db.ensureNamed('categories', $('#it-cat').value);
+    if (fieldChanged('room')) patch.roomId = await db.ensureNamed('rooms', $('#it-room').value);
+    if (fieldChanged('loc')) patch.locationDetail = $('#it-loc').value.trim();
+    if (fieldChanged('qty')) patch.quantity = $('#it-qty').value.trim();
+    if (fieldChanged('note')) patch.note = $('#it-note').value.trim();
+    if (Object.keys(patch).length) await db.patchItem(it.id, patch);
     await reloadAll();
     navigate('back');
     toast('Gespeichert.');
@@ -758,10 +796,31 @@ function selectModel(id) {
   sel.value = id;
 }
 
+// Neuer oder geänderter API-Key: speichern, Warteschlange neu starten und Fotos,
+// die ohne Key erfasst wurden, jetzt erkennen lassen. Liefert die Zahl der vorgemerkten.
+async function applyKey(key) {
+  state.settings.apiKey = key;
+  await db.setSetting('apiKey', key);
+  let marked = 0;
+  if (key) {
+    try {
+      marked = await db.markUnrecognized();
+    } catch (e) {
+      console.warn('Vormerken zur Erkennung fehlgeschlagen:', e);
+    }
+    if (marked) await refreshItems();
+  }
+  queue.kick({ reset: true });
+  renderCurrent();
+  return marked;
+}
+
+const markedMsg = (n) => (n ? ` ${plural(n, 'Foto wird', 'Fotos werden')} jetzt erkannt.` : '');
+
 async function loadModelList() {
   const out = $('#set-models-out');
   const key = $('#set-key').value.trim();
-  if (key !== state.settings.apiKey) { state.settings.apiKey = key; await db.setSetting('apiKey', key); queue.kick({ reset: true }); }
+  if (key !== state.settings.apiKey) { const n = await applyKey(key); if (n) toast(markedMsg(n).trim()); }
   out.className = 'hint';
   out.innerHTML = '<span class="spin"></span>Lade Modellliste …';
   try {
@@ -788,9 +847,9 @@ function renderManagers() {
   const draw = (el, rows, used, kind) => {
     el.innerHTML = rows.length
       ? rows.map(r => `<div class="m" data-id="${esc(r.id)}" data-kind="${kind}">
-          <input value="${esc(r.name)}" data-rename>
+          <input value="${esc(r.name)}" data-rename aria-label="${labelOf(kind)} umbenennen">
           <span class="cnt">${used.get(r.id) || 0}</span>
-          <button data-drop aria-label="Löschen">${icon('trash')}</button>
+          <button data-drop aria-label="${labelOf(kind)} „${esc(r.name)}“ löschen">${icon('trash')}</button>
         </div>`).join('')
       : `<div class="none">Noch nichts angelegt – entsteht automatisch beim Hinzufügen.</div>`;
   };
@@ -992,6 +1051,7 @@ async function runImport(mode) {
     renderManagers();
     renderList();
     updateStorageInfo();
+    queue.kick();   // mitgebrachte, noch nicht erkannte Fotos jetzt abarbeiten
     out.className = 'hint ok';
     out.textContent = `${plural(stats.items, 'Eintrag', 'Einträge')} und ${stats.photos} Fotos eingelesen`
       + (stats.skipped ? `, ${stats.skipped} waren schon vorhanden.` : '.');
@@ -1073,14 +1133,19 @@ function wire() {
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
   $('#item-photo').addEventListener('click', () => openLightbox(state.detailURL, false));
+  $('#item-photo').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(state.detailURL, false); }
+  });
 
   // --- Hinzufügen (Schnellerfassung) ---
   $('#cap-camera').addEventListener('click', () => $('#cap-camera-input').click());
   $('#cap-library').addEventListener('click', () => $('#cap-library-input').click());
   const onFiles = (e) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';   // dasselbe Foto soll sich noch einmal wählen lassen
-    capturePhotos(files);
+    const input = e.target;
+    const files = Array.from(input.files || []);   // sofort kopieren, die FileList ist „live“
+    // Erst nach der Verarbeitung leeren (dasselbe Foto soll sich noch einmal wählen
+    // lassen) – Safari macht die Dateien sonst u. U. schon vorher unlesbar.
+    capturePhotos(files).finally(() => { input.value = ''; });
   };
   $('#cap-camera-input').addEventListener('change', onFiles);
   $('#cap-library-input').addEventListener('change', onFiles);
@@ -1105,7 +1170,7 @@ function wire() {
     togglePick(pick);
   });
   $('#rs-grid').addEventListener('keydown', (e) => {
-    if ((e.key === ' ' || e.key === 'Enter') && e.target.matches('.pick')) { e.preventDefault(); togglePick(e.target); }
+    if ((e.key === ' ' || e.key === 'Enter') && e.target.matches('.pick-toggle')) { e.preventDefault(); togglePick(e.target.closest('.pick')); }
   });
   $('#rs-all').addEventListener('click', () => {
     for (const it of noRoomItems()) state.roomSel.add(it.id);
@@ -1154,11 +1219,11 @@ function wire() {
 
   // --- Einstellungen ---
   $('#set-key').addEventListener('change', async (e) => {
-    state.settings.apiKey = e.target.value.trim();
-    e.target.value = state.settings.apiKey;
-    await db.setSetting('apiKey', state.settings.apiKey);
-    toast(state.settings.apiKey ? 'API-Key gespeichert.' : 'API-Key entfernt.');
-    queue.kick({ reset: true });   // liegen gebliebene Fotos jetzt erkennen
+    const key = e.target.value.trim();
+    e.target.value = key;
+    if (key === (state.settings.apiKey || '')) return;
+    const n = await applyKey(key);   // liegen gebliebene Fotos jetzt erkennen
+    toast(key ? 'API-Key gespeichert.' + markedMsg(n) : 'API-Key entfernt.');
   });
   $('#set-key-show').addEventListener('change', (e) => {
     $('#set-key').type = e.target.checked ? 'text' : 'password';
@@ -1192,7 +1257,7 @@ function wire() {
   $('#set-test').addEventListener('click', async () => {
     const out = $('#set-test-out');
     const key = $('#set-key').value.trim();
-    if (key !== state.settings.apiKey) { state.settings.apiKey = key; await db.setSetting('apiKey', key); queue.kick({ reset: true }); }
+    if (key !== state.settings.apiKey) { const n = await applyKey(key); if (n) toast(markedMsg(n).trim()); }
     out.className = 'hint';
     out.innerHTML = '<span class="spin"></span>Teste …';
     try {
@@ -1250,6 +1315,42 @@ function toast(msg, isError) {
   t.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.hidden = true; }, isError ? 5200 : 2600);
+}
+
+// Mischstand nach einem Update beheben: den neuen Service Worker übernehmen lassen und
+// einmal neu laden. Die eigentliche Rettung steht inline in index.html (sie muss auch
+// laufen, wenn app.js veraltet ist). Stammt index.html noch aus einer Fassung ohne sie,
+// hier eine knappe Nachbildung. Liefert true, wenn gleich neu geladen wird.
+async function rescueUpdate(why) {
+  if (window.__inventarRescue) return window.__inventarRescue(why);
+  if (!('serviceWorker' in navigator)) return false;
+  const KEY = 'inventar-rettung';
+  try {
+    if (Date.now() - (Number(sessionStorage.getItem(KEY)) || 0) < 120000) return false;
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return false;
+    await reg.update().catch(() => null);
+    let w = reg.waiting;
+    const nw = reg.installing;
+    if (!w && nw) {
+      await new Promise((res) => {
+        const t = setTimeout(res, 30000);
+        nw.addEventListener('statechange', () => { if (nw.state === 'installed' || nw.state === 'redundant') { clearTimeout(t); res(); } });
+      });
+      w = reg.waiting;
+    }
+    if (!w) return false;
+    sessionStorage.setItem(KEY, String(Date.now()));
+    let done = false;
+    const reload = () => { if (!done) { done = true; location.reload(); } };
+    navigator.serviceWorker.addEventListener('controllerchange', reload);
+    w.postMessage({ type: 'SKIP_WAITING' });
+    setTimeout(reload, 6000);
+    return true;
+  } catch (e) {
+    console.warn('Update-Rettung fehlgeschlagen:', e);
+    return false;
+  }
 }
 
 async function registerSW() {

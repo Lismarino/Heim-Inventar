@@ -46,15 +46,30 @@ function scaleTo(src, maxEdge) {
   return c;
 }
 
+// Canvas-Speicher sofort freigeben: iOS rechnet ihn gegen ein knappes Gesamtlimit
+// und gibt ihn sonst erst spät frei – nach vielen Fotos scheitert dann getContext.
+function freeCanvas(c) {
+  c.width = 0;
+  c.height = 0;
+}
+
 export function toBlob(src, maxEdge, quality) {
   const c = scaleTo(src, maxEdge);
   return new Promise((resolve, reject) => {
-    c.toBlob(b => b ? resolve(b) : reject(new Error('Bild konnte nicht kodiert werden.')), 'image/jpeg', quality);
+    c.toBlob((b) => {
+      freeCanvas(c);
+      if (b) resolve(b); else reject(new Error('Bild konnte nicht kodiert werden.'));
+    }, 'image/jpeg', quality);
   });
 }
 
 export function toDataURL(src, maxEdge, quality) {
-  return scaleTo(src, maxEdge).toDataURL('image/jpeg', quality);
+  const c = scaleTo(src, maxEdge);
+  try {
+    return c.toDataURL('image/jpeg', quality);
+  } finally {
+    freeCanvas(c);
+  }
 }
 
 export function blobToBase64(blob) {
