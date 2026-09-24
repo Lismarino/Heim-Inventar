@@ -4,56 +4,33 @@ import * as ai from './gemini.js';
 import { initCombos, hideCombo, norm } from './combo.js';
 import * as backup from './backup.js';
 import * as queue from './queue.js';
+import { esc, dtf, plural, icon, isThumb, placeholderHTML, toneOf, initialOf, EMPTY_ART } from './ui.js';
+import * as home from './home.js';
+import * as motion from './motion.js';
+import * as sheet from './sheet.js';
+import * as onboarding from './onboarding.js';
+import { haptic, longPress, swipeRows, edgeSwipe } from './gestures.js';
 
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.5.0';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const dtf = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
 
-/* ---------- rein darstellende Helfer ---------- */
-
-// Symbol aus dem SVG-Sprite in index.html.
-const icon = (name, cls = '') => `<svg class="ic${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
-
-// Platzhalter für Einträge ohne Foto: Initiale auf einer gedeckten Farbe, die sich
-// stabil aus dem Namen ergibt – so sieht derselbe Eintrag immer gleich aus.
-const PH_TONES = 6;
-function placeholderHTML(it, cls) {
-  const name = String(it.name || '').trim();
-  if (!name) return `<div class="${cls} ph ph-none">${icon('box')}</div>`;
-  let h = 0;
-  for (const ch of name.toLowerCase()) h = (h * 31 + ch.codePointAt(0)) >>> 0;
-  const initial = Array.from(name)[0].toLocaleUpperCase('de-DE');
-  return `<div class="${cls} ph ph-${h % PH_TONES}" aria-hidden="true">${esc(initial)}</div>`;
-}
-
-// Kleine Illustration für die leere Liste: ein Regal, das auf Dinge wartet.
-const EMPTY_ART = `<svg class="empty-art" viewBox="0 0 200 150" aria-hidden="true">
-  <ellipse class="ea-floor" cx="100" cy="136" rx="84" ry="7"/>
-  <path class="ea-shelf" d="M22 58h156M22 104h156"/>
-  <path class="ea-line" d="M30 58v76M170 58v76"/>
-  <rect class="ea-jar" x="40" y="26" width="26" height="32" rx="6"/>
-  <rect class="ea-lid" x="38" y="20" width="30" height="8" rx="3"/>
-  <path class="ea-line" d="M45 40h16"/>
-  <rect class="ea-box" x="80" y="30" width="38" height="28" rx="3"/>
-  <path class="ea-line" d="M80 38h38M99 30v8"/>
-  <path class="ea-pot" d="M134 44h24l-3 14h-18z"/>
-  <path class="ea-leaf" d="M146 44c-6-8-4-16 0-20 4 4 6 12 0 20zM146 44c4-6 10-8 14-7-1 4-6 8-14 7z"/>
-  <rect class="ea-slot" x="44" y="72" width="112" height="32" rx="8"/>
-  <path class="ea-plus" d="M100 80v16M92 88h16"/>
-</svg>`;
+// Tabs behalten ihre Scroll-Position; Push-Ansichten gleiten von rechts herein.
+const TABS = ['home', 'list', 'settings'];
+const PUSH = ['item', 'rooms', 'room', 'archive'];
 
 const state = {
   settings: {},
   items: [],
   cats: [],
   rooms: [],
-  view: 'list',
+  view: 'home',
   origin: {},       // Ansicht -> woher man kam (für „Zurück“)
+  roomId: null,     // Raum-Ansicht: welcher Raum
+  listFilter: null, // „Alles“: null | 'unnamed'
   capture: { ids: [], busy: '' },   // Schnellerfassung: in dieser Runde erfasste Einträge
   roomSel: new Set(),               // „Ohne Raum“: markierte Einträge
   scrollPos: {},                    // Ansicht -> Scroll-Position beim Verlassen
@@ -97,10 +74,23 @@ async function boot() {
     await reloadAll();
     wire();
     initCombos(kind => (kind === 'categories' ? state.cats : state.rooms).map(x => x.name));
+    sheet.init();
+    home.init({
+      state, roomName, catName, hasRoom, aiBusy, aiNeedsKey, noRoomItems,
+      rowHTML: (it, opts) => rowHTML(it, '', opts),
+      queueNote: () => queue.status().note,
+    });
+    onboarding.init({
+      rooms: () => state.rooms.map(r => r.name),
+      apiKey: () => state.settings.apiKey,
+      done: finishOnboarding,
+    });
     queue.initQueue({ settings: () => state.settings, onChange: onDataChanged });
     fillSettingsForm();
-    navigate('list');
+    navigate('home', { instant: true });
     $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
+    // Erster Start mit leerer Datenbank: Begrüßung. Scheitert sie, startet die App trotzdem.
+    await onboarding.maybeShow(state.settings, state.items.length).catch((e) => console.warn('Einführung:', e));
   } catch (e) {
     showBootError('Die gespeicherten Daten konnten nicht geladen werden. Lade die Seite neu; hilft das nicht, schließe andere Tabs mit der App.', e);
     return;
@@ -109,6 +99,7 @@ async function boot() {
   $('#boot-error').hidden = true;
   $('#app').hidden = false;
   window.__inventarReady = true;
+  hideSplash();
   // Die App kann mitten in der Erkennung geschlossen worden sein – liegen Gebliebenes abarbeiten.
   queue.kick();
   registerSW();
@@ -125,7 +116,30 @@ function showBootError(msg, err) {
   $('#boot-error-detail').textContent = err?.message || String(err || '');
   box.hidden = false;
   $('#app').hidden = true;
+  $('#splash').hidden = true;
   console.error('Start fehlgeschlagen:', err);
+}
+
+// Das Start-Logo sanft ausblenden, sobald die App steht.
+function hideSplash() {
+  const el = $('#splash');
+  if (!el || el.hidden) return;
+  el.style.pointerEvents = 'none';
+  if (motion.reduced() || !el.animate) { el.hidden = true; return; }
+  el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 320, easing: 'ease-out', fill: 'forwards' })
+    .finished.catch(() => null).then(() => { el.hidden = true; });
+}
+
+async function finishOnboarding({ key, goAdd }) {
+  state.settings.onboarded = true;
+  if (key && key !== (state.settings.apiKey || '')) {
+    const n = await applyKey(key);
+    $('#set-key').value = key;
+    if (n) toast(markedMsg(n).trim());
+  }
+  await reloadAll();
+  navigate(goAdd ? 'add' : 'home', { instant: true });
+  if (goAdd) resetCapture();
 }
 
 async function reloadAll() {
@@ -164,11 +178,17 @@ function onDataChanged() {
 }
 
 function renderCurrent() {
-  if (state.view === 'list') renderList();
-  else if (state.view === 'add') renderCapture();
-  else if (state.view === 'rooms') renderRooms();
-  else if (state.view === 'archive') renderArchive();
-  else if (state.view === 'item') syncItemAi();
+  if (state.view === 'item') syncItemAi();
+  else renderView(state.view);
+}
+
+function renderView(view) {
+  if (view === 'home') home.renderHome();
+  else if (view === 'list') renderList();
+  else if (view === 'add') renderCapture();
+  else if (view === 'rooms') renderRooms();
+  else if (view === 'archive') renderArchive();
+  else if (view === 'room' && !home.renderRoom(state.roomId) && state.view === 'room') navigate('home');
 }
 
 function refreshPickers() {
@@ -184,13 +204,26 @@ function fillSelect(sel, rows, allLabel) {
 
 /* =========================== Navigation =========================== */
 
-function navigate(view) {
+// Zu welchem Tab gehört eine Ansicht? (für die Markierung in der Leiste)
+function tabOf(view) {
+  for (let v = view, i = 0; v && i < 8; v = state.origin[v], i++) {
+    if (TABS.includes(v) || v === 'add') return v;
+  }
+  return 'home';
+}
+
+function navigate(view, { instant = false } = {}) {
   const from = state.view;
-  if (view === 'back') view = state.origin[from] || 'list';
+  let back = view === 'back';
+  if (back) view = state.origin[from] || 'home';
+  // Ausdrücklich zur vorigen Ansicht (z. B. Tab, aus dem man kam): wie „Zurück“ behandeln.
+  else if (view !== from && PUSH.includes(from) && state.origin[from] === view) back = true;
   else if (view !== from) state.origin[view] = from;
 
+  motion.settle();
   closeLightbox();
   hideCombo();
+  sheet.close();
   if (state.detailURL && view !== 'item') { URL.revokeObjectURL(state.detailURL); state.detailURL = null; }
   // Neue Erfassungsrunde – außer man kommt nur aus einem Eintrag oder „Ohne Raum“ zurück.
   if (view === 'add' && !['add', 'item', 'rooms'].includes(from)) resetCapture();
@@ -201,17 +234,45 @@ function navigate(view) {
 
   state.view = view;
   document.body.dataset.view = view;
-  $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
-  $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.nav === view));
+  const fromEl = $('#view-' + from);
+  const toEl = $('#view-' + view);
+  toEl.hidden = false;
+  for (const v of $$('.view')) if (v !== toEl && v !== fromEl) v.hidden = true;
+  const tab = tabOf(view);
+  $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.nav === tab));
 
-  if (view === 'list') renderList();
-  if (view === 'add') renderCapture();
-  if (view === 'rooms') renderRooms();
-  if (view === 'archive') renderArchive();
-  // Aus einem Eintrag zurück: dort weitermachen, wo man war.
-  const sc = $('#view-' + view + ' .scroll');
-  if (sc) sc.scrollTop = from === 'item' && view !== 'item' ? (state.scrollPos[view] || 0) : 0;
+  renderView(view);
   if (view === 'settings') { renderManagers(); updateStorageInfo(); }
+
+  // Scroll-Position: zurück und aus einem Eintrag dort weiter, wo man war; Tabs behalten
+  // ihre Stelle; erneutes Antippen des Tabs springt nach oben; Neues beginnt oben.
+  const sc = toEl.querySelector('.scroll');
+  if (sc) {
+    if (view === from) {
+      if (TABS.includes(view) && !instant) sc.scrollTo({ top: 0, behavior: motion.reduced() ? 'auto' : 'smooth' });
+    } else if (back || from === 'item') sc.scrollTop = state.scrollPos[view] || 0;
+    else if (from === 'add' || !TABS.includes(view)) sc.scrollTop = 0;
+  }
+
+  const kind = instant || view === from ? 'none'
+    : view === 'add' ? 'sheet-up'
+      : from === 'add' ? 'sheet-down'
+        : back ? 'pop'
+          : PUSH.includes(view) ? 'push'
+            : 'fade';
+  motion.run(kind, fromEl, toEl, (el) => el === $('#view-' + state.view));
+}
+
+// Zurückwischen vom linken Rand – nur in Push-Ansichten und wenn nichts darüber liegt.
+function beginSwipeBack() {
+  if (!PUSH.includes(state.view) || motion.busy() || !$('#lightbox').hidden || sheet.isOpen() || onboarding.isOpen()) return null;
+  const prev = state.origin[state.view] || 'home';
+  const prevEl = $('#view-' + prev);
+  if (!prevEl || prev === state.view) return null;
+  hideCombo();
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+  renderView(prev);
+  return motion.dragPop($('#view-' + state.view), prevEl);
 }
 
 /* =========================== Liste =========================== */
@@ -229,19 +290,18 @@ function visibleItems() {
     .filter(i => !i.archived)
     .filter(i => !cat || i.categoryId === cat)
     .filter(i => !room || i.roomId === room)
+    .filter(i => state.listFilter !== 'unnamed' || home.isUnnamed(i))
     .filter(i => !q || norm(haystack(i)).includes(q))
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
-// Nur echte Bild-Data-URLs – der Wert kann aus einer fremden Sicherungsdatei stammen.
-const isThumb = (v) => typeof v === 'string' && v.startsWith('data:image/');
-
-function rowHTML(it, why) {
+// opts.inRoom: in der Raum-Ansicht den Raum weglassen; opts.noCat: Kategorie steht schon darüber.
+function rowHTML(it, why, opts = {}) {
   const thumb = isThumb(it.thumb)
     ? `<img class="thumb" src="${esc(it.thumb)}" alt="">`
     : placeholderHTML(it, 'thumb');
-  const cat = catName(it.categoryId);
-  const place = [roomName(it.roomId), it.locationDetail].filter(Boolean).join(' · ');
+  const cat = opts.noCat ? '' : catName(it.categoryId);
+  const place = [opts.inRoom ? '' : roomName(it.roomId), it.locationDetail].filter(Boolean).join(' · ');
   const title = aiBusy(it)
     ? `<div class="name pending"><span class="spin"></span>${esc(it.name || 'wird erkannt …')}</div>`
     : it.name
@@ -263,6 +323,8 @@ function renderList() {
   if (state.aiSearch) { renderAiResult(); return; }
   $('#ai-answer').hidden = true;
   $('#filters').hidden = false;
+  $('#f-flag').hidden = !state.listFilter;
+  $('#f-flag-txt').textContent = state.listFilter === 'unnamed' ? 'Nur unbenannte' : '';
   const nr = noRoomItems().length;
   const hint = $('#noroom-hint');
   hint.hidden = !nr;
@@ -278,22 +340,29 @@ function renderList() {
   empty.classList.toggle('first', total === 0);
   empty.innerHTML = total === 0
     ? `${EMPTY_ART}<p><strong>Noch nichts erfasst</strong>Tippe unten auf die Kamera und fotografiere, was du aufbewahrst – Stück für Stück.</p>`
-    : `<span class="empty-badge muted">${icon('search')}</span><p>Keine Treffer für diese Suche oder Filter.</p>`;
+    : state.listFilter === 'unnamed' && !$('#q').value.trim()
+      ? `<span class="empty-badge">${icon('check')}</span><p>Alles hat einen Namen.</p>`
+      : `<span class="empty-badge muted">${icon('search')}</span><p>Keine Treffer für diese Suche oder Filter.</p>`;
 }
 
 /* ---------------- KI-Suche ---------------- */
 
 function renderAiResult() {
   const a = state.aiSearch;
+  // Inzwischen Archiviertes (z. B. weggewischt) nicht mehr zeigen.
+  const matches = a.matches
+    .map(m => ({ item: state.items.find(i => i.id === m.item.id), why: m.why }))
+    .filter(m => m.item && !m.item.archived);
   $('#filters').hidden = true;
+  $('#f-flag').hidden = true;
   $('#noroom-hint').hidden = true;
   $('#ai-answer').hidden = false;
   $('#ai-answer-q').textContent = a.question;
   $('#ai-answer-text').textContent = a.answer || 'Keine Antwort erhalten.';
-  $('#list').innerHTML = a.matches.map(m => rowHTML(m.item, m.why)).join('');
-  $('#list-count').textContent = a.matches.length || '';
+  $('#list').innerHTML = matches.map(m => rowHTML(m.item, m.why)).join('');
+  $('#list-count').textContent = matches.length || '';
   const empty = $('#list-empty');
-  empty.hidden = a.matches.length > 0;
+  empty.hidden = matches.length > 0;
   empty.classList.remove('first');
   empty.innerHTML = `<span class="empty-badge muted">${icon('sparkle')}</span><p>Dazu passt nichts aus deinem Bestand.</p>`;
 }
@@ -476,6 +545,7 @@ async function captureBatch(files) {
 
   state.capture.busy = '';
   renderCurrent();
+  if (failed < files.length) haptic();   // Foto gespeichert
   if (failed) toast(`${plural(failed, 'Foto konnte', 'Fotos konnten')} nicht gelesen werden.`, true);
   updateStorageInfo();
 }
@@ -598,12 +668,212 @@ async function assignRooms() {
     hideCombo();
     await reloadAll();
     renderRooms();
+    haptic();
     toast(`${plural(res.changed, 'Eintrag', 'Einträge')} → ${roomName(roomId)}`);
   } catch (e) {
     toast('Zuweisen fehlgeschlagen: ' + e.message, true);
   } finally {
     updateAssignButton();
   }
+}
+
+/* =========================== Raum =========================== */
+
+function openRoom(id) {
+  if (!state.rooms.some(r => r.id === id)) return;
+  state.roomId = id;
+  if (state.view === 'room') { renderView('room'); return; }
+  navigate('room');
+}
+
+// „Hier fotografieren“: Raum als gemerkten Raum vorbelegen und Hinzufügen öffnen.
+function shootHere(roomId) {
+  const name = roomName(roomId);
+  if (!name) return;
+  state.settings.lastRoom = name;
+  state.settings.lastLoc = '';
+  Promise.all([db.setSetting('lastRoom', name), db.setSetting('lastLoc', '')])
+    .catch((e) => console.warn('Raum merken fehlgeschlagen:', e));
+  navigate('add');
+}
+
+const roomHead = (r) => {
+  const n = home.roomItems(r.id).length;
+  return `<span class="sh-pic ph ph-${toneOf(r.name)}">${esc(initialOf(r.name))}</span>`
+    + `<span class="sh-txt"><b>${esc(r.name)}</b><small>${esc(n ? plural(n, 'Ding', 'Dinge') : 'noch leer')}</small></span>`;
+};
+
+function roomMenu(id) {
+  const r = state.rooms.find(x => x.id === id);
+  if (!r) return;
+  sheet.open({
+    head: roomHead(r),
+    actions: [
+      { id: 'shoot', label: 'Hier fotografieren', icon: 'camera' },
+      { id: 'rename', label: 'Umbenennen', icon: 'pencil' },
+      { id: 'drop', label: 'Raum löschen', icon: 'trash', danger: true },
+    ],
+    onAction: (a) => {
+      if (a === 'shoot') shootHere(id);
+      else if (a === 'rename') {
+        sheet.form({
+          head: roomHead(r), title: 'Raum umbenennen', label: 'Name', value: r.name, submit: 'Umbenennen',
+          onSubmit: async (v) => {
+            if (!v) { toast('Bitte einen Namen eintragen.', true); return false; }
+            await renameNamed('rooms', id, v);
+            return true;
+          },
+        });
+      } else if (a === 'drop') {
+        sheet.close();
+        dropNamed('rooms', id);
+      }
+    },
+  });
+}
+
+function addRoomSheet() {
+  sheet.form({
+    title: 'Neuer Raum', label: 'Name', placeholder: 'z. B. Werkstatt', submit: 'Anlegen',
+    onSubmit: async (v) => {
+      if (!v) { toast('Bitte einen Namen eintragen.', true); return false; }
+      try {
+        await db.ensureNamed('rooms', v);
+        await reloadAll();
+        renderCurrent();
+        haptic();
+        toast(`„${v}“ angelegt.`);
+      } catch (e) {
+        toast(e.message, true);
+      }
+      return true;
+    },
+  });
+}
+
+/* =========================== Kontextmenü eines Eintrags =========================== */
+
+function itemHead(it) {
+  const pic = isThumb(it.thumb) ? `<img class="sh-pic" src="${esc(it.thumb)}" alt="">` : placeholderHTML(it, 'sh-pic');
+  const place = hasRoom(it) ? [roomName(it.roomId), it.locationDetail].filter(Boolean).join(' · ') : 'Ohne Raum';
+  const name = it.name || (aiBusy(it) ? 'wird erkannt …' : 'Unbenannt');
+  return `${pic}<span class="sh-txt"><b>${esc(name)}</b><small>${esc(place)}</small></span>`;
+}
+
+function itemMenu(id) {
+  const it = state.items.find(x => x.id === id);
+  if (!it || it.archived) return;
+  sheet.open({
+    head: itemHead(it),
+    actions: [
+      { id: 'room', label: hasRoom(it) ? 'Raum ändern' : 'Raum zuweisen', icon: 'pin' },
+      { id: 'rename', label: it.name ? 'Umbenennen' : 'Benennen', icon: 'pencil' },
+      { id: 'archive', label: 'Archivieren', icon: 'archive', danger: true },
+    ],
+    onAction: (a) => {
+      if (a === 'room') {
+        sheet.form({
+          head: itemHead(it), title: hasRoom(it) ? 'Raum ändern' : 'Raum zuweisen', label: 'Raum',
+          placeholder: hasRoom(it) ? `Jetzt: ${roomName(it.roomId)}` : 'z. B. Keller', combo: 'rooms',
+          // Leer abschicken ändert nichts – den Raum entfernen geht im Eintrag selbst.
+          onSubmit: (v) => (v ? setItemRoom(id, v) : true),
+        });
+      } else if (a === 'rename') {
+        sheet.form({
+          head: itemHead(it), title: it.name ? 'Umbenennen' : 'Benennen', label: 'Name', value: it.name || '',
+          placeholder: 'z. B. Akkuschrauber',
+          onSubmit: async (v) => {
+            if (!v) { toast('Der Name darf nicht leer sein.', true); return false; }
+            try {
+              await db.patchItem(id, { name: v });
+              await refreshItems();
+              renderCurrent();
+              toast('Umbenannt.');
+            } catch (e) { toast(e.message, true); }
+            return true;
+          },
+        });
+      } else if (a === 'archive') {
+        sheet.close();
+        haptic();
+        archiveWithUndo(id);
+      }
+    },
+  });
+}
+
+async function setItemRoom(id, name) {
+  try {
+    const roomId = await db.ensureNamed('rooms', name);   // leer: Raum entfernen
+    await db.patchItem(id, { roomId });
+    await reloadAll();
+    hideCombo();
+    renderCurrent();
+    haptic();
+    const it = state.items.find(x => x.id === id);
+    toast(roomId ? `${it?.name ? `„${it.name}“` : 'Eintrag'} → ${roomName(roomId)}` : 'Raum entfernt.');
+  } catch (e) {
+    toast('Zuweisen fehlgeschlagen: ' + e.message, true);
+  }
+  return true;
+}
+
+// Ins Archiv – mit „Rückgängig“ im Toast statt einer Rückfrage vorher.
+async function archiveWithUndo(id) {
+  const it = state.items.find(x => x.id === id);
+  if (!it) return;
+  try {
+    await db.archiveItem(id);
+    await refreshItems();
+    renderCurrent();
+    updateStorageInfo();
+    toast(it.name ? `„${it.name}“ archiviert.` : 'Ins Archiv verschoben.', false, {
+      label: 'Rückgängig',
+      run: async () => {
+        try {
+          await db.restoreItem(id);
+          await refreshItems();
+          renderCurrent();
+          updateStorageInfo();
+          queue.kick();
+        } catch (e) { toast(e.message, true); }
+      },
+    });
+  } catch (e) {
+    toast(e.message, true);
+    renderCurrent();
+  }
+}
+
+/* =========================== Zuhause: Aktionen =========================== */
+
+function onHomeClick(e) {
+  const todo = e.target.closest('[data-todo]');
+  if (todo) {
+    const k = todo.dataset.todo;
+    if (k === 'noroom') navigate('rooms');
+    else if (k === 'unnamed') { state.listFilter = 'unnamed'; clearSearch(); navigate('list'); }
+    else if (k === 'busy') toast(queue.status().note || 'Die KI benennt die Fotos gerade im Hintergrund – du kannst einfach weitermachen.');
+    else if (k === 'needkey') {
+      navigate('settings');
+      const key = $('#set-key');
+      key.scrollIntoView({ block: 'center' });
+      key.focus({ preventScroll: true });
+    }
+    return;
+  }
+  if (e.target.closest('[data-room-add]')) { addRoomSheet(); return; }
+  const rt = e.target.closest('[data-room]');
+  if (rt) { openRoom(rt.dataset.room); return; }
+  const tile = e.target.closest('.rtile');
+  if (tile) openItem(tile.dataset.id);
+}
+
+// Suchfeld leeren (auch ein KI-Ergebnis verwerfen).
+function clearSearch() {
+  state.aiSearch = null;
+  $('#q').value = '';
+  updateAskButton();
 }
 
 /* =========================== Vollbild-Ansicht =========================== */
@@ -857,7 +1127,6 @@ function renderManagers() {
   draw($('#room-mgr'), state.rooms, usedRoom, 'rooms');
 }
 
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const fieldOf = (kind) => (kind === 'categories' ? 'categoryId' : 'roomId');
 const labelOf = (kind) => (kind === 'categories' ? 'Kategorie' : 'Raum');
 
@@ -869,12 +1138,13 @@ async function followLastRoom(oldName, newName) {
   if (norm($('#cap-room').value) === norm(oldName)) $('#cap-room').value = newName;
 }
 
+// Liefert die ID, unter der der Name danach steht (bei Zusammenführen die des Zwillings).
 async function renameNamed(kind, id, name) {
   const clean = name.trim();
-  if (!clean) { renderManagers(); return; }
+  if (!clean) { renderManagers(); return id; }
   try {
     const rec = await db.get(kind, id);
-    if (!rec || rec.name === clean) return;
+    if (!rec || rec.name === clean) return id;
 
     // Gibt es den Namen schon? Dann zusammenführen statt ein Duplikat anzulegen.
     const list = kind === 'categories' ? state.cats : state.rooms;
@@ -884,14 +1154,15 @@ async function renameNamed(kind, id, name) {
       const affected = state.items.filter(i => i[field] === id);
       const msg = `„${clean}“ gibt es bereits. Zusammenführen?` +
         (affected.length ? ` ${plural(affected.length, 'Eintrag wird', 'Einträge werden')} umgehängt.` : '');
-      if (!confirm(msg)) { renderManagers(); return; }
+      if (!confirm(msg)) { renderManagers(); return id; }
       await db.moveAndDropNamed(kind, id, twin.id);
       if (kind === 'rooms') await followLastRoom(rec.name, twin.name);
+      if (kind === 'rooms' && state.roomId === id) state.roomId = twin.id;
       await reloadAll();
       renderManagers();
-      renderList();
+      renderCurrent();
       toast('Zusammengeführt.');
-      return;
+      return twin.id;
     }
 
     const oldName = rec.name;
@@ -900,12 +1171,13 @@ async function renameNamed(kind, id, name) {
     if (kind === 'rooms') await followLastRoom(oldName, clean);
     await reloadAll();
     renderManagers();
-    renderList();
+    renderCurrent();
     toast('Umbenannt.');
   } catch (e) {
     renderManagers();
     toast(e.message, true);
   }
+  return id;
 }
 
 async function dropNamed(kind, id) {
@@ -915,18 +1187,21 @@ async function dropNamed(kind, id) {
   const msg = affected.length
     ? `${label} löschen? Bei ${plural(affected.length, 'Eintrag', 'Einträgen')} wird das Feld geleert. Die Einträge selbst bleiben erhalten.`
     : `${label} löschen?`;
-  if (!confirm(msg)) return;
+  if (!confirm(msg)) return false;
   try {
     const oldName = kind === 'rooms' ? roomName(id) : '';
     await db.moveAndDropNamed(kind, id, null);
     if (oldName) await followLastRoom(oldName, '');
     await reloadAll();
     renderManagers();
-    renderList();
+    if (state.view === 'room' && state.roomId === id) navigate('back');
+    else renderCurrent();
     toast(`${label} gelöscht.`);
+    return true;
   } catch (e) {
     toast(e.message, true);
   }
+  return false;
 }
 
 async function updateStorageInfo() {
@@ -1124,6 +1399,30 @@ function wire() {
   };
   $('#list').addEventListener('click', rowClick);
   $('#arch-list').addEventListener('click', rowClick);
+  $('#room-list').addEventListener('click', rowClick);
+  $('#f-flag').addEventListener('click', () => { state.listFilter = null; renderList(); });
+
+  // --- Zuhause & Raum ---
+  $('#view-home').addEventListener('click', onHomeClick);
+  // Direkt im Tipp fokussieren, sonst öffnet iOS die Tastatur nicht.
+  $('#home-search').addEventListener('click', () => { navigate('list'); $('#q').focus(); });
+  $('#room-shoot').addEventListener('click', () => shootHere(state.roomId));
+  $('#room-menu').addEventListener('click', () => roomMenu(state.roomId));
+  const roomScroll = $('#view-room .scroll');
+  roomScroll.addEventListener('scroll', () => {
+    $('#view-room').classList.toggle('scrolled', roomScroll.scrollTop > 40);
+  }, { passive: true });
+  $('#onb-again').addEventListener('click', () => onboarding.show());
+
+  // --- Gesten ---
+  const archiveAct = `<span class="sa-in">${icon('archive')}<span>Archiv</span></span>`;
+  for (const root of [$('#list'), $('#room-list')]) {
+    swipeRows(root, '.row', archiveAct, (row) => archiveWithUndo(row.dataset.id));
+    longPress(root, '.row', (row) => itemMenu(row.dataset.id));
+  }
+  longPress($('#home-recent'), '.rtile', (el) => itemMenu(el.dataset.id));
+  longPress($('#home-rooms'), '.rt[data-room]', (el) => roomMenu(el.dataset.room));
+  edgeSwipe(beginSwipeBack, () => navigate('back', { instant: true }));
 
   // --- Vollbild-Ansicht ---
   $('#lb-close').addEventListener('click', closeLightbox);
@@ -1182,16 +1481,11 @@ function wire() {
   // --- Detail ---
   $('#item-save').addEventListener('click', saveItem);
   $('#it-retry').addEventListener('click', retryItem);
-  $('#it-archive').addEventListener('click', async () => {
-    if (!confirm('Eintrag ins Archiv verschieben? Er bleibt dort wiederherstellbar.')) return;
-    try {
-      await db.archiveItem(state.currentId);
-      await reloadAll();
-      navigate('back');
-      toast('Ins Archiv verschoben.');
-    } catch (e) {
-      toast(e.message, true);
-    }
+  // Kein Rückfrage-Dialog mehr: der Toast bietet 5 s lang „Rückgängig“.
+  $('#it-archive').addEventListener('click', () => {
+    const id = state.currentId;
+    navigate('back');
+    archiveWithUndo(id);
   });
   $('#it-restore').addEventListener('click', async () => {
     try {
@@ -1308,13 +1602,27 @@ async function addNamed(kind, input) {
 /* =========================== Toast & Service Worker =========================== */
 
 let toastTimer = null;
-function toast(msg, isError) {
+// action: { label, run } – z. B. „Rückgängig“; bleibt dann 5 s stehen.
+function toast(msg, isError, action) {
   const t = $('#toast');
-  t.textContent = msg;
-  t.className = 'toast' + (isError ? ' err' : '');
+  t.className = 'toast' + (isError ? ' err' : '') + (action ? ' has-act' : '');
+  if (action) {
+    t.innerHTML = `<span class="toast-msg">${esc(msg)}</span><button class="toast-act" type="button">${icon('undo')}${esc(action.label)}</button>`;
+    t.querySelector('.toast-act').addEventListener('click', () => {
+      clearTimeout(toastTimer);
+      t.hidden = true;
+      action.run();
+    }, { once: true });
+  } else {
+    t.textContent = msg;
+  }
   t.hidden = false;
+  // Neu einblenden, auch wenn schon ein Toast stand.
+  t.style.animation = 'none';
+  void t.offsetWidth;
+  t.style.animation = '';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, isError ? 5200 : 2600);
+  toastTimer = setTimeout(() => { t.hidden = true; }, action ? 5000 : isError ? 5200 : 2600);
 }
 
 // Mischstand nach einem Update beheben: den neuen Service Worker übernehmen lassen und

@@ -7,9 +7,11 @@
 // frisch vom Server in einen neuen Cache. Der Fetch-Handler schreibt nie in den
 // Cache – sonst landen neues index.html und (per HTTP-Cache) veraltetes app.js
 // nebeneinander, und die App startet nicht mehr.
-const VERSION = 'v1.4.1';
+const VERSION = 'v1.5.0';
 const CACHE = 'heim-inventar-' + VERSION;
 
+// Die Startbilder unter icons/splash/ stehen bewusst NICHT hier: iOS holt sie beim
+// Hinzufügen zum Home-Bildschirm selbst, und 26 Bilder würden jedes Update aufblähen.
 const ASSETS = [
   './',
   './index.html',
@@ -22,6 +24,12 @@ const ASSETS = [
   './js/combo.js',
   './js/backup.js',
   './js/queue.js',
+  './js/ui.js',
+  './js/home.js',
+  './js/gestures.js',
+  './js/motion.js',
+  './js/sheet.js',
+  './js/onboarding.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon-180.png',
