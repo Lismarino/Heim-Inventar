@@ -288,7 +288,8 @@
 // Startet die App nicht (z. B. fehlende Datei), darf der Nutzer nicht vor einer
 // leeren Liste stehen und denken, seine Daten seien weg.
 setTimeout(function () {
-  if (window.__inventarReady) return;
+  // __inventarFailed: app.js hat selbst schon eine genauere Meldung gezeigt.
+  if (window.__inventarReady || window.__inventarFailed) return;
   document.getElementById('boot-error').hidden = false;
   document.getElementById('app').hidden = true;
 
@@ -301,6 +302,7 @@ setTimeout(function () {
       .then(function (r) { if (!r.ok) missing.push(f + ' (' + r.status + ')'); })
       .catch(function () { missing.push(f + ' (nicht erreichbar)'); });
   })).then(function () {
+    if (window.__inventarReady || window.__inventarFailed) return;
     document.getElementById('boot-error-detail').textContent = missing.length
       ? 'Fehlt auf dem Server: ' + missing.join(', ')
       : 'Alle Dateien sind erreichbar. Dann liegt es an einem Skriptfehler – lade die Seite neu.';

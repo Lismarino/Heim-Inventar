@@ -1,10 +1,10 @@
 import * as db from './db.js';
 import * as img from './img.js';
 import * as ai from './gemini.js';
-import { initCombos, hideCombo } from './combo.js';
+import { initCombos, hideCombo, norm } from './combo.js';
 import * as backup from './backup.js';
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -34,19 +34,38 @@ async function boot() {
   try {
     await db.openDB();
   } catch (e) {
-    document.body.innerHTML = `<p style="padding:40px;text-align:center">Die lokale Datenbank konnte nicht geöffnet werden.<br><br>${esc(e.message)}<br><br>Im privaten Modus von Safari steht IndexedDB nicht zur Verfügung.</p>`;
+    showBootError('Die lokale Datenbank konnte nicht geöffnet werden. Im privaten Modus von Safari steht IndexedDB nicht zur Verfügung.', e);
     return;
   }
-  await reloadAll();
-  wire();
-  initCombos(kind => (kind === 'categories' ? state.cats : state.rooms).map(x => x.name));
-  fillSettingsForm();
-  navigate('list');
-  $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
+  try {
+    await reloadAll();
+    wire();
+    initCombos(kind => (kind === 'categories' ? state.cats : state.rooms).map(x => x.name));
+    fillSettingsForm();
+    navigate('list');
+    $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
+  } catch (e) {
+    showBootError('Die gespeicherten Daten konnten nicht geladen werden. Lade die Seite neu; hilft das nicht, schließe andere Tabs mit der App.', e);
+    return;
+  }
+  // Hat der Wächter in index.html schon Alarm geschlagen, weil der Start länger dauerte: zurücknehmen.
+  $('#boot-error').hidden = true;
+  $('#app').hidden = false;
   window.__inventarReady = true;
   registerSW();
   requestPersist();
   updateStorageInfo();
+}
+
+// Zeigt die Startfehler-Seite aus index.html mit einer passenden Meldung.
+function showBootError(msg, err) {
+  window.__inventarFailed = true;   // der Wächter in index.html überschreibt dann nichts mehr
+  const box = $('#boot-error');
+  box.querySelector('p').textContent = msg;
+  $('#boot-error-detail').textContent = err?.message || String(err || '');
+  box.hidden = false;
+  $('#app').hidden = true;
+  console.error('Start fehlgeschlagen:', err);
 }
 
 async function reloadAll() {
@@ -97,24 +116,27 @@ function navigate(view) {
 
 function haystack(it) {
   return [it.name, catName(it.categoryId), roomName(it.roomId), it.locationDetail, it.quantity, it.note]
-    .filter(Boolean).join(' ').toLowerCase();
+    .filter(Boolean).join(' ');
 }
 
 function visibleItems() {
-  const q = $('#q').value.trim().toLowerCase();
+  const q = norm($('#q').value);
   const cat = $('#f-cat').value;
   const room = $('#f-room').value;
   return state.items
     .filter(i => !i.archived)
     .filter(i => !cat || i.categoryId === cat)
     .filter(i => !room || i.roomId === room)
-    .filter(i => !q || haystack(i).includes(q))
+    .filter(i => !q || norm(haystack(i)).includes(q))
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
+// Nur echte Bild-Data-URLs – der Wert kann aus einer fremden Sicherungsdatei stammen.
+const isThumb = (v) => typeof v === 'string' && v.startsWith('data:image/');
+
 function rowHTML(it, why) {
-  const thumb = it.thumb
-    ? `<img class="thumb" src="${it.thumb}" alt="">`
+  const thumb = isThumb(it.thumb)
+    ? `<img class="thumb" src="${esc(it.thumb)}" alt="">`
     : `<div class="thumb">📦</div>`;
   const cat = catName(it.categoryId);
   const place = [roomName(it.roomId), it.locationDetail].filter(Boolean).join(' · ');
@@ -135,7 +157,7 @@ function renderList() {
   $('#filters').hidden = false;
   const rows = visibleItems();
   const total = state.items.filter(i => !i.archived).length;
-  $('#list').innerHTML = rows.map(rowHTML).join('');
+  $('#list').innerHTML = rows.map(it => rowHTML(it)).join('');
   $('#list-count').textContent = total ? (rows.length === total ? `${total}` : `${rows.length}/${total}`) : '';
   const empty = $('#list-empty');
   empty.hidden = rows.length > 0;
@@ -217,7 +239,7 @@ async function runAiSearch() {
 
 function renderArchive() {
   const rows = state.items.filter(i => i.archived).sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
-  $('#arch-list').innerHTML = rows.map(rowHTML).join('');
+  $('#arch-list').innerHTML = rows.map(it => rowHTML(it)).join('');
   $('#arch-count').textContent = rows.length || '';
   $('#arch-empty').hidden = rows.length > 0;
 }
@@ -264,10 +286,9 @@ function setCards(cards) {
 }
 
 function readCards() {
-  return $$('#cards .icard').map(el => ({
-    name: el.querySelector('.c-name').value.trim(),
-    category: el.querySelector('.c-cat').value.trim(),
-  })).filter(c => c.name);
+  return readCardsRaw()
+    .map(c => ({ ...c, name: c.name.trim(), category: c.category.trim() }))
+    .filter(c => c.name);
 }
 
 function updateAiButton() {
@@ -354,7 +375,7 @@ async function saveDraft() {
       quantity: $('#in-qty').value.trim(),
       note: $('#in-note').value.trim(),
       photoId, thumb,
-      confidence: null,
+      aiConfidence: c.confidence,
       createdAt: now, updatedAt: now,
     }));
 
@@ -531,33 +552,37 @@ const labelOf = (kind) => (kind === 'categories' ? 'Kategorie' : 'Raum');
 async function renameNamed(kind, id, name) {
   const clean = name.trim();
   if (!clean) { renderManagers(); return; }
-  const rec = await db.get(kind, id);
-  if (!rec || rec.name === clean) return;
+  try {
+    const rec = await db.get(kind, id);
+    if (!rec || rec.name === clean) return;
 
-  // Gibt es den Namen schon? Dann zusammenführen statt ein Duplikat anzulegen.
-  const list = kind === 'categories' ? state.cats : state.rooms;
-  const twin = list.find(x => x.id !== id && x.name.toLowerCase() === clean.toLowerCase());
-  if (twin) {
-    const field = fieldOf(kind);
-    const affected = state.items.filter(i => i[field] === id);
-    const msg = `„${clean}“ gibt es bereits. Zusammenführen?` +
-      (affected.length ? ` ${plural(affected.length, 'Eintrag wird', 'Einträge werden')} umgehängt.` : '');
-    if (!confirm(msg)) { renderManagers(); return; }
-    for (const it of affected) { it[field] = twin.id; it.updatedAt = Date.now(); await db.put('items', it); }
-    await db.del(kind, id);
+    // Gibt es den Namen schon? Dann zusammenführen statt ein Duplikat anzulegen.
+    const list = kind === 'categories' ? state.cats : state.rooms;
+    const twin = list.find(x => x.id !== id && x.name.toLowerCase() === clean.toLowerCase());
+    if (twin) {
+      const field = fieldOf(kind);
+      const affected = state.items.filter(i => i[field] === id);
+      const msg = `„${clean}“ gibt es bereits. Zusammenführen?` +
+        (affected.length ? ` ${plural(affected.length, 'Eintrag wird', 'Einträge werden')} umgehängt.` : '');
+      if (!confirm(msg)) { renderManagers(); return; }
+      await db.moveAndDropNamed(kind, id, twin.id);
+      await reloadAll();
+      renderManagers();
+      renderList();
+      toast('Zusammengeführt.');
+      return;
+    }
+
+    rec.name = clean;
+    await db.put(kind, rec);
     await reloadAll();
     renderManagers();
     renderList();
-    toast('Zusammengeführt.');
-    return;
+    toast('Umbenannt.');
+  } catch (e) {
+    renderManagers();
+    toast(e.message, true);
   }
-
-  rec.name = clean;
-  await db.put(kind, rec);
-  await reloadAll();
-  renderManagers();
-  renderList();
-  toast('Umbenannt.');
 }
 
 async function dropNamed(kind, id) {
@@ -568,12 +593,15 @@ async function dropNamed(kind, id) {
     ? `${label} löschen? Bei ${plural(affected.length, 'Eintrag', 'Einträgen')} wird das Feld geleert. Die Einträge selbst bleiben erhalten.`
     : `${label} löschen?`;
   if (!confirm(msg)) return;
-  for (const it of affected) { it[field] = null; it.updatedAt = Date.now(); await db.put('items', it); }
-  await db.del(kind, id);
-  await reloadAll();
-  renderManagers();
-  renderList();
-  toast(`${label} gelöscht.`);
+  try {
+    await db.moveAndDropNamed(kind, id, null);
+    await reloadAll();
+    renderManagers();
+    renderList();
+    toast(`${label} gelöscht.`);
+  } catch (e) {
+    toast(e.message, true);
+  }
 }
 
 async function updateStorageInfo() {
@@ -658,7 +686,13 @@ async function readImportFile(file) {
   out.className = 'hint';
   out.innerHTML = '<span class="spin"></span>Datei wird gelesen …';
   try {
-    importData = backup.parseBackup(await file.text());
+    let text;
+    try {
+      text = await file.text();
+    } catch (e) {
+      throw new Error('Die Datei konnte nicht gelesen werden: ' + e.message);
+    }
+    importData = backup.parseBackup(text);
     const c = importData.counts || {};
     const when = importData.exportedAt ? dtf.format(new Date(importData.exportedAt)) : 'unbekannt';
     out.className = 'hint';
@@ -667,6 +701,8 @@ async function readImportFile(file) {
       + `${(importData.rooms || []).length} Räume. Wie soll eingelesen werden?`;
     $('#imp-choice').hidden = false;
   } catch (e) {
+    importData = null;
+    $('#imp-input').value = '';
     out.className = 'hint err';
     out.textContent = e.message;
   }
@@ -695,7 +731,8 @@ async function runImport(mode) {
       + (stats.skipped ? `, ${stats.skipped} waren schon vorhanden.` : '.');
   } catch (e) {
     out.className = 'hint err';
-    out.textContent = 'Import fehlgeschlagen: ' + e.message;
+    // Geschrieben wird in einer einzigen Transaktion – der alte Stand ist unverändert.
+    out.textContent = 'Import fehlgeschlagen: ' + e.message + ' Es wurde nichts verändert.';
   }
 }
 
@@ -811,24 +848,36 @@ function wire() {
   $('#item-save').addEventListener('click', saveItem);
   $('#it-archive').addEventListener('click', async () => {
     if (!confirm('Eintrag ins Archiv verschieben? Er bleibt dort wiederherstellbar.')) return;
-    await db.archiveItem(state.currentId);
-    await reloadAll();
-    navigate('list');
-    toast('Ins Archiv verschoben.');
+    try {
+      await db.archiveItem(state.currentId);
+      await reloadAll();
+      navigate('list');
+      toast('Ins Archiv verschoben.');
+    } catch (e) {
+      toast(e.message, true);
+    }
   });
   $('#it-restore').addEventListener('click', async () => {
-    await db.restoreItem(state.currentId);
-    await reloadAll();
-    navigate('list');
-    toast('Wiederhergestellt.');
+    try {
+      await db.restoreItem(state.currentId);
+      await reloadAll();
+      navigate('list');
+      toast('Wiederhergestellt.');
+    } catch (e) {
+      toast(e.message, true);
+    }
   });
   $('#it-purge').addEventListener('click', async () => {
     if (!confirm('Endgültig löschen? Eintrag und Foto sind danach unwiderruflich weg.')) return;
-    await db.purgeItem(state.currentId);
-    await reloadAll();
-    navigate('archive');
-    toast('Endgültig gelöscht.');
-    updateStorageInfo();
+    try {
+      await db.purgeItem(state.currentId);
+      await reloadAll();
+      navigate('archive');
+      toast('Endgültig gelöscht.');
+      updateStorageInfo();
+    } catch (e) {
+      toast(e.message, true);
+    }
   });
 
   // --- Einstellungen ---
@@ -915,11 +964,15 @@ function readCardsRaw() {
 async function addNamed(kind, input) {
   const name = input.value.trim();
   if (!name) return;
-  await db.ensureNamed(kind, name);
-  input.value = '';
-  await reloadAll();
-  renderManagers();
-  toast('Angelegt.');
+  try {
+    await db.ensureNamed(kind, name);
+    input.value = '';
+    await reloadAll();
+    renderManagers();
+    toast('Angelegt.');
+  } catch (e) {
+    toast(e.message, true);
+  }
 }
 
 /* =========================== Toast & Service Worker =========================== */
@@ -938,9 +991,23 @@ async function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.register('./sw.js');
+    // Wartet schon eine neue Fassung (z. B. vom letzten Start), gleich anbieten.
+    if (reg.waiting) $('#update-bar').hidden = false;
+
+    let reloading = false;
+    const reloadOnce = () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    };
     $('#update-go').addEventListener('click', () => {
-      reg.waiting?.postMessage({ type: 'SKIP_WAITING' });
-      setTimeout(() => location.reload(), 250);
+      const w = reg.waiting;
+      if (!w) { reloadOnce(); return; }
+      $('#update-go').disabled = true;
+      // Erst neu laden, wenn der neue Service Worker wirklich übernommen hat.
+      navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
+      w.postMessage({ type: 'SKIP_WAITING' });
+      setTimeout(reloadOnce, 4000);   // Rückfall, falls das Ereignis ausbleibt
     });
     reg.addEventListener('updatefound', () => {
       const nw = reg.installing;

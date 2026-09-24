@@ -1,4 +1,6 @@
 // Google Gemini API – direkt aus dem Browser, mit dem lokal gespeicherten API-Key.
+import { DEFAULT_MODEL } from './db.js';
+
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const TIMEOUT_MS = 60000;
 
@@ -26,7 +28,7 @@ async function call(settings, body) {
   if (!key) throw new Error('Kein API-Key hinterlegt. Trage ihn unter Einstellungen ein.');
   if (!navigator.onLine) throw new Error('Offline – die Bilderkennung braucht eine Internetverbindung.');
 
-  const model = settings.model || 'gemini-2.5-flash';
+  const model = settings.model || DEFAULT_MODEL;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
 
@@ -55,7 +57,7 @@ async function call(settings, body) {
     if (res.status === 403) throw new Error(`Zugriff verweigert: ${msg}`);
     if (res.status === 429) throw new Error('Kontingent erschöpft (429). Später erneut versuchen oder ein anderes Modell wählen.');
     // Google nennt in dieser Meldung meist gleich das Nachfolgemodell – deshalb weiterreichen.
-    if (res.status === 404) throw new Error(`Modell "${settings.model}" nicht verfügbar. ${msg}`);
+    if (res.status === 404) throw new Error(`Modell "${model}" nicht verfügbar. ${msg}`);
     throw new Error(`Gemini-Fehler ${res.status}: ${msg}`);
   }
 

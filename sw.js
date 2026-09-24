@@ -1,7 +1,7 @@
 // Service Worker – App-Shell offline verfügbar halten.
 // Bei jeder Änderung an den App-Dateien VERSION hochzählen, sonst sieht das
 // iPhone die neue Fassung nicht.
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.2.1';
 const CACHE = 'heim-inventar-' + VERSION;
 
 const ASSETS = [
@@ -21,7 +21,8 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+  // cache: 'reload' umgeht den HTTP-Cache – sonst liefert GitHub Pages u. U. noch alte Dateien.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))));
 });
 
 self.addEventListener('activate', (e) => {

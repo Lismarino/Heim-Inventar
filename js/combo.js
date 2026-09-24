@@ -12,7 +12,7 @@ let suppress = false;  // verhindert, dass die eigene Auswahl die Liste neu öff
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // Kleinschreibung plus Akzente entfernen, damit „kuche“ auch „Küche“ findet.
-const norm = (s) => String(s || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+export const norm = (s) => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 /** Aktiviert die Vorschläge für alle Felder mit data-combo="<kind>". */
 export function initCombos(getSource) {

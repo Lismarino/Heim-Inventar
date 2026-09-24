@@ -63,6 +63,9 @@ async function store(name, mode) {
 export async function getAll(name) {
   return reqP((await store(name, 'readonly')).getAll());
 }
+export async function getAllKeys(name) {
+  return reqP((await store(name, 'readonly')).getAllKeys());
+}
 export async function get(name, key) {
   return reqP((await store(name, 'readonly')).get(key));
 }
@@ -143,6 +146,30 @@ export async function ensureNamed(storeName, name) {
   return rec.id;
 }
 
+// Hängt alle Einträge von oldId auf newId um (null leert das Feld) und löscht
+// die alte Kategorie/den alten Raum – in EINER Transaktion.
+export function moveAndDropNamed(storeName, oldId, newId) {
+  const field = storeName === 'categories' ? 'categoryId' : 'roomId';
+  return withTx(['items', storeName], 'readwrite', (tx) => {
+    const out = { changed: 0 };
+    const now = Date.now();
+    tx.objectStore('items').openCursor().onsuccess = (ev) => {
+      const cur = ev.target.result;
+      if (!cur) return;
+      const it = cur.value;
+      if (it[field] === oldId) {
+        it[field] = newId;
+        it.updatedAt = now;
+        cur.update(it);
+        out.changed++;
+      }
+      cur.continue();
+    };
+    tx.objectStore(storeName).delete(oldId);
+    return out;
+  });
+}
+
 /* ---------------- Einträge ---------------- */
 
 export function newItem(patch = {}) {
@@ -207,5 +234,22 @@ export async function purgeItem(id) {
   return withTx(['items', 'photos'], 'readwrite', (tx) => {
     tx.objectStore('items').delete(id);
     if (dropPhoto) tx.objectStore('photos').delete(dropPhoto);
+  });
+}
+
+/* ---------------- Sicherung einlesen ---------------- */
+
+// Schreibt einen fertig vorbereiteten Import in EINER Transaktion.
+// `replace` leert vorher alle vier Stores. Scheitert irgendetwas (Speicher voll,
+// ungültiger Schlüssel), rollt IndexedDB alles zurück – der alte Stand bleibt.
+export function writeImport({ replace = false, categories = [], rooms = [], photos = [], items = [] }) {
+  const names = ['items', 'photos', 'categories', 'rooms'];
+  return withTx(names, 'readwrite', (tx) => {
+    if (replace) for (const n of names) tx.objectStore(n).clear();
+    const putAll = (n, list) => { const s = tx.objectStore(n); for (const r of list) s.put(r); };
+    putAll('categories', categories);
+    putAll('rooms', rooms);
+    putAll('photos', photos);
+    putAll('items', items);
   });
 }
