@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- App-Symbol: das fertige Glasregal aus der Start-Szene auf Leinen.
+       Vollflächig (iOS rundet selbst ab); alles Wichtige liegt in der Maskable-Sicherheitszone. -->
+  <defs>
+    <radialGradient id="bgSage" cx="18%" cy="12%" r="70%">
+      <stop offset="0" stop-color="#cfe0cf" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#cfe0cf" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bgTerra" cx="92%" cy="96%" r="65%">
+      <stop offset="0" stop-color="#f0c9ae" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#f0c9ae" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="bgMustard" cx="96%" cy="6%" r="45%">
+      <stop offset="0" stop-color="#f3dfae" stop-opacity=".7"/>
+      <stop offset="1" stop-color="#f3dfae" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="spine" x1="0" x2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".30"/>
+      <stop offset=".22" stop-color="#fff" stop-opacity=".08"/>
+      <stop offset=".45" stop-color="#000" stop-opacity="0"/>
+      <stop offset=".85" stop-color="#000" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#000" stop-opacity=".24"/>
+    </linearGradient>
+    <linearGradient id="jar" x1="0" x2="1">
+      <stop offset="0" stop-color="#fdfaf3"/>
+      <stop offset=".55" stop-color="#f4ede1"/>
+      <stop offset="1" stop-color="#e2d6c2"/>
+    </linearGradient>
+    <radialGradient id="jarHi" cx="26%" cy="30%" r="45%">
+      <stop offset="0" stop-color="#fff" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dc7a47"/>
+      <stop offset=".58" stop-color="#cf6a38"/>
+      <stop offset=".58" stop-color="#bb582a"/>
+      <stop offset="1" stop-color="#c4602f"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".95"/>
+      <stop offset=".12" stop-color="#fff" stop-opacity=".55"/>
+      <stop offset=".38" stop-color="#fff" stop-opacity=".22"/>
+      <stop offset=".64" stop-color="#fff" stop-opacity=".10"/>
+      <stop offset=".88" stop-color="#fff" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#fff" stop-opacity=".70"/>
+    </linearGradient>
+    <linearGradient id="glassTint" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fb39a" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#2e5e45" stop-opacity=".22"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" x2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".75"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-50%" width="140%" height="300%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <filter id="blurFeet" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <clipPath id="shelfClip"><rect x="152" y="648" width="720" height="62" rx="31"/></clipPath>
+  </defs>
+
+  <!-- Hintergrund: Leinen mit den warmen Farbflächen der App -->
+  <rect width="1024" height="1024" fill="#f4eee3"/>
+  <rect width="1024" height="1024" fill="url(#bgSage)"/>
+  <rect width="1024" height="1024" fill="url(#bgTerra)"/>
+  <rect width="1024" height="1024" fill="url(#bgMustard)"/>
+
+  <g transform="translate(512 560) scale(1.07) translate(-512 -560)">
+  <!-- weicher Schatten unter dem Regal -->
+  <ellipse cx="512" cy="738" rx="330" ry="26" fill="#4a341e" opacity=".22" filter="url(#soft)"/>
+
+  <!-- Bücher und Glas stehen auf y = 664 (Oberkante Glasbrett + etwas dahinter) -->
+  <g id="items">
+    <!-- Buch 1 Tannengrün -->
+    <g>
+      <rect x="208" y="382" width="84" height="282" rx="10" fill="#2e5e45"/>
+      <rect x="208" y="382" width="84" height="282" rx="10" fill="url(#spine)"/>
+      <rect x="208" y="409" width="84" height="8" fill="#fff1d6" opacity=".55"/>
+      <rect x="208" y="622" width="84" height="8" fill="#fff1d6" opacity=".55"/>
+      <rect x="228" y="450" width="44" height="40" rx="5" fill="#fffaf0" opacity=".88"/>
+    </g>
+    <!-- Buch 2 Senf -->
+    <g>
+      <rect x="302" y="428" width="66" height="236" rx="10" fill="#d3a13a"/>
+      <rect x="302" y="428" width="66" height="236" rx="10" fill="url(#spine)"/>
+      <rect x="302" y="450" width="66" height="7" fill="#fff1d6" opacity=".55"/>
+      <rect x="302" y="628" width="66" height="7" fill="#fff1d6" opacity=".55"/>
+      <rect x="318" y="484" width="34" height="34" rx="5" fill="#2b221c" opacity=".2"/>
+    </g>
+    <!-- Buch 3 Terrakotta -->
+    <g>
+      <rect x="378" y="354" width="92" height="310" rx="10" fill="#b4532a"/>
+      <rect x="378" y="354" width="92" height="310" rx="10" fill="url(#spine)"/>
+      <rect x="378" y="382" width="92" height="8" fill="#fff1d6" opacity=".55"/>
+      <rect x="378" y="620" width="92" height="8" fill="#fff1d6" opacity=".55"/>
+      <rect x="400" y="428" width="48" height="44" rx="5" fill="#fffaf0" opacity=".88"/>
+    </g>
+    <!-- Einmachglas -->
+    <g>
+      <rect x="488" y="484" width="156" height="180" rx="44" fill="url(#jar)"/>
+      <rect x="488" y="484" width="156" height="180" rx="44" fill="url(#jarHi)"/>
+      <rect x="488" y="484" width="156" height="180" rx="44" fill="none" stroke="#3c2814" stroke-opacity=".14" stroke-width="2"/>
+      <rect x="480" y="448" width="172" height="50" rx="16" fill="url(#lid)"/>
+      <rect x="484" y="451" width="164" height="4" rx="2" fill="#ffdcbe" opacity=".6"/>
+      <rect x="518" y="556" width="96" height="62" rx="10" fill="#dfe8dc"/>
+      <rect x="535" y="572" width="62" height="7" rx="3.5" fill="#2e5e45"/>
+      <rect x="535" y="590" width="40" height="7" rx="3.5" fill="#2e5e45"/>
+    </g>
+    <!-- Buch 4 Tinte -->
+    <g>
+      <rect x="662" y="410" width="70" height="254" rx="10" fill="#34475f"/>
+      <rect x="662" y="410" width="70" height="254" rx="10" fill="url(#spine)"/>
+      <rect x="662" y="434" width="70" height="7" fill="#fff1d6" opacity=".55"/>
+      <rect x="662" y="624" width="70" height="7" fill="#fff1d6" opacity=".55"/>
+      <rect x="679" y="472" width="36" height="36" rx="5" fill="#fffaf0" opacity=".88"/>
+    </g>
+    <!-- Buch 5 Salbei, lehnt am Tinten-Buch (Drehpunkt: rechte untere Ecke) -->
+    <g transform="rotate(-10 860 664)">
+      <rect x="784" y="440" width="76" height="224" rx="10" fill="#8fb39a"/>
+      <rect x="784" y="440" width="76" height="224" rx="10" fill="url(#spine)"/>
+      <rect x="784" y="462" width="76" height="7" fill="#fff1d6" opacity=".55"/>
+      <rect x="784" y="628" width="76" height="7" fill="#fff1d6" opacity=".55"/>
+      <rect x="803" y="496" width="38" height="34" rx="5" fill="#2b221c" opacity=".2"/>
+    </g>
+  </g>
+
+  <!-- Glasbrett: Füße schimmern verschwommen durch, helle Oberkante, Gegenlicht unten -->
+  <g clip-path="url(#shelfClip)">
+    <use href="#items" filter="url(#blurFeet)" opacity=".55"/>
+    <rect x="152" y="648" width="720" height="62" fill="#f4eee3" opacity=".35"/>
+    <rect x="152" y="648" width="720" height="62" fill="url(#glassTint)"/>
+    <rect x="152" y="648" width="720" height="62" fill="url(#glass)"/>
+    <rect x="300" y="648" width="150" height="62" fill="url(#sheen)" opacity=".8" transform="skewX(-20)"/>
+  </g>
+  <rect x="152" y="648" width="720" height="62" rx="31" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="3"/>
+  <rect x="152" y="648" width="720" height="62" rx="31" fill="none" stroke="#2e5e45" stroke-opacity=".16" stroke-width="1.5"/>
+  </g>
+</svg>
