@@ -959,7 +959,7 @@ html{overscroll-behavior:none}
 }
 .swipe-act .sa-in{
   width:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-  transform:translateX(var(--reveal,0px));
+  translate:var(--reveal,0px) 0;
 }
 .swipe-act .ic{width:24px;height:24px;stroke-width:2;transition:transform .15s}
 .swipe-act.armed .ic{transform:scale(1.18)}
@@ -1033,6 +1033,8 @@ html{overscroll-behavior:none}
 .onb-glow{position:absolute;inset:-70px;border-radius:50%;background:radial-gradient(closest-side,var(--accent-tint),rgba(0,0,0,0))}
 .onb-eyebrow{margin:0 0 10px;font-size:13px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text)}
 .onb h2{margin:0;font-family:var(--font-round);font-size:31px;line-height:1.12;font-weight:750;letter-spacing:-.022em;text-wrap:balance}
+/* Überschrift bekommt nach der Start-Szene den Fokus (Startpunkt für Screenreader) – kein Rahmen */
+.onb h2[tabindex="-1"]:focus{outline:none}
 .onb-lead{margin:14px 0 0;font-size:17px;line-height:1.5;color:var(--fg2)}
 .onb-1 .onb-lead{max-width:330px}
 .onb-private{
@@ -1138,8 +1140,10 @@ body[data-view="room"] .edge-strip,body[data-view="archive"] .edge-strip{display
    bekommt nur Chromium als Zugabe (Klasse .refract, gesetzt von js/glass.js).
    ===================================================================== */
 
-@property --gx{syntax:'<percentage>';inherits:false;initial-value:30%}
-@property --gy{syntax:'<percentage>';inherits:false;initial-value:0%}
+/* Position des Glanzlichts unter dem Finger (js/glass.js). Vererbt, damit sie das
+   Pseudo-Element ::after erreicht – nicht vererbte Werte kämen dort nie an. */
+@property --gx{syntax:'<percentage>';inherits:true;initial-value:50%}
+@property --gy{syntax:'<percentage>';inherits:true;initial-value:50%}
 
 :root{
   /* Glas */
@@ -1167,7 +1171,13 @@ body[data-view="room"] .edge-strip,body[data-view="archive"] .edge-strip{display
   --lens-rim:inset 0 1px 0 rgba(255,255,255,.85),inset 0 -1px 0 rgba(46,94,69,.08),inset 0 0 0 .5px rgba(46,94,69,.14);
   --drop-top:rgba(72,138,102,.94);
   --drop-bot:rgba(33,78,55,.96);
-  --nav-fg:var(--fg2);
+  /* Tab-Leiste: Beschriftung in voller Tinte und etwas dichteres Glas – so bleibt sie auch über
+     schwarzem oder weißem Inhalt bei mindestens 4,5:1 (gerechnet ohne die Unschärfe, die den
+     Inhalt dahinter nur mittelt): Tinte auf Glas über Schwarz ≈ 9:1, aktiver Tab auf der Linse
+     hell 4,7:1 (über Schwarz), dunkel 4,6:1 (über Weiß). Dichter als das übrige Glas, weil hier
+     kleine Schrift auf beliebigen Fotos liegt. */
+  --nav-fg:var(--fg);
+  --nav-tint:rgba(252,248,241,.8);
 
   /* Etwas Leben im Hintergrund, damit Glas wirkt: Salbei, Terrakotta, Senf – ganz leise. */
   --amb:
@@ -1203,7 +1213,8 @@ body[data-view="room"] .edge-strip,body[data-view="archive"] .edge-strip{display
     --lens-rim:inset 0 1px 0 rgba(255,240,222,.18),inset 0 0 0 .5px rgba(143,199,164,.2);
     --drop-top:rgba(84,150,112,.92);
     --drop-bot:rgba(40,92,64,.95);
-    --nav-fg:var(--fg2);
+    --nav-fg:var(--fg);
+    --nav-tint:rgba(36,30,25,.85);
 
     --amb:
       radial-gradient(115% 55% at -12% -6%, rgba(72,128,96,.26), rgba(72,128,96,0) 62%),
@@ -1226,29 +1237,51 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
     0 0 0 .5px var(--glass-edge),
     var(--glass-shadow);
 }
-/* Innerer Glanz: oben hell, zur Mitte klar, unten ein Hauch Gegenlicht – dazu beim Drücken
-   ein Lichtfleck, der dem Finger folgt (--gx/--gy aus js/glass.js). */
+/* Innerer Glanz: oben hell, zur Mitte klar, unten ein Hauch Gegenlicht. */
 #nav::before,.glass::before,.toast::before,.sheet::before,.update-bar::before,.assign-bar::before,.lb-close::before,
 .glass-lite::before{
   content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
-  background:
-    radial-gradient(closest-side circle at var(--gx) var(--gy),var(--glass-glint),transparent) 0 0/100% 100% no-repeat,
-    linear-gradient(180deg,var(--glass-sheen) 0,rgba(255,255,255,0) 46%,rgba(255,255,255,0) 72%,var(--glass-sheen-low) 100%);
-  background-size:0 0,100% 100%;
+  background:linear-gradient(180deg,var(--glass-sheen) 0,rgba(255,255,255,0) 46%,rgba(255,255,255,0) 72%,var(--glass-sheen-low) 100%);
 }
-.is-pressed::before{background-size:180% 260%,100% 100%;background-position:calc(var(--gx) * .44) calc(var(--gy) * .62),0 0}
+/* Glanzlicht, das dem Finger folgt: jeder Glas-Knopf mit Drück-Effekt hat eins (dieselbe Liste
+   wie GLINT in js/glass.js). Es liegt über der Fläche des Knopfs und unter Schrift und Symbol,
+   ist nur sichtbar, solange gedrückt wird, und sitzt bei --gx/--gy (Prozent der Knopfgröße). */
+#nav button:not(.add)::after,#nav .fab::after,.topbar .link::after,.home-search::after,.toast-act::after,
+.sheet-cancel::after,#update-go::after,.lb-close::after,#onb-next::after,.onb-skip::after{
+  content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(circle var(--glint-r,36px) at var(--gx) var(--gy),var(--glass-glint),rgba(255,255,255,0));
+  opacity:0;transition:opacity .35s ease-out;
+}
+#nav button.is-pressed::after,#nav .add.is-pressed .fab::after,.topbar .link.is-pressed::after,.home-search.is-pressed::after,
+.toast-act.is-pressed::after,.sheet-cancel.is-pressed::after,#update-go.is-pressed::after,.lb-close.is-pressed::after,
+#onb-next.is-pressed::after,.onb-skip.is-pressed::after{opacity:1;transition-duration:.06s}
+/* Tab-Knöpfe: das Licht hat die Form der Linse */
+#nav button:not(.add)::after{inset:6px 3px;border-radius:999px}
+/* Auf dem grünen Tropfen und den grünen Knöpfen kräftiger */
+#nav .fab::after,#onb-next::after,#update-go::after{--glass-glint:rgba(255,255,255,.5)}
+.topbar .link,.home-search,.toast-act,.sheet-cancel,#update-go{position:relative}
+.topbar .link,.home-search,.toast-act,.sheet-cancel,#update-go,#nav .fab,.onb-skip{isolation:isolate}
+/* Schwebende Knöpfe liegen nicht über scrollbarem Inhalt: der Finger darf auf ihnen wandern,
+   ohne dass der Browser die Berührung als Scrollen übernimmt (sonst erlischt der Glanz sofort). */
+#nav,.topbar .link,.toast-act,.sheet-cancel,#update-go,.lb-close,#onb-next,.onb-skip{touch-action:none}
 #nav,.glass,.toast,.sheet,.update-bar,.assign-bar,.lb-close,.glass-lite{isolation:isolate}
 .glass,.glass-lite{position:relative}
 /* Glas light als Hilfsklasse (für künftige Elemente; bestehende setzen --lite direkt) */
 .glass-lite{background:var(--lite);box-shadow:var(--lite-rim)}
 
-/* Echte Lichtbrechung an den Kanten – nur wo backdrop-filter: url() funktioniert (Chromium). */
+/* Echte Lichtbrechung an den Kanten – nur wo backdrop-filter: url() funktioniert (Chromium).
+   Erst die Unschärfe, dann die Verschiebung: umgekehrt zeichnet Chromium mit GPU-Rasterung
+   den Inhalt dahinter scharf (nur verschoben). */
 .refract #nav,.refract .toast,.refract .sheet,.refract .update-bar{
-  -webkit-backdrop-filter:url(#lg-refract) var(--glass-blur);backdrop-filter:url(#lg-refract) var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur) url(#lg-refract);backdrop-filter:var(--glass-blur) url(#lg-refract);
 }
 
 /* ---------- Tab-Leiste ---------- */
-#nav{transform-origin:50% 100%;transition:transform var(--spring-dur) var(--spring)}
+/* Seitlich nie in die Safe-Areas (Querformat: Notch/Dynamic Island links oder rechts) */
+#nav{left:max(var(--nav-x),env(safe-area-inset-left,0px));right:max(var(--nav-x),env(safe-area-inset-right,0px))}
+#nav{background-color:var(--nav-tint);transform-origin:50% 100%;transition:transform var(--spring-dur) var(--spring)}
+/* Aktiver Tab in der dunkleren (hell: tieferen) Tanne – auf der grünen Linse sonst unter 4,5:1 */
+#nav button.active{color:var(--accent-ink)}
 #nav .lens{
   position:absolute;left:0;top:6px;bottom:6px;width:20%;z-index:0;border-radius:999px;
   background:var(--lens);box-shadow:var(--lens-rim);pointer-events:none;opacity:0;
@@ -1282,13 +1315,17 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
    ::before sieht in Chromium den Inhalt dahinter nicht. Die Kopfzeilen liegen darüber. */
 .head > *{position:relative}
 .head > .head-glass{
-  position:absolute;inset:0 0 -12px;pointer-events:none;box-shadow:none;
-  /* weiche Unterkante statt harter Linie – wie der Scroll-Rand in iOS 26 */
-  -webkit-mask-image:linear-gradient(#000 calc(100% - 16px),rgba(0,0,0,.55) calc(100% - 8px),transparent);
-  mask-image:linear-gradient(#000 calc(100% - 16px),rgba(0,0,0,.55) calc(100% - 8px),transparent);
+  position:absolute;inset:0;pointer-events:none;box-shadow:none;
   opacity:0;transition:opacity .22s ease-out;
 }
 .view.lifted .head-glass{opacity:1}
+/* Weiche Unterkante statt harter Linie – wie der Scroll-Rand in iOS 26 – als eigener Verlauf
+   OHNE Unschärfe unter dem Glas. Früher lag dafür mask-image auf der geblurrten Fläche; diese
+   Kombination zeichnet Safari nicht verlässlich (Unschärfe fällt weg oder wird eckig). */
+.head > .head-glass::after,.veil::after{
+  content:"";position:absolute;left:0;right:0;top:100%;height:14px;pointer-events:none;
+  background:linear-gradient(var(--glass-tint),transparent);
+}
 .view > .scroll{padding-top:calc(var(--head-h, 100px) + 4px)}
 .view > .scroll.home{padding-top:calc(var(--safe-t) + 12px)}
 #view-places > .scroll{padding-top:calc(var(--head-h, 100px) + 8px)}
@@ -1296,9 +1333,8 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 #view-room.scrolled .topbar{box-shadow:none}
 /* Zuhause hat keine Kopfzeile – dort verschwimmt nur der Statusbereich wie in iOS */
 .veil{
-  height:calc(var(--safe-t) + 14px);opacity:0;background-color:var(--glass-tint);
+  height:var(--safe-t);opacity:0;background-color:var(--glass-tint);
   -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
-  -webkit-mask-image:linear-gradient(#000 calc(100% - 14px),transparent);mask-image:linear-gradient(#000 calc(100% - 14px),transparent);
   transition:opacity .22s ease-out;
 }
 #view-home.lifted .veil{opacity:1}
@@ -1350,7 +1386,7 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 
 /* ---------- Toast: Glas-Kapsel, die hereinfließt ---------- */
 .toast{
-  left:14px;right:14px;max-width:520px;
+  left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));max-width:520px;
   bottom:calc(var(--nav-y) + var(--nav-h) + 14px);
   color:var(--fg);border-radius:26px;padding:14px 20px;
   animation:toast-in var(--spring-soft-dur) var(--spring-soft) both,toast-fade .18s ease-out both;
@@ -1372,7 +1408,7 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 
 /* ---------- Update-Hinweis: schwebende Glas-Kapsel oben ---------- */
 .update-bar{
-  left:12px;right:12px;top:calc(var(--safe-t) + 8px);max-width:480px;margin:0 auto;
+  left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));top:calc(var(--safe-t) + 8px);max-width:480px;margin:0 auto;
   padding:7px 7px 7px 16px;border-radius:999px;color:var(--fg);justify-content:space-between;
   animation:toast-in var(--spring-soft-dur) var(--spring-soft) both,toast-fade .18s ease-out both;
 }
@@ -1387,7 +1423,7 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 
 /* ---------- Aktionsblatt: schwebendes Glas mit großen Radien ---------- */
 .sheet{
-  left:8px;right:8px;bottom:calc(var(--safe-b) + 8px);max-width:544px;
+  left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));bottom:calc(var(--safe-b) + 8px);max-width:544px;
   border-radius:34px;padding:6px 14px 14px;background-color:var(--glass-tint-strong);
   transform-origin:50% 50%;
 }
@@ -1404,7 +1440,16 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 .sheet-backdrop{background:var(--shade)}
 
 /* ---------- Zuweisen-Leiste ---------- */
-.assign-bar{background-color:var(--glass-tint-strong)}
+.assign-bar{background-color:var(--glass-tint-strong);left:max(6px,env(safe-area-inset-left,0px));right:max(6px,env(safe-area-inset-right,0px))}
+/* Querformat: wenig Höhe – Felder und Knopf in einer Zeile, damit von der Liste etwas bleibt */
+@media (orientation: landscape) and (max-height: 500px){
+  .assign-bar{padding:8px 8px 8px 12px;border-radius:24px}
+  .assign-inner{display:flex;align-items:flex-end;gap:10px}
+  .assign-fields{flex:1;min-width:0}
+  .assign-bar .field>span{margin-bottom:3px;font-size:12px}
+  .assign-bar .field input{min-height:40px;padding-top:8px;padding-bottom:8px}
+  .assign-bar .btn.block{display:inline-flex;width:auto;flex:none;margin-top:0;min-height:40px;padding:0 20px}
+}
 .assign-bar .field input{background:var(--lite-strong);border-color:transparent;box-shadow:var(--lite-rim)}
 .assign-bar .field input:focus{box-shadow:0 0 0 1.5px var(--accent-text),0 0 0 4px var(--ring)}
 .assign-bar .field>span{margin-left:8px}
@@ -1412,7 +1457,7 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 .pick-edit{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(24,16,8,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
 
 /* ---------- Vollbild: Schließen als dunkler Glastropfen ---------- */
-.lb-close{background-color:rgba(40,34,30,.42);color:#fff;
+.lb-close{right:max(14px,env(safe-area-inset-right,0px));background-color:rgba(40,34,30,.42);color:#fff;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.4),inset 0 0 0 .5px rgba(255,255,255,.18),0 6px 18px -6px rgba(0,0,0,.6);
   transition:transform var(--spring-pop-dur) var(--spring-pop)}
 .lb-close::before{--glass-sheen:rgba(255,255,255,.22);--glass-sheen-low:rgba(255,255,255,.06)}
@@ -1441,10 +1486,12 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
     radial-gradient(120% 70% at 30% 0%,rgba(255,255,255,.42),rgba(255,255,255,0) 50%),
     linear-gradient(180deg,#c9673b,#a9481f);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -2px 5px rgba(60,15,0,.25),0 6px 14px -8px rgba(140,50,15,.7);
-  transition:transform var(--spring-pop-dur) var(--spring-pop);
+  /* Die Lage hängt ohne Übergang direkt an der Zeilenkante (translate aus --reveal, jeden
+     Frame neu) – nur die Größe federt, wenn die Aktion scharf wird. */
+  transition:scale var(--spring-pop-dur) var(--spring-pop);
 }
 .swipe-act.armed{background:var(--clay)}
-.swipe-act.armed .sa-in{transform:translateX(var(--reveal,0px)) scale(1.12)}
+.swipe-act.armed .sa-in{scale:1.12}
 .swipe-act.armed .ic{transform:none}
 @media (prefers-color-scheme: dark){
   .swipe-act .sa-in{background:radial-gradient(120% 70% at 30% 0%,rgba(255,255,255,.3),rgba(255,255,255,0) 50%),linear-gradient(180deg,#d9804f,#b85a2c);color:#2a160b}
@@ -1530,7 +1577,9 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
   background:
     radial-gradient(46% 16% at 50% 26%,rgba(255,252,236,.75),rgba(255,252,236,0)),
     radial-gradient(closest-side,rgba(98,160,124,.32),rgba(98,160,124,0))}
-.i-name{position:absolute;left:0;right:0;top:204px;text-align:center;
+/* Schriftzug: im Ruhezustand (= Startbild) unsichtbar – das Startbild entsteht ohne die runde
+   iPhone-Schrift; js/intro.js blendet ihn während der Szene in der echten Systemschrift ein. */
+.i-name{position:absolute;left:0;right:0;top:204px;text-align:center;opacity:0;
   font:700 22px/1.2 var(--font-round);letter-spacing:-.01em;color:var(--fg)}
 @media (prefers-color-scheme: dark){
   .i-b1{--c:#3f7458}.i-b2{--c:#c49532}.i-b3{--c:#c0643a}.i-b4{--c:#4d6283}.i-b5{--c:#7fa58c}
@@ -1549,25 +1598,26 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 
 /* ---------- Transparenz reduzieren / Kontrast erhöhen / kein backdrop-filter ---------- */
 @media (prefers-reduced-transparency: reduce){
-  :root{--glass-tint:var(--glass-solid);--glass-tint-strong:var(--glass-solid);--glass-blur:none;--lite:var(--surface-2);--lite-strong:var(--surface);--lens:var(--accent-tint)}
+  :root{--glass-tint:var(--glass-solid);--glass-tint-strong:var(--glass-solid);--nav-tint:var(--glass-solid);--glass-blur:none;--lite:var(--surface-2);--lite-strong:var(--surface);--lens:var(--accent-tint)}
   body,.view,.onb,.boot-error{background:var(--bg)}
   .i-shelf{-webkit-backdrop-filter:none;backdrop-filter:none}
   .refract #nav,.refract .toast,.refract .sheet,.refract .update-bar{-webkit-backdrop-filter:none;backdrop-filter:none}
   .todo{background:var(--surface)}
 }
 @media (prefers-contrast: more){
-  :root{--glass-tint:var(--glass-solid);--glass-tint-strong:var(--glass-solid);--glass-blur:none;--lite:var(--surface-2);--lite-strong:var(--surface);
-    --glass-edge:var(--line-strong);--nav-fg:var(--fg)}
+  :root{--glass-tint:var(--glass-solid);--glass-tint-strong:var(--glass-solid);--nav-tint:var(--glass-solid);--glass-blur:none;--lite:var(--surface-2);--lite-strong:var(--surface);
+    --glass-edge:var(--line-strong)}
   .refract #nav,.refract .toast,.refract .sheet,.refract .update-bar{-webkit-backdrop-filter:none;backdrop-filter:none}
   .todo{background:var(--surface)}
 }
 @supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
-  :root{--glass-tint:var(--glass-solid);--glass-tint-strong:var(--glass-solid)}
+  :root{--glass-tint:var(--glass-solid);--glass-tint-strong:var(--glass-solid);--nav-tint:var(--glass-solid)}
 }
 
 /* ---------- Bewegung reduzieren (Liquid Glass) ---------- */
 @media (prefers-reduced-motion: reduce){
-  #nav.compact,.is-pressed,.is-pressed .ic,.is-pressed .fab,.swipe-act.armed .sa-in{transform:none !important}
+  #nav.compact,.is-pressed,.is-pressed .ic,.is-pressed .fab{transform:none !important}
+  .swipe-act.armed .sa-in{scale:none !important}
   #nav.compact button span:not(.fab){opacity:1}
   .toast,.update-bar{animation:toast-fade .01s both}
 }

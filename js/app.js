@@ -13,7 +13,7 @@ import { haptic, longPress, swipeRows, edgeSwipe } from './gestures.js';
 import * as glass from './glass.js';
 import * as intro from './intro.js';
 
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 // Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
@@ -128,9 +128,10 @@ function showBootError(msg, err) {
   console.error('Start fehlgeschlagen:', err);
 }
 
-// Die Start-Szene öffnet sich in die App, sobald sie steht (js/intro.js).
+// Die Start-Szene öffnet sich in die App, sobald sie steht (js/intro.js). Liegt darunter die
+// Einführung, bekommt danach deren Überschrift den Fokus (vorher ist sie inert).
 function hideSplash() {
-  intro.done();
+  intro.done().then(() => onboarding.focusStart());
 }
 
 // skipped: übersprungen (oder Escape) – dann bleibt man, wo man war (beim ersten Start
@@ -278,7 +279,11 @@ function navigate(view, { instant = false, fresh = false } = {}) {
   toEl.hidden = false;
   for (const v of $$('.view')) if (v !== toEl && v !== fromEl) v.hidden = true;
   const tab = tabOf();
-  $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.nav === tab));
+  $$('#nav button').forEach((b) => {
+    const on = b.dataset.nav === tab;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
   glass.setTab(tab, { instant });
   if (view !== from) glass.resetBar();
 

@@ -1,8 +1,9 @@
 // Start-Szene „Glas-Regal“ (1.6.0).
 // Das leere gläserne Regalbrett ist zugleich das iOS-Startbild (icons/splash/, erzeugt mit
 // tools/splash.js aus genau diesem Markup) – der Übergang ist deshalb nahtlos. Hier fallen
-// dann Bücher und ein Einmachglas federnd ins Regal, ein Glanz wischt darüber, und die
-// Szene öffnet sich in die App, die dahinter schon fertig gezeichnet ist.
+// dann Bücher und ein Einmachglas federnd ins Regal, der Schriftzug „Inventar“ taucht auf
+// (er steht bewusst nicht im Startbild), ein Glanz wischt darüber, und die Szene öffnet sich
+// in die App, die dahinter schon fertig gezeichnet ist.
 //
 // - Blockiert den Start nicht: app.js startet parallel und ruft done(), sobald es bereit ist.
 //   Ist die App schneller, läuft die Szene zu Ende (frühestens nach ~0,8 s öffnet sie);
@@ -10,10 +11,14 @@
 // - Nur beim echten Kaltstart. Wurde die Seite nach dem Wechsel in den Hintergrund neu
 //   geladen (oder aus dem Verlauf wiederhergestellt), nur kurz überblenden.
 // - „Bewegung reduzieren“: nur kurzes Überblenden.
+// - Solange die Szene steht, sind #app und #onboarding inert: Die Tab-Taste (Tastatur,
+//   Schaltersteuerung) landet nicht unsichtbar hinter ihr. Die Fehlerseite des Start-Wächters
+//   liegt außerhalb und darüber und bleibt bedienbar.
 // - Der Start-Wächter in index.html bleibt unberührt: window.__inventarReady setzt app.js
 //   wie bisher, unabhängig von der Szene.
 // Animiert werden nur transform und opacity.
 import { reduced, num } from './motion.js';
+import { lock } from './ui.js';
 
 const BG_KEY = 'inventar-hintergrund';   // gesetzt, sobald die App einmal im Hintergrund war
 const OPEN_AFTER = 760;                  // ms: so lange darf die Szene mindestens dauern
@@ -28,6 +33,12 @@ let anims = [];
 let idle = null;
 let resolveDone = null;
 const whenDone = new Promise((r) => { resolveDone = r; });
+
+// Die App hinter der Szene für Tastatur und Screenreader sperren bzw. wieder freigeben.
+const BEHIND = ['app', 'onboarding'];
+function holdBehind(on) {
+  for (const id of BEHIND) lock(document.getElementById(id), 'intro', on);
+}
 
 const bgSeen = () => {
   try { return !!sessionStorage.getItem(BG_KEY); } catch (_) { void _; return false; }
@@ -108,6 +119,10 @@ function play() {
   const shine = q('.i-shine');
   if (glint) anims.push(glint.animate(sweep, { duration: 560, delay: 480, easing: 'cubic-bezier(.4,.1,.3,1)', fill: 'both' }));
   if (shine) anims.push(shine.animate(sweep, { duration: 600, delay: 420, easing: 'cubic-bezier(.4,.1,.3,1)', fill: 'both' }));
+  // Der Schriftzug steht nicht im Startbild (dort gäbe es nur eine Ersatzschrift) – er taucht
+  // auf, während die Bücher landen, in der runden Systemschrift des Geräts.
+  const name = q('.i-name');
+  if (name) anims.push(name.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: 200, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' }));
   // Uhr für die Mindestdauer – über die Animations-Zeitleiste, damit sie mit ihr läuft.
   const clock = q('.intro').animate([{ opacity: 1 }, { opacity: 1 }], { duration: OPEN_AFTER });
   anims.push(clock);
@@ -139,6 +154,7 @@ function open() {
   if (opening || finished) return;
   opening = true;
   el.style.pointerEvents = 'none';
+  holdBehind(false);
   const q = (s) => el.querySelector(s);
   const list = [];
   const a = (node, frames, o) => { if (node) list.push(node.animate(frames, { fill: 'forwards', ...o })); };
@@ -158,6 +174,7 @@ function fadeOut() {
   if (opening || finished) return;
   opening = true;
   el.style.pointerEvents = 'none';
+  holdBehind(false);
   if (typeof el.animate !== 'function') { finish(); return; }
   const f = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-out', fill: 'forwards' });
   anims.push(f);
@@ -167,6 +184,7 @@ function fadeOut() {
 function finish() {
   if (finished) return;
   finished = true;
+  holdBehind(false);
   if (el) {
     el.hidden = true;
     el.style.pointerEvents = '';
@@ -185,6 +203,7 @@ export function start() {
   if (!el || el.hidden) { finished = true; resolveDone(); return; }
   mode = decide();
   el.dataset.intro = mode;
+  holdBehind(true);
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('pageshow', (e) => { if (e.persisted && ready) finish(); });
   // Neu laden oder Wegnavigieren ist kein Wechsel in den Hintergrund (Chromium meldet dabei

@@ -23,7 +23,10 @@ erscheint die helle. iOS holt die Startbilder nur beim Hinzufügen zum Home-Bild
 App schon vor Version 1.6.0 installiert hat, sieht noch das alte Startbild (Einmachglas) und
 danach einen kleinen Sprung zum Glasregal – das neue Bild kommt erst, nachdem man die App einmal
 vom Home-Bildschirm entfernt und neu hinzugefügt hat – **vorher eine Sicherung machen**, denn
-das Entfernen löscht die Daten (siehe Abschnitt 4).
+das Entfernen löscht die Daten (siehe Abschnitt 4). Seit 1.6.1 steht im Startbild kein Schriftzug
+mehr (die runde iPhone-Schrift lässt sich nicht ins Bild übernehmen); die Start-Szene blendet
+„Inventar“ in der echten Systemschrift ein. Mit einem Startbild aus 1.6.0 verschwindet der
+Schriftzug deshalb beim Übergang kurz und taucht dann wieder auf – harmlos.
 
 **Erster Start:** Eine kurze Einführung in drei Schritten – Willkommen, **Welche Räume hast
 du?** (antippen, eigene dazuschreiben) und optional der **Gemini-API-Key**. Alles lässt sich
@@ -131,16 +134,21 @@ als grüner Glastropfen, Aktionsblatt, Hinweise („Rückgängig“), der Update
 Zuweisen-Leiste in **Ohne Raum** und die Knöpfe oben. Kopfzeilen sind zunächst klar und werden zu
 Glas, sobald Inhalt darunter durchscrollt. Karten, Listen und Fotos bleiben bewusst solide, damit
 alles gut lesbar ist.
-- **Start:** Beim Öffnen fallen Bücher und ein Einmachglas federnd ins Glasregal, ein Lichtreflex
-  wischt darüber, dann öffnet sich die Szene in die Startseite – nach gut einer Sekunde ist die
-  App bedienbar, ein Tipp nach dem Laden überspringt den Rest. Die Szene kommt nur beim echten
-  Start, nicht wenn die App aus dem Hintergrund zurückkommt (hat iOS sie dort beendet, wird nur kurz
-  übergeblendet). Sie hält den Start nicht auf: Die App lädt währenddessen im Hintergrund, und
-  dauert schon das Laden lange, wird nur noch übergeblendet.
+- **Start:** Beim Öffnen fallen Bücher und ein Einmachglas federnd ins Glasregal, der Schriftzug
+  „Inventar“ taucht auf, ein Lichtreflex wischt darüber, dann öffnet sich die Szene in die
+  Startseite – meist ist die App nach gut einer Sekunde bedienbar, ein Tipp nach dem Laden
+  überspringt den Rest. Kommt die App nur aus dem Hintergrund zurück, gibt es keine Szene. Hat iOS
+  sie im Hintergrund beendet, blendet sie beim nächsten Öffnen in der Regel nur kurz über; je nach
+  iOS-Version und wie lange sie beendet war, kann dann aber auch die volle Szene laufen. Sie hält
+  den Start nicht auf: Die App lädt währenddessen im Hintergrund, und dauert schon das Laden lange,
+  wird nur noch übergeblendet. Solange die Szene steht, springt die Tab-Taste (Tastatur,
+  Schaltersteuerung) nicht unsichtbar in die App dahinter.
 - **Tab-Leiste:** Die Markierung des aktiven Tabs ist eine Glas-Linse, die beim Wechsel federnd
   hinübergleitet. Beim Runterscrollen wird die Leiste etwas kleiner, beim Hochscrollen oder
   Anhalten wieder groß.
-- **Knöpfe aus Glas** quellen beim Drücken leicht auf, ein Glanz folgt dem Finger.
+- **Knöpfe aus Glas** (Tabs, Kamera-Knopf, Knöpfe oben, „Rückgängig“, „Abbrechen“ im Blatt)
+  quellen beim Drücken leicht auf, ein Glanzlicht folgt dem Finger, solange er auf dem Knopf
+  bleibt.
 - **Aktionsblatt** (langes Drücken, ⋯) wächst aus der Zeile oder dem Knopf heraus und schrumpft beim
   Schließen dorthin zurück; **Hinzufügen** quillt als Tropfen aus dem Kamera-Knopf. Hinweise fließen
   als Glas-Kapsel herein, **Archiv** hinter einer weggewischten Zeile ist ein Glastropfen.

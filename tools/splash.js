@@ -1,6 +1,6 @@
 // Erzeugt die iOS-Startbilder in icons/splash/ – hell und dunkel, je iPhone-Größe.
 // Gehört nicht zur App (wird nicht ausgeliefert oder gecacht), nur bei Bedarf ausführen:
-//   node tools/splash.js [pfad/zu/einer-runden-schrift.woff2]
+//   node tools/splash.js
 // Braucht Playwright mit Chromium (CHROMIUM=/pfad/zu/chrome für ein eigenes Binary).
 //
 // Seit 1.6.0 wird kein eigenes Bild mehr nachgebaut: das Skript öffnet index.html direkt
@@ -9,6 +9,13 @@
 // (js/intro.js) – das iOS-Startbild geht deshalb nahtlos in die Animation über. Über
 // file:// laufen die Module nicht, die Szene bleibt also sicher im Ruhezustand.
 // Wer die Szene in css/app.css oder index.html ändert, erzeugt die Bilder neu.
+//
+// Seit 1.6.1 steht im Startbild keine Schrift: Die runde Systemschrift des iPhones (SF Pro
+// Rounded) gibt es hier nicht, ein Schriftzug im Bild sähe also anders aus als der, den das
+// iPhone gleich danach zeichnet. Der Schriftzug „Inventar“ ist im Ruhezustand unsichtbar und
+// wird erst von der Start-Szene eingeblendet – Bild und erster Frame bleiben deckungsgleich.
+// Chromium läuft mit SwiftShader, damit backdrop-filter (die leichte Unschärfe im Glasbrett)
+// wie auf dem Gerät gezeichnet wird – ohne GPU lässt Headless-Chromium sie sonst weg.
 //
 // Danach werden die PNGs, falls Python mit Pillow da ist, auf eine 256-Farben-Palette
 // gebracht (die sanften Verläufe vertragen das) – Ziel: höchstens ~60 KB je Bild, denn iOS
@@ -43,21 +50,16 @@ im.quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NON
 }
 
 (async () => {
-  const fontFile = process.argv[2];
-  const font = fontFile
-    ? `@font-face{font-family:Rund;font-weight:700;src:url(data:font/woff2;base64,${fs.readFileSync(fontFile).toString('base64')}) format("woff2")}
-       .i-name{font-family:Rund,var(--font-round)}`
-    : '';
   const url = pathToFileURL(path.join(ROOT, 'index.html')).href;
   fs.mkdirSync(OUT, { recursive: true });
-  const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
+  const args = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
+  const browser = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM, args } : { args });
   let small = true;
   for (const scheme of ['light', 'dark']) {
     for (const [w, h, d] of SIZES) {
       const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: d });
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'no-preference' });
       await page.goto(url, { waitUntil: 'load' });
-      if (font) await page.addStyleTag({ content: font });
       await page.evaluate(() => document.fonts.ready);
       // Nur die Szene: alles andere (App, Fehlerseite) ausblenden – sie liegt ohnehin darüber.
       await page.addStyleTag({ content: '#app,#boot-error,#onboarding,#toast,#update-bar,#lightbox,#sheet{display:none!important}' });

@@ -3,7 +3,7 @@
 //   und sich unterwegs in die Länge zieht; beim Runterscrollen wird die Leiste kleiner,
 //   beim Hochscrollen oder Anhalten wieder groß.
 // - Kopfzeilen werden zu Glas, sobald Inhalt darunter durchscrollt (Klasse .lifted).
-// - Glas-Knöpfe quellen beim Drücken leicht auf, ein Glanz folgt dem Finger.
+// - Glas-Knöpfe quellen beim Drücken leicht auf, ein Glanzlicht folgt dem Finger.
 // - Der Kamera-Tropfen quillt auf, wenn Hinzufügen aufsteigt; Aktionsblätter wachsen aus
 //   dem Element, das sie geöffnet hat (originOf / lastPress).
 // Animiert werden nur transform und opacity. Bei „Bewegung reduzieren“ springt alles.
@@ -165,14 +165,19 @@ function measureBars() {
 
 /* ---------------- Drücken: aufquellen, Glanz folgt dem Finger ---------------- */
 
-const PRESS = '#nav button, .glass-btn, .topbar .link, .sheet-cancel, .toast-act, #update-go, .lb-close, .home-search, #onb-next, .onb-skip, .flag';
+// PRESS: quillt beim Drücken auf (Klasse .is-pressed). GLINT: davon die Glas-Knöpfe mit
+// Glanzlicht (::after in app.css, dieselbe Liste) – nur für sie wird die Fingerposition gemessen.
+const GLINT = '#nav button, .topbar .link, .sheet-cancel, .toast-act, #update-go, .lb-close, .home-search, #onb-next, .onb-skip';
+const PRESS = GLINT + ', .flag';
 let pressed = null;
+let glinting = false;   // hat das gedrückte Element ein Glanzlicht?
 let glintRaf = 0;
 let glintAt = null;
 let lastPress = null;   // { t, x, y, el } – woher kam der letzte Tipp (für Aktionsblätter)
 
 function glint(el, x, y) {
-  const r = el.getBoundingClientRect();
+  // Beim Kamera-Knopf sitzt das Licht im runden Tropfen, nicht im ganzen Tab-Platz.
+  const r = (el.querySelector(':scope > .fab') || el).getBoundingClientRect();
   if (!r.width || !r.height) return;
   el.style.setProperty('--gx', num(Math.max(0, Math.min(100, (x - r.left) / r.width * 100))) + '%');
   el.style.setProperty('--gy', num(Math.max(0, Math.min(100, (y - r.top) / r.height * 100))) + '%');
@@ -182,6 +187,7 @@ function release() {
   if (!pressed) return;
   pressed.classList.remove('is-pressed');
   pressed = null;
+  glinting = false;
   glintAt = null;
 }
 
@@ -194,15 +200,16 @@ function wirePress() {
     if (!b || b.disabled) return;
     pressed = b;
     b.classList.add('is-pressed');
-    glint(b, e.clientX, e.clientY);
+    glinting = b.matches(GLINT);
+    if (glinting) glint(b, e.clientX, e.clientY);
   }, { capture: true, passive: true });
   document.addEventListener('pointermove', (e) => {
-    if (!pressed) return;
+    if (!pressed || !glinting) return;
     glintAt = [e.clientX, e.clientY];
     if (glintRaf) return;
     glintRaf = requestAnimationFrame(() => {
       glintRaf = 0;
-      if (pressed && glintAt) glint(pressed, glintAt[0], glintAt[1]);
+      if (pressed && glinting && glintAt) glint(pressed, glintAt[0], glintAt[1]);
     });
   }, { passive: true });
   for (const type of ['pointerup', 'pointercancel', 'dragstart']) document.addEventListener(type, release, { capture: true, passive: true });

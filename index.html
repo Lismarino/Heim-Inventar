@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
-<meta name="app-version" content="1.6.0">
+<meta name="app-version" content="1.6.1">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -489,7 +489,7 @@
        Die Linse markiert den aktiven Tab und gleitet zwischen ihnen (js/glass.js). ============ -->
   <nav id="nav">
     <span class="lens" aria-hidden="true"></span>
-    <button data-nav="home" class="active"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Zuhause</span></button>
+    <button data-nav="home" class="active" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Zuhause</span></button>
     <button data-nav="list"><svg class="ic" aria-hidden="true"><use href="#i-shelf"/></svg><span>Alles</span></button>
     <button data-nav="add" class="add" aria-label="Hinzufügen"><span class="fab"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span></button>
     <button data-nav="places"><svg class="ic" aria-hidden="true"><use href="#i-rooms"/></svg><span>Räume</span></button>
