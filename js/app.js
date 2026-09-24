@@ -10,10 +10,14 @@ import * as motion from './motion.js';
 import * as sheet from './sheet.js';
 import * as onboarding from './onboarding.js';
 import { haptic, longPress, swipeRows, edgeSwipe } from './gestures.js';
+import * as glass from './glass.js';
+import * as intro from './intro.js';
 
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.6.0';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
+// Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
+intro.start();
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -74,6 +78,7 @@ async function boot() {
   try {
     await reloadAll();
     wire();
+    glass.init();
     initCombos(kind => (kind === 'categories' ? state.cats : state.rooms).map(x => x.name));
     sheet.init();
     home.init({
@@ -119,17 +124,13 @@ function showBootError(msg, err) {
   box.hidden = false;
   $('#app').hidden = true;
   $('#splash').hidden = true;
+  intro.stop();
   console.error('Start fehlgeschlagen:', err);
 }
 
-// Das Start-Logo sanft ausblenden, sobald die App steht.
+// Die Start-Szene öffnet sich in die App, sobald sie steht (js/intro.js).
 function hideSplash() {
-  const el = $('#splash');
-  if (!el || el.hidden) return;
-  el.style.pointerEvents = 'none';
-  if (motion.reduced() || !el.animate) { el.hidden = true; return; }
-  el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 320, easing: 'ease-out', fill: 'forwards' })
-    .finished.catch(() => null).then(() => { el.hidden = true; });
+  intro.done();
 }
 
 // skipped: übersprungen (oder Escape) – dann bleibt man, wo man war (beim ersten Start
@@ -278,6 +279,8 @@ function navigate(view, { instant = false, fresh = false } = {}) {
   for (const v of $$('.view')) if (v !== toEl && v !== fromEl) v.hidden = true;
   const tab = tabOf();
   $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.nav === tab));
+  glass.setTab(tab, { instant });
+  if (view !== from) glass.resetBar();
 
   renderView(view);
   if (view === 'settings') { renderManagers(); updateStorageInfo(); }
@@ -298,6 +301,7 @@ function navigate(view, { instant = false, fresh = false } = {}) {
         : back ? 'pop'
           : PUSH.includes(view) ? 'push'
             : 'fade';
+  if (kind === 'sheet-up') glass.dropFromFab();
   motion.run(kind, fromEl, toEl, (el) => el === $('#view-' + state.view));
 }
 
@@ -1690,7 +1694,17 @@ function toast(msg, isError, action) {
   void t.offsetWidth;
   t.style.animation = '';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; toastAction = null; }, action ? 5000 : isError ? 5200 : 2600);
+  // Das Ausblenden (150 ms) zählt zur Standzeit – der Toast ist zur selben Zeit weg wie früher.
+  toastTimer = setTimeout(() => hideToast(), (action ? 5000 : isError ? 5200 : 2600) - 150);
+}
+
+// Die Glas-Kapsel zieht sich zusammen und verblasst (bei „Bewegung reduzieren“ ohne Animation).
+function hideToast() {
+  const t = $('#toast');
+  toastAction = null;
+  if (t.hidden) return;
+  if (!motion.reduced()) t.className += ' out';
+  toastTimer = setTimeout(() => { t.hidden = true; t.classList.remove('out'); }, 150);
 }
 
 // Mischstand nach einem Update beheben: den neuen Service Worker übernehmen lassen und
