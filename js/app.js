@@ -3,8 +3,9 @@ import * as img from './img.js';
 import * as ai from './gemini.js';
 import { initCombos, hideCombo, norm } from './combo.js';
 import * as backup from './backup.js';
+import * as queue from './queue.js';
 
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.3.0';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -17,8 +18,10 @@ const state = {
   cats: [],
   rooms: [],
   view: 'list',
-  prevView: 'list',
-  draft: { source: null, previewURL: null, cards: [] },
+  origin: {},       // Ansicht -> woher man kam (für „Zurück“)
+  capture: { ids: [], busy: '' },   // Schnellerfassung: in dieser Runde erfasste Einträge
+  roomSel: new Set(),               // „Ohne Raum“: markierte Einträge
+  scrollPos: {},                    // Ansicht -> Scroll-Position beim Verlassen
   currentId: null,
   detailURL: null,
   lightboxURL: null,
@@ -27,6 +30,12 @@ const state = {
 
 const catName = (id) => state.cats.find(c => c.id === id)?.name || '';
 const roomName = (id) => state.rooms.find(r => r.id === id)?.name || '';
+const hasKey = () => !!(state.settings.apiKey || '').trim();
+// Raum zählt nur, wenn es ihn auch gibt – eine Sicherung kann tote Verweise enthalten.
+const hasRoom = (it) => !!(it.roomId && roomName(it.roomId));
+const noRoomItems = () => state.items
+  .filter(i => !i.archived && !hasRoom(i))
+  .sort((a, b) => b.createdAt - a.createdAt);
 
 /* =========================== Boot =========================== */
 
@@ -41,6 +50,7 @@ async function boot() {
     await reloadAll();
     wire();
     initCombos(kind => (kind === 'categories' ? state.cats : state.rooms).map(x => x.name));
+    queue.initQueue({ settings: () => state.settings, onChange: onDataChanged });
     fillSettingsForm();
     navigate('list');
     $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
@@ -52,6 +62,8 @@ async function boot() {
   $('#boot-error').hidden = true;
   $('#app').hidden = false;
   window.__inventarReady = true;
+  // Die App kann mitten in der Erkennung geschlossen worden sein – liegen Gebliebenes abarbeiten.
+  queue.kick();
   registerSW();
   requestPersist();
   updateStorageInfo();
@@ -79,6 +91,38 @@ async function reloadAll() {
   refreshPickers();
 }
 
+// Leichter als reloadAll(): nur Einträge und Kategorien – für die Hintergrund-Erkennung.
+async function refreshItems() {
+  const [items, cats] = await Promise.all([db.getAll('items'), db.getAll('categories')]);
+  state.items = items;
+  const before = state.cats.map(c => c.id + c.name).join('|');
+  state.cats = cats.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  if (state.cats.map(c => c.id + c.name).join('|') !== before) refreshPickers();
+}
+
+// Die Warteschlange hat etwas geändert: Daten neu holen und nur die aktuelle Ansicht
+// auffrischen – ohne offene Eingabefelder oder die Detail-Ansicht zu zerstören.
+let changeTimer = null;
+function onDataChanged() {
+  clearTimeout(changeTimer);
+  changeTimer = setTimeout(async () => {
+    try {
+      await refreshItems();
+      renderCurrent();
+    } catch (e) {
+      console.warn('Aktualisieren fehlgeschlagen:', e);
+    }
+  }, 120);
+}
+
+function renderCurrent() {
+  if (state.view === 'list') renderList();
+  else if (state.view === 'add') renderCapture();
+  else if (state.view === 'rooms') renderRooms();
+  else if (state.view === 'archive') renderArchive();
+  else if (state.view === 'item') syncItemAi();
+}
+
 function refreshPickers() {
   fillSelect($('#f-cat'), state.cats, 'Alle Kategorien');
   fillSelect($('#f-room'), state.rooms, 'Alle Räume');
@@ -93,22 +137,32 @@ function fillSelect(sel, rows, allLabel) {
 /* =========================== Navigation =========================== */
 
 function navigate(view) {
-  if (view === 'back') view = state.prevView === 'archive' ? 'archive' : 'list';
-  if (view !== state.view) state.prevView = state.view;
+  const from = state.view;
+  if (view === 'back') view = state.origin[from] || 'list';
+  else if (view !== from) state.origin[view] = from;
 
   closeLightbox();
   hideCombo();
   if (state.detailURL && view !== 'item') { URL.revokeObjectURL(state.detailURL); state.detailURL = null; }
-  if (view === 'add' && state.view !== 'add') resetDraft();
+  // Neue Erfassungsrunde – außer man kommt nur aus einem Eintrag oder „Ohne Raum“ zurück.
+  if (view === 'add' && !['add', 'item', 'rooms'].includes(from)) resetCapture();
+  if (view === 'rooms' && !['rooms', 'item'].includes(from)) resetRoomSel();
+
+  const leaving = $('#view-' + from + ' .scroll');
+  if (leaving) state.scrollPos[from] = leaving.scrollTop;
 
   state.view = view;
+  document.body.dataset.view = view;
   $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
   $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.nav === view));
-  const sc = $('#view-' + view + ' .scroll');
-  if (sc) sc.scrollTop = 0;
 
   if (view === 'list') renderList();
+  if (view === 'add') renderCapture();
+  if (view === 'rooms') renderRooms();
   if (view === 'archive') renderArchive();
+  // Aus einem Eintrag zurück: dort weitermachen, wo man war.
+  const sc = $('#view-' + view + ' .scroll');
+  if (sc) sc.scrollTop = from === 'item' && view !== 'item' ? (state.scrollPos[view] || 0) : 0;
   if (view === 'settings') { renderManagers(); updateStorageInfo(); }
 }
 
@@ -141,10 +195,15 @@ function rowHTML(it, why) {
   const cat = catName(it.categoryId);
   const place = [roomName(it.roomId), it.locationDetail].filter(Boolean).join(' · ');
   const meta = [it.quantity, place].filter(Boolean).join(' · ');
+  const title = it.aiState === 'pending'
+    ? `<div class="name pending"><span class="spin"></span>${esc(it.name || 'wird erkannt …')}</div>`
+    : it.name
+      ? `<div class="name">${esc(it.name)}</div>`
+      : '<div class="name unnamed">Unbenannt – antippen zum Benennen</div>';
   return `<button class="row" data-id="${esc(it.id)}">
     ${thumb}
     <div class="body">
-      <div class="name">${esc(it.name || '(ohne Namen)')}</div>
+      ${title}
       <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${esc(meta)}</div>
       ${why ? `<div class="why">${esc(why)}</div>` : `<div class="when">${dtf.format(new Date(it.createdAt))}</div>`}
     </div>
@@ -155,6 +214,10 @@ function renderList() {
   if (state.aiSearch) { renderAiResult(); return; }
   $('#ai-answer').hidden = true;
   $('#filters').hidden = false;
+  const nr = noRoomItems().length;
+  const hint = $('#noroom-hint');
+  hint.hidden = !nr;
+  if (nr) hint.innerHTML = `<b>${plural(nr, 'Eintrag', 'Einträge')} ohne Raum</b> – jetzt zuordnen <span class="go">›</span>`;
   const rows = visibleItems();
   const total = state.items.filter(i => !i.archived).length;
   $('#list').innerHTML = rows.map(it => rowHTML(it)).join('');
@@ -171,6 +234,7 @@ function renderList() {
 function renderAiResult() {
   const a = state.aiSearch;
   $('#filters').hidden = true;
+  $('#noroom-hint').hidden = true;
   $('#ai-answer').hidden = false;
   $('#ai-answer-q').textContent = a.question;
   $('#ai-answer-text').textContent = a.answer || 'Keine Antwort erhalten.';
@@ -244,151 +308,238 @@ function renderArchive() {
   $('#arch-empty').hidden = rows.length > 0;
 }
 
-/* =========================== Hinzufügen =========================== */
+/* =========================== Hinzufügen: Schnellerfassung =========================== */
 
-// Dekodierte Bitmap freigeben – auf dem iPhone sonst schnell viel Speicher.
-function releaseSource() {
-  const s = state.draft.source;
-  if (s && typeof s.close === 'function') { try { s.close(); } catch (_) { void _; } }
-  state.draft.source = null;
+// Neue Erfassungsrunde: Zähler leeren, gemerkten Raum vorbelegen.
+function resetCapture() {
+  state.capture = { ids: [], busy: state.capture.busy };
+  $('#cap-room').value = state.settings.lastRoom || '';
+  $('#cap-loc').value = state.settings.lastLoc || '';
+  $('#manual').open = false;
+  resetManual();
 }
 
-function resetDraft() {
-  releaseSource();
-  if (state.draft.previewURL) URL.revokeObjectURL(state.draft.previewURL);
-  state.draft = { source: null, previewURL: null, cards: [] };
-  $('#photo-preview').hidden = true;
-  $('#photo-preview').removeAttribute('src');
-  $('#photo-placeholder').hidden = false;
-  $('#photo-clear').hidden = true;
-  $('#photo-expand').hidden = true;
-  $('#photo-input').value = '';
-  $('#ai-hint').value = '';
-  $('#ai-status').textContent = '';
-  $('#ai-status').className = 'hint';
-  $('#in-room').value = '';
-  $('#in-loc').value = '';
-  $('#in-qty').value = '';
-  $('#in-note').value = '';
-  setCards([{ name: '', category: '', confidence: null }]);
-  updateAiButton();
+function resetManual() {
+  for (const id of ['#man-name', '#man-cat', '#man-qty', '#man-note']) $(id).value = '';
+  $('#man-more').open = false;
 }
 
-function setCards(cards) {
-  state.draft.cards = cards;
-  $('#cards').innerHTML = cards.map((c, i) => `
-    <div class="icard" data-i="${i}">
-      ${cards.length > 1 ? '<button class="del" data-del="' + i + '" aria-label="Entfernen">×</button>' : ''}
-      <label class="field"><span>Name</span><input class="c-name" type="text" value="${esc(c.name)}" placeholder="z. B. Akkuschrauber" autocomplete="off"></label>
-      <label class="field"><span>Kategorie</span><input class="c-cat" data-combo="categories" value="${esc(c.category)}" placeholder="z. B. Werkzeug" autocomplete="off"></label>
-      ${c.confidence != null ? `<p class="conf">KI-Sicherheit: ${Math.round(c.confidence * 100)} %</p>` : ''}
-    </div>`).join('');
+// Raum und Ort-Details merken, bis die Nutzerin sie ändert. Leer ist erlaubt.
+async function rememberWhere() {
+  const room = $('#cap-room').value.trim();
+  const loc = $('#cap-loc').value.trim();
+  if (room !== (state.settings.lastRoom || '')) { state.settings.lastRoom = room; await db.setSetting('lastRoom', room); }
+  if (loc !== (state.settings.lastLoc || '')) { state.settings.lastLoc = loc; await db.setSetting('lastLoc', loc); }
+  return { room, loc };
 }
 
-function readCards() {
-  return readCardsRaw()
-    .map(c => ({ ...c, name: c.name.trim(), category: c.category.trim() }))
-    .filter(c => c.name);
+function renderCapture() {
+  const hint = $('#cap-hint');
+  hint.hidden = hasKey();
+  hint.textContent = 'Ohne API-Key in den Einstellungen werden Fotos nicht erkannt. Sie landen als „Unbenannt“ in der Liste, du benennst sie später.';
+
+  const mine = state.capture.ids.map(id => state.items.find(i => i.id === id)).filter(Boolean);
+  const busy = state.capture.busy;
+  const pending = mine.filter(i => i.aiState === 'pending').length;
+  $('#cap-status').hidden = !mine.length && !busy;
+
+  const parts = [`${mine.length} erfasst`];
+  if (pending) parts.push(`${pending} ${pending === 1 ? 'wird' : 'werden'} erkannt`);
+  if (busy) parts.push(busy);
+  $('#cap-summary').innerHTML = (busy || pending ? '<span class="spin"></span>' : '') + esc(parts.join(' · '));
+
+  $('#cap-strip').innerHTML = mine.slice(-20).reverse().map(it => {
+    const wait = it.aiState === 'pending';
+    const pic = isThumb(it.thumb) ? `<img src="${esc(it.thumb)}" alt="">` : '<span class="ph">📦</span>';
+    const label = wait ? 'wird erkannt' : (it.name || 'Unbenannt');
+    return `<button class="cap-thumb${wait ? ' pending' : ''}" data-id="${esc(it.id)}" title="${esc(label)}" aria-label="${esc(label)}">
+      ${pic}${wait ? '<span class="spin"></span>' : ''}</button>`;
+  }).join('');
+
+  const note = pending ? queue.status().note : '';
+  $('#cap-note').hidden = !note;
+  $('#cap-note').textContent = note;
+
+  const nr = noRoomItems().length;
+  const link = $('#cap-noroom');
+  link.hidden = !nr;
+  link.textContent = `${plural(nr, 'Eintrag', 'Einträge')} ohne Raum – zuordnen`;
 }
 
-function updateAiButton() {
-  $('#ai-run').disabled = !state.draft.source;
+// Mehrere Auswahlen nacheinander abarbeiten, nie parallel (Speicher auf dem iPhone).
+let captureChain = Promise.resolve();
+function capturePhotos(files) {
+  if (!files.length) return captureChain;
+  captureChain = captureChain.then(() => captureBatch(files)).catch((e) => toast('Speichern fehlgeschlagen: ' + e.message, true));
+  return captureChain;
 }
 
-async function onPhotoChosen(file) {
-  if (!file) return;
-  try {
-    $('#ai-status').className = 'hint';
-    $('#ai-status').textContent = 'Bild wird geladen …';
-    const source = await img.decode(file);
-    releaseSource();
-    if (state.draft.previewURL) URL.revokeObjectURL(state.draft.previewURL);
-    state.draft.source = source;
-    state.draft.previewURL = URL.createObjectURL(file);
-    const p = $('#photo-preview');
-    p.src = state.draft.previewURL;
-    p.hidden = false;
-    $('#photo-placeholder').hidden = true;
-    $('#photo-clear').hidden = false;
-    $('#photo-expand').hidden = false;
-    $('#ai-status').textContent = state.settings.apiKey
-      ? 'Bereit. Optional einen Hinweis eintragen, dann „Mit KI erkennen“.'
-      : 'Hinweis: Ohne API-Key in den Einstellungen ist keine Erkennung möglich – du kannst den Namen aber selbst eintragen.';
-  } catch (e) {
-    toast(e.message, true);
-    $('#ai-status').textContent = '';
-  }
-  updateAiButton();
-}
+// Jedes Foto wird sofort ein Eintrag – erkannt wird später im Hintergrund.
+async function captureBatch(files) {
+  const { room, loc } = await rememberWhere();
+  const roomId = await db.ensureNamed('rooms', room);
+  if (roomId && !state.rooms.some(r => r.id === roomId)) await reloadAll();
+  const pending = hasKey();
+  const max = Number(state.settings.imgMax) || 1600;
+  let failed = 0;
 
-async function runAI() {
-  if (!state.draft.source) return;
-  const btn = $('#ai-run');
-  const st = $('#ai-status');
-  btn.disabled = true;
-  st.className = 'hint';
-  st.innerHTML = '<span class="spin"></span>Gemini analysiert das Foto …';
-  try {
-    const blob = await img.toBlob(state.draft.source, 1024, 0.82);
-    const b64 = await img.blobToBase64(blob);
-    const found = await ai.analyzePhoto(state.settings, b64, $('#ai-hint').value.trim(), state.cats.map(c => c.name));
-    setCards(found);
-    st.className = 'hint ok';
-    st.textContent = found.length === 1
-      ? 'Ein Gegenstand erkannt. Du kannst alles vor dem Speichern ändern.'
-      : `${found.length} Gegenstände erkannt. Du kannst alles vor dem Speichern ändern.`;
-  } catch (e) {
-    st.className = 'hint err';
-    st.textContent = e.message;
-  } finally {
-    btn.disabled = false;
-    updateAiButton();
-  }
-}
-
-async function saveDraft() {
-  const cards = readCards();
-  if (!cards.length) { toast('Bitte mindestens einen Namen eintragen.', true); return; }
-
-  const btn = $('#add-save');
-  btn.disabled = true;
-  try {
-    const roomId = await db.ensureNamed('rooms', $('#in-room').value);
-    const catIds = [];
-    for (const c of cards) catIds.push(await db.ensureNamed('categories', c.category));
-
-    let photo = null, photoId = null, thumb = '';
-    if (state.draft.source) {
-      const max = Number(state.settings.imgMax) || 1600;
-      const blob = await img.toBlob(state.draft.source, max, 0.82);
-      thumb = img.toDataURL(state.draft.source, 160, 0.62);
-      photoId = db.uid();
-      photo = { id: photoId, buf: await blob.arrayBuffer(), type: 'image/jpeg', createdAt: Date.now() };
+  for (let i = 0; i < files.length; i++) {
+    state.capture.busy = files.length > 1 ? `Foto ${i + 1} von ${files.length} wird gespeichert …` : 'Foto wird gespeichert …';
+    if (state.view === 'add') renderCapture();
+    let src = null;
+    try {
+      src = await img.decode(files[i]);
+      const blob = await img.toBlob(src, max, 0.82);
+      const thumb = img.toDataURL(src, 160, 0.62);
+      img.release(src);
+      src = null;
+      const now = Date.now();
+      const photo = { id: db.uid(), buf: await blob.arrayBuffer(), type: 'image/jpeg', createdAt: now };
+      const it = db.newItem({
+        roomId,
+        locationDetail: loc,
+        photoId: photo.id,
+        thumb,
+        aiState: pending ? 'pending' : null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.saveItems([it], photo);
+      state.items.push(it);
+      state.capture.ids.push(it.id);
+      if (pending) queue.kick();
+    } catch (e) {
+      failed++;
+      console.warn('Foto nicht übernommen:', e);
+    } finally {
+      img.release(src);
     }
+  }
 
-    const now = Date.now();
-    const items = cards.map((c, i) => db.newItem({
-      name: c.name,
-      categoryId: catIds[i],
+  state.capture.busy = '';
+  renderCurrent();
+  if (failed) toast(`${plural(failed, 'Foto konnte', 'Fotos konnten')} nicht gelesen werden.`, true);
+  updateStorageInfo();
+}
+
+// „Ohne Foto eintragen“: Name, Kategorie, optional Bestand und Notiz.
+async function saveManual() {
+  const name = $('#man-name').value.trim();
+  if (!name) { toast('Bitte einen Namen eintragen.', true); $('#man-name').focus(); return; }
+  const btn = $('#man-save');
+  btn.disabled = true;
+  try {
+    const { room, loc } = await rememberWhere();
+    const roomId = await db.ensureNamed('rooms', room);
+    const categoryId = await db.ensureNamed('categories', $('#man-cat').value);
+    const it = db.newItem({
+      name,
+      categoryId,
       roomId,
-      locationDetail: $('#in-loc').value.trim(),
-      quantity: $('#in-qty').value.trim(),
-      note: $('#in-note').value.trim(),
-      photoId, thumb,
-      aiConfidence: c.confidence,
-      createdAt: now, updatedAt: now,
-    }));
-
-    await db.saveItems(items, photo);
+      locationDetail: loc,
+      quantity: $('#man-qty').value.trim(),
+      note: $('#man-note').value.trim(),
+    });
+    await db.saveItems([it]);
+    state.capture.ids.push(it.id);
     await reloadAll();
-    resetDraft();
-    navigate('list');
-    toast(`${plural(items.length, 'Eintrag', 'Einträge')} gespeichert.`);
+    resetManual();
+    renderCapture();
+    toast(`„${name}“ gespeichert.`);
     updateStorageInfo();
+    if (!categoryId) suggestCategoryLater(it.id, name);
   } catch (e) {
     toast('Speichern fehlgeschlagen: ' + e.message, true);
   } finally {
     btn.disabled = false;
+  }
+}
+
+// Kategorie im Hintergrund vorschlagen lassen – blockiert nichts, Fehler sind egal.
+async function suggestCategoryLater(id, name) {
+  if (!hasKey() || !navigator.onLine) return;
+  try {
+    const cat = await ai.suggestCategory(state.settings, name, state.cats.map(c => c.name));
+    if (!cat) return;
+    const cur = await db.get('items', id);
+    if (!cur || cur.categoryId) return;
+    const categoryId = await db.ensureNamed('categories', cat);
+    await db.patchItem(id, { categoryId }, x => !x.categoryId);
+    onDataChanged();
+  } catch (e) {
+    console.warn('Kategorie-Vorschlag fehlgeschlagen:', e);
+  }
+}
+
+/* =========================== Ohne Raum =========================== */
+
+function resetRoomSel() {
+  state.roomSel.clear();
+  $('#rs-room').value = '';
+  $('#rs-loc').value = '';
+}
+
+function pickHTML(it) {
+  const on = state.roomSel.has(it.id);
+  const wait = it.aiState === 'pending';
+  const pic = isThumb(it.thumb) ? `<img src="${esc(it.thumb)}" alt="">` : '<span class="ph">📦</span>';
+  const name = wait
+    ? `<span class="spin"></span>${esc(it.name || 'wird erkannt …')}`
+    : esc(it.name || 'Unbenannt');
+  return `<div class="pick${on ? ' on' : ''}" data-id="${esc(it.id)}" role="checkbox" aria-checked="${on}" tabindex="0">
+    <div class="pick-img">${pic}<span class="pick-check" aria-hidden="true">✓</span></div>
+    <div class="pick-name${!it.name && !wait ? ' unnamed' : ''}">${name}</div>
+    <button class="pick-edit" data-edit aria-label="Eintrag öffnen">✎</button>
+  </div>`;
+}
+
+function renderRooms() {
+  const rows = noRoomItems();
+  const ids = new Set(rows.map(r => r.id));
+  for (const id of [...state.roomSel]) if (!ids.has(id)) state.roomSel.delete(id);
+  $('#rs-count').textContent = rows.length || '';
+  $('#rs-main').hidden = !rows.length;
+  $('#rs-bar').hidden = !rows.length;
+  $('#rs-empty').hidden = rows.length > 0;
+  $('#rs-grid').innerHTML = rows.map(pickHTML).join('');
+  updateAssignButton();
+}
+
+function updateAssignButton() {
+  const n = state.roomSel.size;
+  const btn = $('#rs-assign');
+  btn.disabled = !n;
+  btn.textContent = n ? `${n} zuweisen` : 'Zuweisen';
+}
+
+function togglePick(el) {
+  const id = el.dataset.id;
+  const on = !state.roomSel.has(id);
+  if (on) state.roomSel.add(id); else state.roomSel.delete(id);
+  el.classList.toggle('on', on);
+  el.setAttribute('aria-checked', String(on));
+  updateAssignButton();
+}
+
+async function assignRooms() {
+  const ids = [...state.roomSel];
+  if (!ids.length) return;
+  const room = $('#rs-room').value.trim();
+  if (!room) { toast('Bitte einen Raum eintragen.', true); $('#rs-room').focus(); return; }
+  const btn = $('#rs-assign');
+  btn.disabled = true;
+  try {
+    const roomId = await db.ensureNamed('rooms', room);
+    const res = await db.assignRoom(ids, roomId, $('#rs-loc').value);
+    state.roomSel.clear();
+    hideCombo();
+    await reloadAll();
+    renderRooms();
+    toast(`${plural(res.changed, 'Eintrag', 'Einträge')} → ${roomName(roomId)}`);
+  } catch (e) {
+    toast('Zuweisen fehlgeschlagen: ' + e.message, true);
+  } finally {
+    updateAssignButton();
   }
 }
 
@@ -438,6 +589,9 @@ async function openItem(id) {
   $('#it-loc').value = it.locationDetail || '';
   $('#it-qty').value = it.quantity || '';
   $('#it-note').value = it.note || '';
+  // Selten gebrauchte Felder einklappen – außer sie sind schon befüllt.
+  $('#it-more').open = !!(it.locationDetail || it.quantity || it.note);
+  renderItemAi(it);
   $('#it-meta').textContent =
     `Hinzugefügt: ${dtf.format(new Date(it.createdAt))}` +
     (it.updatedAt && it.updatedAt !== it.createdAt ? ` · Geändert: ${dtf.format(new Date(it.updatedAt))}` : '') +
@@ -466,22 +620,82 @@ async function openItem(id) {
   }
 }
 
+// Status der Hintergrund-Erkennung im Eintrag.
+function renderItemAi(it) {
+  const pending = it.aiState === 'pending';
+  const failed = it.aiState === 'failed';
+  // Ohne Key erfasste Fotos lassen sich nachträglich erkennen.
+  const fresh = !pending && !failed && !!it.photoId && !it.name;
+  const box = $('#it-ai');
+  box.hidden = it.archived || !(pending || failed || fresh);
+  const txt = $('#it-ai-text');
+  if (pending) {
+    const note = queue.status().note;
+    txt.className = 'hint';
+    txt.innerHTML = '<span class="spin"></span>Wird gerade erkannt … Raum oder Name kannst du trotzdem schon eintragen.'
+      + (note ? ` ${esc(note)}` : '');
+  } else if (failed) {
+    txt.className = 'hint err';
+    txt.textContent = 'Erkennung fehlgeschlagen: ' + (it.aiError || 'unbekannter Fehler');
+  } else {
+    txt.className = 'hint';
+    txt.textContent = 'Dieses Foto wurde noch nicht erkannt.';
+  }
+  const retry = $('#it-retry');
+  retry.hidden = pending;
+  retry.textContent = failed ? 'Erneut erkennen' : 'Mit KI erkennen';
+  $('#it-name').placeholder = pending ? 'wird erkannt …' : '';
+}
+
+// Nach einer Änderung im Hintergrund: Status neu zeichnen und frisch erkannte
+// Werte in noch leere Felder übernehmen – nie Eingaben überschreiben.
+function syncItemAi() {
+  const it = state.items.find(x => x.id === state.currentId);
+  if (!it) return;
+  renderItemAi(it);
+  const fill = (sel, val) => {
+    const el = $(sel);
+    if (val && !el.value && document.activeElement !== el) el.value = val;
+  };
+  fill('#it-name', it.name);
+  fill('#it-cat', catName(it.categoryId));
+}
+
+async function retryItem() {
+  if (!hasKey()) { toast('Für die Erkennung brauchst du einen API-Key in den Einstellungen.', true); return; }
+  try {
+    await db.patchItem(state.currentId, { aiState: 'pending', aiError: null });
+    await refreshItems();
+    syncItemAi();
+    queue.kick();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
 async function saveItem() {
   const it = state.items.find(x => x.id === state.currentId);
   if (!it) return;
   const name = $('#it-name').value.trim();
-  if (!name) { toast('Der Name darf nicht leer sein.', true); return; }
+  const pending = it.aiState === 'pending';
+  // Solange die KI noch arbeitet, darf der Name leer bleiben – sie trägt ihn dann ein.
+  if (!name && !pending) { toast('Der Name darf nicht leer sein.', true); return; }
   try {
-    it.name = name;
-    it.categoryId = await db.ensureNamed('categories', $('#it-cat').value);
-    it.roomId = await db.ensureNamed('rooms', $('#it-room').value);
-    it.locationDetail = $('#it-loc').value.trim();
-    it.quantity = $('#it-qty').value.trim();
-    it.note = $('#it-note').value.trim();
-    it.updatedAt = Date.now();
-    await db.put('items', it);
+    const catText = $('#it-cat').value.trim();
+    const patch = {
+      name,
+      categoryId: await db.ensureNamed('categories', catText),
+      roomId: await db.ensureNamed('rooms', $('#it-room').value),
+      locationDetail: $('#it-loc').value.trim(),
+      quantity: $('#it-qty').value.trim(),
+      note: $('#it-note').value.trim(),
+    };
+    // Leer gelassen: nicht überschreiben, was die Erkennung inzwischen eingetragen hat.
+    if (!name) delete patch.name;
+    if (!catText && pending) delete patch.categoryId;
+    await db.patchItem(it.id, patch);
     await reloadAll();
-    navigate(it.archived ? 'archive' : 'list');
+    navigate('back');
     toast('Gespeichert.');
   } catch (e) {
     toast('Speichern fehlgeschlagen: ' + e.message, true);
@@ -508,7 +722,7 @@ function selectModel(id) {
 async function loadModelList() {
   const out = $('#set-models-out');
   const key = $('#set-key').value.trim();
-  if (key !== state.settings.apiKey) { state.settings.apiKey = key; await db.setSetting('apiKey', key); }
+  if (key !== state.settings.apiKey) { state.settings.apiKey = key; await db.setSetting('apiKey', key); queue.kick({ reset: true }); }
   out.className = 'hint';
   out.innerHTML = '<span class="spin"></span>Lade Modellliste …';
   try {
@@ -549,6 +763,14 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const fieldOf = (kind) => (kind === 'categories' ? 'categoryId' : 'roomId');
 const labelOf = (kind) => (kind === 'categories' ? 'Kategorie' : 'Raum');
 
+// Der gemerkte Raum der Schnellerfassung ist ein Name – bei Umbenennen/Löschen mitziehen.
+async function followLastRoom(oldName, newName) {
+  if (!oldName || norm(state.settings.lastRoom) !== norm(oldName)) return;
+  state.settings.lastRoom = newName;
+  await db.setSetting('lastRoom', newName);
+  if (norm($('#cap-room').value) === norm(oldName)) $('#cap-room').value = newName;
+}
+
 async function renameNamed(kind, id, name) {
   const clean = name.trim();
   if (!clean) { renderManagers(); return; }
@@ -566,6 +788,7 @@ async function renameNamed(kind, id, name) {
         (affected.length ? ` ${plural(affected.length, 'Eintrag wird', 'Einträge werden')} umgehängt.` : '');
       if (!confirm(msg)) { renderManagers(); return; }
       await db.moveAndDropNamed(kind, id, twin.id);
+      if (kind === 'rooms') await followLastRoom(rec.name, twin.name);
       await reloadAll();
       renderManagers();
       renderList();
@@ -573,8 +796,10 @@ async function renameNamed(kind, id, name) {
       return;
     }
 
+    const oldName = rec.name;
     rec.name = clean;
     await db.put(kind, rec);
+    if (kind === 'rooms') await followLastRoom(oldName, clean);
     await reloadAll();
     renderManagers();
     renderList();
@@ -594,7 +819,9 @@ async function dropNamed(kind, id) {
     : `${label} löschen?`;
   if (!confirm(msg)) return;
   try {
+    const oldName = kind === 'rooms' ? roomName(id) : '';
     await db.moveAndDropNamed(kind, id, null);
+    if (oldName) await followLastRoom(oldName, '');
     await reloadAll();
     renderManagers();
     renderList();
@@ -808,50 +1035,55 @@ function wire() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
   $('#item-photo').addEventListener('click', () => openLightbox(state.detailURL, false));
 
-  // --- Hinzufügen ---
-  $('#photo-pick').addEventListener('click', () => $('#photo-input').click());
-  $('#photo-slot').addEventListener('click', () => {
-    if (state.draft.source) openLightbox(state.draft.previewURL, false);
-    else $('#photo-input').click();
+  // --- Hinzufügen (Schnellerfassung) ---
+  $('#cap-camera').addEventListener('click', () => $('#cap-camera-input').click());
+  $('#cap-library').addEventListener('click', () => $('#cap-library-input').click());
+  const onFiles = (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';   // dasselbe Foto soll sich noch einmal wählen lassen
+    capturePhotos(files);
+  };
+  $('#cap-camera-input').addEventListener('change', onFiles);
+  $('#cap-library-input').addEventListener('change', onFiles);
+  $('#cap-room').addEventListener('change', rememberWhere);
+  $('#cap-loc').addEventListener('change', rememberWhere);
+  $('#cap-strip').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-id]');
+    if (b) openItem(b.dataset.id);
   });
-  $('#photo-input').addEventListener('change', (e) => onPhotoChosen(e.target.files[0]));
-  $('#photo-clear').addEventListener('click', () => {
-    releaseSource();
-    if (state.draft.previewURL) URL.revokeObjectURL(state.draft.previewURL);
-    state.draft.previewURL = null;
-    $('#photo-preview').hidden = true;
-    $('#photo-preview').removeAttribute('src');
-    $('#photo-placeholder').hidden = false;
-    $('#photo-clear').hidden = true;
-    $('#photo-expand').hidden = true;
-    $('#photo-input').value = '';
-    $('#ai-status').textContent = '';
-    updateAiButton();
-  });
-  $('#ai-run').addEventListener('click', runAI);
-  $('#add-save').addEventListener('click', saveDraft);
-  $('#card-add').addEventListener('click', () => {
-    setCards([...readCardsRaw(), { name: '', category: '', confidence: null }]);
-  });
-  $('#cards').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-del]');
-    if (!btn) return;
-    const i = Number(btn.dataset.del);
-    setCards(readCardsRaw().filter((_, k) => k !== i));
-  });
+  $('#man-save').addEventListener('click', saveManual);
+  $('#man-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveManual(); } });
   $('#qty-chips').addEventListener('click', (e) => {
     const chip = e.target.closest('[data-qty]');
-    if (chip) $('#in-qty').value = chip.dataset.qty;
+    if (chip) $('#man-qty').value = chip.dataset.qty;
   });
+
+  // --- Ohne Raum ---
+  $('#rs-grid').addEventListener('click', (e) => {
+    const pick = e.target.closest('.pick');
+    if (!pick) return;
+    if (e.target.closest('[data-edit]')) { openItem(pick.dataset.id); return; }
+    togglePick(pick);
+  });
+  $('#rs-grid').addEventListener('keydown', (e) => {
+    if ((e.key === ' ' || e.key === 'Enter') && e.target.matches('.pick')) { e.preventDefault(); togglePick(e.target); }
+  });
+  $('#rs-all').addEventListener('click', () => {
+    for (const it of noRoomItems()) state.roomSel.add(it.id);
+    renderRooms();
+  });
+  $('#rs-none').addEventListener('click', () => { state.roomSel.clear(); renderRooms(); });
+  $('#rs-assign').addEventListener('click', assignRooms);
 
   // --- Detail ---
   $('#item-save').addEventListener('click', saveItem);
+  $('#it-retry').addEventListener('click', retryItem);
   $('#it-archive').addEventListener('click', async () => {
     if (!confirm('Eintrag ins Archiv verschieben? Er bleibt dort wiederherstellbar.')) return;
     try {
       await db.archiveItem(state.currentId);
       await reloadAll();
-      navigate('list');
+      navigate('back');
       toast('Ins Archiv verschoben.');
     } catch (e) {
       toast(e.message, true);
@@ -863,6 +1095,7 @@ function wire() {
       await reloadAll();
       navigate('list');
       toast('Wiederhergestellt.');
+      queue.kick();   // war es noch nicht erkannt, geht es jetzt weiter
     } catch (e) {
       toast(e.message, true);
     }
@@ -886,6 +1119,7 @@ function wire() {
     e.target.value = state.settings.apiKey;
     await db.setSetting('apiKey', state.settings.apiKey);
     toast(state.settings.apiKey ? 'API-Key gespeichert.' : 'API-Key entfernt.');
+    queue.kick({ reset: true });   // liegen gebliebene Fotos jetzt erkennen
   });
   $('#set-key-show').addEventListener('change', (e) => {
     $('#set-key').type = e.target.checked ? 'text' : 'password';
@@ -893,6 +1127,7 @@ function wire() {
   $('#set-model').addEventListener('change', async (e) => {
     state.settings.model = e.target.value;
     await db.setSetting('model', e.target.value);
+    queue.kick({ reset: true });
   });
   $('#set-imgmax').addEventListener('change', async (e) => {
     state.settings.imgMax = Number(e.target.value);
@@ -918,7 +1153,7 @@ function wire() {
   $('#set-test').addEventListener('click', async () => {
     const out = $('#set-test-out');
     const key = $('#set-key').value.trim();
-    if (key !== state.settings.apiKey) { state.settings.apiKey = key; await db.setSetting('apiKey', key); }
+    if (key !== state.settings.apiKey) { state.settings.apiKey = key; await db.setSetting('apiKey', key); queue.kick({ reset: true }); }
     out.className = 'hint';
     out.innerHTML = '<span class="spin"></span>Teste …';
     try {
@@ -950,15 +1185,6 @@ function wire() {
 
   $('#cat-add').addEventListener('click', () => addNamed('categories', $('#cat-new')));
   $('#room-add').addEventListener('click', () => addNamed('rooms', $('#room-new')));
-}
-
-// Wie readCards(), behält aber auch leere Karten und die KI-Sicherheit.
-function readCardsRaw() {
-  return $$('#cards .icard').map((el, i) => ({
-    name: el.querySelector('.c-name').value,
-    category: el.querySelector('.c-cat').value,
-    confidence: state.draft.cards[i]?.confidence ?? null,
-  }));
 }
 
 async function addNamed(kind, input) {

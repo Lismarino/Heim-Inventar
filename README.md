@@ -66,14 +66,45 @@ noch woanders im Einsatz ist.
 
 ## 3. Bedienung
 
-**Hinzufügen** – Foto aufnehmen oder aus der Mediathek wählen (optional), dazu einen
-Hinweis für die KI („das ist ein Akkuschrauber“), dann **Mit KI erkennen**. Liegen mehrere
-gut unterscheidbare Dinge auf dem Bild, entsteht pro Gegenstand eine eigene Karte.
-Alles ist vor dem Speichern änderbar, Karten lassen sich löschen oder ergänzen.
-Ganz ohne Foto: einfach Name und Kategorie eintippen.
+**Hinzufügen – Schnellerfassung.** Foto, Foto, Foto, fertig: Oben steht, in welchem
+Raum du gerade bist („Du bist gerade in: Keller“), optional mit Ort-Details. Die App merkt
+sich beides und trägt es beim nächsten Mal wieder ein, bis du es änderst. Leer lassen geht
+auch – dann ordnest du später zu (siehe **Ohne Raum**).
 
-Ort, Bestand und Notiz unten gelten für alle Karten gemeinsam – ein Foto vom Regalbrett
-wird so mit einem Speichern zu mehreren Einträgen am selben Ort.
+Darunter zwei große Knöpfe: **Foto aufnehmen** öffnet direkt die Kamera, **Aus Mediathek**
+nimmt beliebig viele Fotos auf einmal. Jedes Foto wird **sofort** als Eintrag gespeichert,
+ohne auf die KI zu warten; du bleibst in der Ansicht und kannst gleich weiterknipsen. Ein
+kleiner Streifen zeigt die Fotos dieser Runde („5 erfasst · 2 werden erkannt“), ein Tipp
+darauf öffnet den Eintrag. Viele Fotos aus der Mediathek werden nacheinander verarbeitet,
+damit dem iPhone nicht der Speicher ausgeht. **Fertig** führt zur Liste.
+
+**Erkennung im Hintergrund.** Die KI benennt die Fotos, während du weitermachst – höchstens
+zwei gleichzeitig, an Gemini geht nur eine kleine 768-px-Fassung. Bis dahin steht in der
+Liste „wird erkannt …“. Liegen mehrere gut unterscheidbare Dinge auf einem Bild, entsteht
+pro Gegenstand ein eigener Eintrag mit demselben Foto und Ort. Hast du einen Namen schon
+selbst eingetragen, überschreibt die KI ihn nicht. Offline, ohne API-Key oder wenn Google
+gerade bremst (429), bleiben die Fotos in der Warteschlange und werden später erkannt –
+auch nach einem Neustart der App, sobald du wieder online bist oder einen Key einträgst.
+Klappt die Erkennung nicht, steht der Eintrag als **„Unbenannt – antippen zum Benennen“** in
+der Liste; im Eintrag gibt es dann **Erneut erkennen**. Ohne API-Key werden Fotos gar nicht
+erst geschickt, sondern landen direkt als „Unbenannt“ – nachträglich lässt sich im Eintrag
+**Mit KI erkennen** antippen.
+
+**Ohne Foto eintragen** – aufklappbar unter den Foto-Knöpfen: Name, Kategorie, Speichern.
+Raum und Ort-Details kommen aus dem Feld ganz oben. Bestand (mit Schnellauswahl) und Notiz
+liegen hinter **Mehr Angaben**. Lässt du die Kategorie leer, schlägt die KI im Hintergrund
+eine vor.
+
+**Ohne Raum** – nach zehn Fotos aus der Galerie weiß die KI nicht, wo die Dinge liegen.
+Gibt es Einträge ohne Raum, zeigt die Liste oben einen Hinweis („7 Einträge ohne Raum –
+jetzt zuordnen“), dasselbe steht in der Hinzufügen-Ansicht. Dahinter liegt ein Raster aus
+Vorschaubildern: antippen markiert (Haken), noch einmal antippen hebt es auf; dazu **Alle
+auswählen** und **Keine**. Unten Raum (neue werden angelegt) und optional Ort-Details
+eintragen, **N zuweisen** – die Einträge verschwinden aus dem Raster. Das kleine Stift-Symbol
+öffnet einen Eintrag, **Zurück** führt wieder ins Raster.
+
+**Eintrag bearbeiten** – Name, Kategorie und Raum stehen oben; Ort-Details, Bestand und
+Notiz liegen hinter **Mehr Angaben**, außer sie sind schon befüllt.
 
 **Kategorien und Räume** starten leer und entstehen beim Tippen von selbst. Beim
 Antippen des Feldes erscheint eine Liste dessen, was du schon hast; sobald du tippst,
@@ -90,8 +121,7 @@ Die Schnellauswahl darunter füllt es nur aus.
 
 **Fotos ansehen** – ein Tipp auf das Vorschaubild in der Liste öffnet das Original
 formatfüllend, ohne den Eintrag zu öffnen; ein Tipp auf den Text daneben öffnet wie gewohnt
-den Eintrag. In der Detail- und in der Hinzufügen-Ansicht öffnet ein Tipp auf das Bild
-dasselbe Vollbild. Dort noch einmal antippen zoomt auf die Originalgröße und man kann im
+den Eintrag. In der Detail-Ansicht öffnet ein Tipp auf das Bild dasselbe Vollbild. Dort noch einmal antippen zoomt auf die Originalgröße und man kann im
 Bild herumschieben; das × oben rechts oder ein Tipp neben das Bild schließt wieder.
 
 **Liste** zeigt Vorschaubild, Name, Bestand, Ort sowie Datum und Uhrzeit. Die Suche geht
@@ -177,6 +207,7 @@ js/app.js               Ansichten, Bedienung, Abläufe
 js/db.js                IndexedDB: Einträge, Fotos, Kategorien, Räume, Einstellungen
 js/img.js               Bilder dekodieren, drehen, verkleinern, kodieren
 js/gemini.js            Aufrufe an die Gemini-API
+js/queue.js             KI-Warteschlange: erkennt erfasste Fotos im Hintergrund
 js/combo.js             Vorschlagsliste für Kategorie und Raum
 js/backup.js            Export und Import der Sicherungsdatei
 icons/                  App-Icons
@@ -184,5 +215,6 @@ icons/                  App-Icons
 
 Fotos werden beim Speichern auf max. 1600 px verkleinert (in den Einstellungen
 umstellbar) und als JPEG abgelegt; zusätzlich entsteht ein 160-px-Vorschaubild für die
-Liste. An Gemini geht eine 1024-px-Fassung. Teilen sich mehrere Einträge ein Foto, wird
+Liste. An Gemini geht eine 768-px-Fassung, bei der Bilderkennung mit abgeschaltetem bzw.
+reduziertem „Denken“ des Modells – das macht sie deutlich schneller. Teilen sich mehrere Einträge ein Foto, wird
 es erst gelöscht, wenn der letzte davon endgültig entfernt wurde.

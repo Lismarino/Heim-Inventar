@@ -51,78 +51,108 @@
         <p id="ai-answer-text"></p>
         <button class="btn ghost block" id="ai-clear">Zurück zur Liste</button>
       </div>
+      <button class="card noroom-hint" id="noroom-hint" data-nav="rooms" hidden></button>
       <div id="list" class="list"></div>
       <p class="empty" id="list-empty" hidden></p>
     </div>
   </section>
 
-  <!-- ============ HINZUFÜGEN ============ -->
+  <!-- ============ HINZUFÜGEN (Schnellerfassung) ============ -->
   <section class="view" id="view-add" hidden>
     <header class="topbar">
-      <button class="link" data-nav="list">Abbrechen</button>
       <h1>Hinzufügen</h1>
-      <button class="link strong" id="add-save">Speichern</button>
+      <button class="link strong" data-nav="list">Fertig</button>
     </header>
     <div class="scroll">
 
-      <div class="card">
-        <div id="photo-slot" class="photo-slot">
-          <img id="photo-preview" alt="" hidden>
-          <div id="photo-placeholder" class="photo-placeholder">
-            <div class="ph-icon">📷</div>
-            <div>Foto aufnehmen oder auswählen</div>
-            <small>Optional – du kannst auch nur Text eintragen</small>
-          </div>
-          <span class="expand" id="photo-expand" hidden>⤢ Vergrößern</span>
-        </div>
-        <input type="file" id="photo-input" accept="image/*" hidden>
-        <div class="row-btns">
-          <button class="btn" id="photo-pick">Foto wählen</button>
-          <button class="btn ghost" id="photo-clear" hidden>Entfernen</button>
-        </div>
-
+      <div class="card cap-where">
         <label class="field">
-          <span>Hinweis für die KI <small>(optional)</small></span>
-          <input id="ai-hint" type="text" placeholder="z. B. das ist ein Akkuschrauber" autocomplete="off">
-        </label>
-
-        <button class="btn primary block" id="ai-run" disabled>Mit KI erkennen</button>
-        <p class="hint" id="ai-status"></p>
-      </div>
-
-      <h2 class="sec">Gegenstände</h2>
-      <div id="cards"></div>
-      <button class="btn ghost block" id="card-add">+ Weiterer Gegenstand</button>
-
-      <h2 class="sec">Ort &amp; Bestand</h2>
-      <div class="card">
-        <label class="field">
-          <span>Raum</span>
-          <input id="in-room" data-combo="rooms" placeholder="z. B. Keller" autocomplete="off">
+          <span>Du bist gerade in</span>
+          <input id="cap-room" data-combo="rooms" placeholder="Raum, z. B. Keller – oder leer lassen" autocomplete="off">
         </label>
         <label class="field">
           <span>Ort-Details <small>(optional)</small></span>
-          <input id="in-loc" type="text" placeholder="z. B. Schrank 1, oben links" autocomplete="off">
-        </label>
-        <label class="field">
-          <span>Bestand</span>
-          <input id="in-qty" type="text" placeholder="z. B. 3 oder genug" autocomplete="off">
-        </label>
-        <div class="chips" id="qty-chips">
-          <button class="chip" data-qty="1">1</button>
-          <button class="chip" data-qty="2">2</button>
-          <button class="chip" data-qty="3">3</button>
-          <button class="chip" data-qty="voll">voll</button>
-          <button class="chip" data-qty="genug">genug</button>
-          <button class="chip" data-qty="wenig">wenig</button>
-          <button class="chip" data-qty="leer">leer</button>
-        </div>
-        <label class="field">
-          <span>Notiz <small>(optional)</small></span>
-          <textarea id="in-note" rows="2" placeholder="Freitext"></textarea>
+          <input id="cap-loc" type="text" placeholder="z. B. Schrank 1, oben links" autocomplete="off">
         </label>
       </div>
-      <p class="hint">Ort, Bestand und Notiz gelten für alle Gegenstände oben.</p>
+
+      <div class="cap-btns">
+        <button class="btn primary cap-btn" id="cap-camera"><span class="cap-ic">📷</span>Foto aufnehmen</button>
+        <button class="btn cap-btn" id="cap-library"><span class="cap-ic">🖼️</span>Aus Mediathek</button>
+      </div>
+      <input type="file" id="cap-camera-input" accept="image/*" capture="environment" hidden>
+      <input type="file" id="cap-library-input" accept="image/*" multiple hidden>
+      <p class="hint" id="cap-hint"></p>
+
+      <div class="card cap-status" id="cap-status" hidden>
+        <p class="cap-summary" id="cap-summary"></p>
+        <div class="cap-strip" id="cap-strip"></div>
+        <p class="hint" id="cap-note" hidden></p>
+      </div>
+
+      <button class="btn ghost block noroom-link" id="cap-noroom" data-nav="rooms" hidden></button>
+
+      <details class="card manual" id="manual">
+        <summary>Ohne Foto eintragen</summary>
+        <div class="manual-body">
+          <label class="field"><span>Name</span><input id="man-name" type="text" placeholder="z. B. Akkuschrauber" autocomplete="off"></label>
+          <label class="field"><span>Kategorie <small>(optional)</small></span><input id="man-cat" data-combo="categories" placeholder="z. B. Werkzeug" autocomplete="off"></label>
+          <details class="more" id="man-more">
+            <summary>Mehr Angaben</summary>
+            <label class="field">
+              <span>Bestand</span>
+              <input id="man-qty" type="text" placeholder="z. B. 3 oder genug" autocomplete="off">
+            </label>
+            <div class="chips" id="qty-chips">
+              <button class="chip" data-qty="1">1</button>
+              <button class="chip" data-qty="2">2</button>
+              <button class="chip" data-qty="3">3</button>
+              <button class="chip" data-qty="voll">voll</button>
+              <button class="chip" data-qty="genug">genug</button>
+              <button class="chip" data-qty="wenig">wenig</button>
+              <button class="chip" data-qty="leer">leer</button>
+            </div>
+            <label class="field">
+              <span>Notiz <small>(optional)</small></span>
+              <textarea id="man-note" rows="2" placeholder="Freitext"></textarea>
+            </label>
+          </details>
+          <button class="btn primary block" id="man-save">Speichern</button>
+          <p class="hint">Raum und Ort-Details kommen aus dem Feld ganz oben.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ OHNE RAUM ============ -->
+  <section class="view" id="view-rooms" hidden>
+    <header class="topbar">
+      <button class="link" data-nav="back">Zurück</button>
+      <h1>Ohne Raum</h1>
+      <span class="count" id="rs-count"></span>
+    </header>
+    <div class="scroll">
+      <div id="rs-main">
+        <p class="hint rs-intro">Antippen zum Auswählen, dann unten den Raum eintragen.</p>
+        <div class="row-btns rs-selbtns">
+          <button class="btn" id="rs-all">Alle auswählen</button>
+          <button class="btn ghost" id="rs-none">Keine</button>
+        </div>
+        <div class="pick-grid" id="rs-grid"></div>
+      </div>
+      <div class="empty" id="rs-empty" hidden>
+        <p>Alles hat einen Raum.</p>
+        <button class="btn" data-nav="back">Zurück</button>
+      </div>
+    </div>
+    <div class="assign-bar" id="rs-bar">
+      <div class="assign-inner">
+        <div class="assign-fields">
+          <label class="field"><span>Raum</span><input id="rs-room" data-combo="rooms" placeholder="z. B. Keller" autocomplete="off"></label>
+          <label class="field"><span>Ort-Details <small>(optional)</small></span><input id="rs-loc" type="text" placeholder="z. B. Regal 2" autocomplete="off"></label>
+        </div>
+        <button class="btn primary block" id="rs-assign" disabled>Zuweisen</button>
+      </div>
     </div>
   </section>
 
@@ -142,12 +172,19 @@
         </div>
       </div>
       <div class="card">
+        <div class="ai-state" id="it-ai" hidden>
+          <p class="hint" id="it-ai-text"></p>
+          <button class="btn block" id="it-retry" hidden>Erneut erkennen</button>
+        </div>
         <label class="field"><span>Name</span><input id="it-name" type="text" autocomplete="off"></label>
         <label class="field"><span>Kategorie</span><input id="it-cat" data-combo="categories" autocomplete="off" placeholder="z. B. Werkzeug"></label>
         <label class="field"><span>Raum</span><input id="it-room" data-combo="rooms" autocomplete="off" placeholder="z. B. Keller"></label>
-        <label class="field"><span>Ort-Details</span><input id="it-loc" type="text" autocomplete="off"></label>
-        <label class="field"><span>Bestand</span><input id="it-qty" type="text" autocomplete="off"></label>
-        <label class="field"><span>Notiz</span><textarea id="it-note" rows="3"></textarea></label>
+        <details class="more" id="it-more">
+          <summary>Mehr Angaben</summary>
+          <label class="field"><span>Ort-Details</span><input id="it-loc" type="text" autocomplete="off"></label>
+          <label class="field"><span>Bestand</span><input id="it-qty" type="text" autocomplete="off"></label>
+          <label class="field"><span>Notiz</span><textarea id="it-note" rows="3"></textarea></label>
+        </details>
       </div>
       <p class="hint" id="it-meta"></p>
       <div id="it-actions">
@@ -295,7 +332,7 @@ setTimeout(function () {
 
   // Nachsehen, welche Datei tatsächlich fehlt – das erspart das Raten.
   var files = ['./js/app.js', './js/db.js', './js/img.js', './js/gemini.js',
-               './js/combo.js', './js/backup.js', './css/app.css', './manifest.webmanifest'];
+               './js/combo.js', './js/backup.js', './js/queue.js', './css/app.css', './manifest.webmanifest'];
   var missing = [];
   Promise.all(files.map(function (f) {
     return fetch(f, { cache: 'no-store' })

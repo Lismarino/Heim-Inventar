@@ -100,6 +100,8 @@ const SETTING_DEFAULTS = {
   apiKey: '',
   model: DEFAULT_MODEL,
   imgMax: 1600,
+  lastRoom: '',   // Schnellerfassung: zuletzt gewählter Raum (Name)
+  lastLoc: '',    // … und Ort-Details dazu
 };
 
 // Von Google abgeschaltete Modelle. Sie stehen teils noch in der Modellliste,
@@ -135,7 +137,16 @@ export function setSetting(key, value) {
 const norm = (s) => String(s || '').trim().toLowerCase();
 
 // Findet eine bestehende Kategorie/Raum per Name (case-insensitiv) oder legt sie an.
-export async function ensureNamed(storeName, name) {
+// Aufrufe laufen nacheinander: Die KI-Warteschlange arbeitet parallel und würde
+// sonst dieselbe neue Kategorie zweimal anlegen.
+let namedLock = Promise.resolve();
+export function ensureNamed(storeName, name) {
+  const run = namedLock.then(() => ensureNamedNow(storeName, name));
+  namedLock = run.catch(() => null);
+  return run;
+}
+
+async function ensureNamedNow(storeName, name) {
   const clean = String(name || '').trim();
   if (!clean) return null;
   const all = await getAll(storeName);
@@ -185,6 +196,8 @@ export function newItem(patch = {}) {
     photoId: null,
     thumb: '',
     aiConfidence: null,
+    aiState: null,     // null | 'pending' | 'done' | 'failed' – Hintergrund-Erkennung
+    aiError: null,
     createdAt: now,
     updatedAt: now,
     archived: 0,
@@ -200,6 +213,94 @@ export function saveItems(items, photo) {
     const s = tx.objectStore('items');
     for (const it of items) s.put(it);
     return items;
+  });
+}
+
+// Ändert einzelne Felder eines Eintrags in EINER Transaktion (lesen + schreiben).
+// So überschreibt ein Speichern aus der Detail-Ansicht nicht, was die
+// KI-Warteschlange gerade eingetragen hat – und umgekehrt.
+// `cond(item)` kann das Schreiben verhindern. Liefert den neuen Stand oder null.
+export function patchItem(id, patch, cond) {
+  return withTx(['items'], 'readwrite', (tx) => {
+    const box = { item: null };
+    const s = tx.objectStore('items');
+    s.get(id).onsuccess = (ev) => {
+      const it = ev.target.result;
+      if (!it || (cond && !cond(it))) return;
+      Object.assign(it, patch, { updatedAt: Date.now() });
+      s.put(it);
+      box.item = it;
+    };
+    return box;
+  }).then(box => box.item);
+}
+
+// Trägt das Ergebnis der Bilderkennung ein. `found`: [{ name, categoryId, confidence }].
+// Der erste Gegenstand füllt den Eintrag selbst – einen inzwischen von Hand
+// eingetragenen Namen oder eine Kategorie aber NICHT überschreiben. Jeder weitere
+// Gegenstand wird ein eigener Eintrag mit demselben Foto und Ort.
+export function applyRecognition(id, found) {
+  return withTx(['items'], 'readwrite', (tx) => {
+    const out = { applied: false, added: 0 };
+    const s = tx.objectStore('items');
+    s.get(id).onsuccess = (ev) => {
+      const it = ev.target.result;
+      if (!it || it.aiState !== 'pending' || !found.length) return;   // gelöscht oder schon erledigt
+      const now = Date.now();
+      const [first, ...rest] = found;
+      if (!String(it.name || '').trim()) {
+        it.name = first.name;
+        it.aiConfidence = first.confidence;
+      }
+      if (!it.categoryId) it.categoryId = first.categoryId;
+      it.aiState = 'done';
+      it.aiError = null;
+      it.updatedAt = now;
+      s.put(it);
+      out.applied = true;
+      if (it.archived) return;   // inzwischen archiviert: keine neuen Einträge dazu
+      rest.forEach((f, i) => {
+        s.put(newItem({
+          name: f.name,
+          categoryId: f.categoryId,
+          roomId: it.roomId,
+          locationDetail: it.locationDetail,
+          photoId: it.photoId,
+          thumb: it.thumb,
+          aiConfidence: f.confidence,
+          aiState: 'done',
+          createdAt: it.createdAt + i + 1,   // direkt neben dem Original einsortieren
+          updatedAt: now,
+        }));
+        out.added++;
+      });
+    };
+    return out;
+  });
+}
+
+// Weist mehreren Einträgen einen Raum zu – in EINER Transaktion.
+// Ort-Details werden nur gesetzt, wenn welche angegeben sind.
+export function assignRoom(ids, roomId, locationDetail) {
+  const want = new Set(ids);
+  const loc = String(locationDetail || '').trim();
+  return withTx(['items'], 'readwrite', (tx) => {
+    const out = { changed: 0 };
+    const now = Date.now();
+    tx.objectStore('items').openCursor().onsuccess = (ev) => {
+      const cur = ev.target.result;
+      if (!cur) return;
+      const it = cur.value;
+      if (want.has(it.id)) {
+        it.roomId = roomId;
+        if (loc) it.locationDetail = loc;
+        it.updatedAt = now;
+        cur.update(it);
+        out.changed++;
+      }
+      cur.continue();
+    };
+    return out;
   });
 }
 

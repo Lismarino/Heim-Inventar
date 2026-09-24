@@ -74,3 +74,8 @@ export function photoURL(photo) {
   if (!photo) return null;
   return URL.createObjectURL(new Blob([photo.buf], { type: photo.type || 'image/jpeg' }));
 }
+
+// Dekodierte Bitmap freigeben – auf dem iPhone sonst schnell viel Speicher.
+export function release(src) {
+  if (src && typeof src.close === 'function') { try { src.close(); } catch (_) { void _; } }
+}

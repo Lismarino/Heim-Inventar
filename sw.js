@@ -1,7 +1,7 @@
 // Service Worker – App-Shell offline verfügbar halten.
 // Bei jeder Änderung an den App-Dateien VERSION hochzählen, sonst sieht das
 // iPhone die neue Fassung nicht.
-const VERSION = 'v1.2.1';
+const VERSION = 'v1.3.0';
 const CACHE = 'heim-inventar-' + VERSION;
 
 const ASSETS = [
@@ -15,6 +15,7 @@ const ASSETS = [
   './js/gemini.js',
   './js/combo.js',
   './js/backup.js',
+  './js/queue.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon-180.png',
