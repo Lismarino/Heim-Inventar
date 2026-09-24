@@ -340,6 +340,8 @@ icons/                  App-Icons
 icons/splash/           iOS-Startbilder, hell und dunkel (bewusst nicht im Service-Worker-Cache)
 tools/splash.js         erzeugt die Startbilder aus der Start-Szene in index.html (Playwright;
                         gehört nicht zur App) – nach Änderungen an der Szene neu ausführen
+tools/icon.svg          Vorlage des App-Symbols (Glasregal mit Büchern und Einmachglas)
+tools/icon.js           erzeugt daraus die PNGs in icons/ (Playwright; gehört nicht zur App)
 ```
 
 Fotos werden beim Speichern auf max. 1600 px verkleinert (in den Einstellungen

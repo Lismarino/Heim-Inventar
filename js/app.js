@@ -13,7 +13,7 @@ import { haptic, longPress, swipeRows, edgeSwipe } from './gestures.js';
 import * as glass from './glass.js';
 import * as intro from './intro.js';
 
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.6.2';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 // Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
