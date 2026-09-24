@@ -1,16 +1,20 @@
 // Gesten wie in einer iOS-App: langes Drücken, Zeile wegwischen, vom Rand zurückwischen –
 // dazu ein haptisches Tick. Alles über Touch-Events, damit vertikales Scrollen
-// unangetastet bleibt, solange die Geste nicht eindeutig waagerecht ist.
+// unangetastet bleibt, solange die Geste nicht eindeutig waagerecht ist. Kein Listener
+// hängt blockierend (passive: false) am ganzen Dokument – das bremst sonst jedes Scrollen.
 
 const LONG_MS = 450;     // so lange drücken für das Kontextmenü
 const SLOP = 10;         // so viel darf der Finger dabei wandern
-const EDGE = 24;         // Zurückwischen startet nur so nah am linken Rand
 const ACTION_W = 96;     // Breite der Aktion hinter einer Zeile
 
 /* ---------------- Haptik ---------------- */
 
-// iOS 18+ gibt ein haptisches Tick, wenn ein <input type="checkbox" switch> über sein
-// <label> umgeschaltet wird – auch per Skript. Android: navigator.vibrate. Scheitert still.
+// Neuere iOS-Fassungen geben ein haptisches Tick, wenn ein <input type="checkbox" switch>
+// über sein <label> umgeschaltet wird – sofern iOS das auch per Skript zulässt, was nicht
+// dokumentiert ist. Android: navigator.vibrate. Scheitert still.
+// Verlässlich ist das Tick nur direkt in einer Nutzeraktion; nach einem await oder im
+// Timer des langen Drückens ist es ein Bonus. Bewusst kein zweites Tick beim Loslassen:
+// greift der Timer, gäbe es sonst zwei.
 export function haptic() {
   try {
     const label = document.createElement('label');
@@ -88,9 +92,8 @@ export function longPress(root, selector, onPress) {
     const hit = e.target.closest(selector);
     if (!hit || !root.contains(hit) || e.target.closest('input,textarea')) return;
     e.preventDefault();
-    if (Date.now() - fired < 1000) return;   // schon per Touch ausgelöst
+    if (Date.now() - fired < 1000) return;   // schon per Touch ausgelöst (nur der Touch-Timer setzt fired)
     cancel();
-    fired = Date.now();
     onPress(hit);
   });
 }
@@ -156,6 +159,8 @@ export function swipeRows(root, selector, actionHTML, onAction) {
 
   root.addEventListener('touchstart', (e) => {
     if (e.touches.length !== 1) return;
+    // Die Liste wurde inzwischen neu gezeichnet: die gemerkte Zeile gibt es nicht mehr.
+    if (open && !open.row.isConnected) { open.act.remove(); open = null; }
     const row = e.target.closest(selector);
     if (e.target.closest('.swipe-act')) return;
     // Ist eine andere Zeile aufgeklappt, schließt der Tipp nur diese – wie in iOS.
@@ -213,6 +218,7 @@ export function swipeRows(root, selector, actionHTML, onAction) {
 
   // Tipp auf die Aktion bzw. irgendwo anders hin schließt.
   root.addEventListener('click', (e) => {
+    if (open && !open.row.isConnected) { open.act.remove(); open = null; }
     const act = e.target.closest('.swipe-act');
     if (act && open && open.act === act) {
       e.stopPropagation();
@@ -227,50 +233,83 @@ export function swipeRows(root, selector, actionHTML, onAction) {
 
 /* ---------------- Vom linken Rand zurückwischen ---------------- */
 
+const FIELD = 'input,textarea,select,[contenteditable]:not([contenteditable="false"])';
+
 /**
+ * `strip` ist ein schmaler, fixierter Streifen am linken Rand (nur in Push-Ansichten
+ * sichtbar, siehe CSS). Er hat touch-action: none – deshalb dürfen alle Listener passiv
+ * sein. Was dort nicht zur Zurück-Geste wird, reicht er weiter: ein Tipp erreicht das
+ * Element darunter, senkrechtes Ziehen scrollt die Ansicht darunter mit.
  * begin() → Controller aus motion.dragPop oder null (dann keine Geste);
  * commit() schaltet nach dem Zurückwischen die Ansicht um.
  */
-export function edgeSwipe(begin, commit) {
+export function edgeSwipe(strip, begin, commit) {
   let s = null;
-  document.addEventListener('touchstart', (e) => {
+  const under = (x, y) => {
+    strip.style.pointerEvents = 'none';
+    const el = document.elementFromPoint(x, y);
+    strip.style.pointerEvents = '';
+    return el;
+  };
+
+  strip.addEventListener('touchstart', (e) => {
     s = null;
     if (e.touches.length !== 1) return;
     const p = pt(e);
-    if (p.clientX > EDGE) return;
-    s = { x0: p.clientX, y0: p.clientY, mode: '', ctl: null, hist: [], dx: 0 };
-  }, { passive: true, capture: true });
+    const below = under(p.clientX, p.clientY);
+    const scroller = below?.closest('.scroll') || null;
+    s = { x0: p.clientX, y0: p.clientY, mode: '', ctl: null, hist: [], dx: 0, below, scroller, top: scroller?.scrollTop || 0 };
+    // Beginnt die Berührung auf einem Eingabefeld: keine Zurück-Geste, nur weiterreichen.
+    if (below?.closest(FIELD)) s.mode = 'field';
+  }, { passive: true });
 
-  document.addEventListener('touchmove', (e) => {
+  strip.addEventListener('touchmove', (e) => {
     if (!s) return;
     const p = pt(e);
     const dx = p.clientX - s.x0, dy = p.clientY - s.y0;
-    if (!s.mode) {
-      if (dx > 8 && dx > Math.abs(dy) * 1.2) {
+    if (!s.mode || s.mode === 'field') {
+      if (!s.mode && dx > 8 && dx > Math.abs(dy) * 1.2) {
         s.ctl = begin();
-        if (!s.ctl) { s = null; return; }
+        if (!s.ctl) { s.mode = 'scroll'; return; }
         cancelPresses();
         s.mode = 'drag';
-      } else if (Math.abs(dy) > 8 || dx < -8) { s = null; return; } else return;
+      } else if (Math.abs(dy) > 8 || Math.abs(dx) > 8) s.mode = 'scroll';
+      else return;
     }
-    e.preventDefault();
-    e.stopPropagation();
+    if (s.mode === 'scroll') {
+      // Der Streifen selbst scrollt nicht – die Ansicht darunter von Hand mitnehmen.
+      if (s.scroller) s.scroller.scrollTop = s.top - dy;
+      return;
+    }
     s.dx = dx;
     s.hist.push({ x: dx, t: e.timeStamp });
     if (s.hist.length > 6) s.hist.shift();
     s.ctl.move(dx);
-  }, { passive: false, capture: true });
+  }, { passive: true });
 
   const end = (e) => {
-    if (!s || s.mode !== 'drag') { s = null; return; }
-    const { ctl, dx, hist } = s;
+    if (!s) return;
+    const cur = s;
     s = null;
-    suppressClick();
+    if (cur.mode !== 'drag') {
+      // Nur getippt: an das Element unter dem Streifen weitergeben.
+      if (e.type === 'touchend' && (!cur.mode || cur.mode === 'field') && cur.below?.isConnected) {
+        if (e.cancelable) e.preventDefault();   // kein zweiter Klick auf den Streifen
+        const field = cur.below.closest(FIELD);
+        if (field) field.focus();
+        else cur.below.click();
+      }
+      return;
+    }
+    const { ctl, dx, hist } = cur;
+    // Keinen Klick aus der Geste entstehen lassen – aber auch nicht den nächsten echten
+    // Tipp schlucken (etwa auf einen Tab, während die Ansicht noch zurückgleitet).
+    if (e.cancelable) e.preventDefault();
     const first = hist[0], last = hist[hist.length - 1];
     const v = first && last && last.t > first.t ? (last.x - first.x) / (last.t - first.t) : 0;
     const go = e.type === 'touchend' && (dx > ctl.width * 0.35 || v > 0.5);
     ctl.end(go, go ? commit : undefined);
   };
-  document.addEventListener('touchend', end, { capture: true });
-  document.addEventListener('touchcancel', end, { capture: true });
+  strip.addEventListener('touchend', end);
+  strip.addEventListener('touchcancel', end, { passive: true });
 }

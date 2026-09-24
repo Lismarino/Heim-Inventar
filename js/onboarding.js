@@ -1,7 +1,9 @@
 // Begrüßung beim ersten Start: drei Seiten – Willkommen, Räume, KI-Schlüssel.
-// Erscheint nur, solange die Einstellung „onboarded“ fehlt UND noch nichts erfasst ist.
+// Erscheint nur, solange die Einstellung „onboarded“ fehlt UND es keine Spur einer
+// Einrichtung gibt (Einträge, Räume, API-Key oder gemerkter Raum).
+// „Überspringen“ und Escape übernehmen nichts von dem, was in der Einführung gewählt wurde.
 import * as db from './db.js';
-import { esc, icon } from './ui.js';
+import { esc, icon, modal, trapTab } from './ui.js';
 import { reduced } from './motion.js';
 import { haptic } from './gestures.js';
 
@@ -11,17 +13,23 @@ export const ROOM_SUGGESTIONS = ['Küche', 'Wohnzimmer', 'Schlafzimmer', 'Bad', 
 const $ = (s) => document.querySelector(s);
 const key = (s) => String(s || '').trim().toLocaleLowerCase('de-DE');
 
-let ctx = null;          // { rooms(), apiKey(), done({ key, goAdd }) }
+let ctx = null;          // { rooms(), apiKey(), done({ key, goAdd, skipped }) }
 let picked = new Map();  // Kleinschreibung -> Anzeigename
 let existing = new Set();
 let extra = [];
 let page = 0;
 let busy = false;
+let release = null;   // hebt die Sperre des Hintergrunds auf (aus ui.modal)
 
-/** Liefert true, wenn die Einführung gezeigt wird. Bestehende Daten: still als erledigt merken. */
-export async function maybeShow(settings, itemCount) {
+/**
+ * Liefert true, wenn die Einführung gezeigt wird. Wer die App schon eingerichtet hat –
+ * Einträge, Räume, einen API-Key oder einen gemerkten Raum –, bekommt sie nicht mehr;
+ * das wird still als erledigt gemerkt.
+ */
+export async function maybeShow(settings, { items = 0, rooms = 0 } = {}) {
   if (settings.onboarded) return false;
-  if (itemCount > 0) {
+  const settled = items > 0 || rooms > 0 || !!String(settings.apiKey || '').trim() || !!String(settings.lastRoom || '').trim();
+  if (settled) {
     settings.onboarded = true;
     await db.setSetting('onboarded', true);
     return false;
@@ -41,6 +49,7 @@ export function show() {
   $('#onb-room').value = '';
   renderChips();
   const el = $('#onboarding');
+  if (!release) release = modal();
   el.hidden = false;
   el.classList.remove('leaving');
   $('#onb-pages').scrollLeft = 0;
@@ -56,6 +65,9 @@ function hide() {
   const el = $('#onboarding');
   const active = document.activeElement;
   if (active && el.contains(active)) active.blur();
+  const rel = release;
+  release = null;
+  rel?.();
   if (reduced() || !el.animate) { el.hidden = true; return Promise.resolve(); }
   el.classList.add('leaving');
   const a = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(1.04)' }], { duration: 280, easing: 'ease-in', fill: 'forwards' });
@@ -94,7 +106,8 @@ function setPage(n) {
   next.classList.toggle('go', last);
   $('#onb-later').hidden = !last;
   $('#onb-skip').hidden = last;
-  $$('#onb-pages .onb-page').forEach((p, i) => p.setAttribute('aria-hidden', String(i !== n)));
+  // Unsichtbare Seiten sind inert: weder per Tab noch per Screenreader erreichbar.
+  $$('#onb-pages .onb-page').forEach((p, i) => { p.setAttribute('aria-hidden', String(i !== n)); p.inert = i !== n; });
 }
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
@@ -104,21 +117,26 @@ function goTo(n) {
   setPage(n);
 }
 
+// goAdd: true = „Los geht’s“ (Räume und Key übernehmen, Kamera öffnen),
+// 'later' = „Später“ (Räume übernehmen, Key nicht), false = Überspringen/Escape (nichts übernehmen).
 async function finish(goAdd) {
   if (busy) return;
   busy = true;
+  // Gleich ausblenden – das Speichern läuft währenddessen, die App darunter ist sofort bedienbar.
+  const hiding = hide();
   try {
-    for (const name of picked.values()) {
-      if (!existing.has(key(name))) await db.ensureNamed('rooms', name);
+    if (goAdd !== false) {
+      for (const name of picked.values()) {
+        if (!existing.has(key(name))) await db.ensureNamed('rooms', name);
+      }
     }
     const apiKey = $('#onb-key').value.trim();
     await db.setSetting('onboarded', true);
-    await ctx.done({ key: goAdd === 'later' ? null : apiKey, goAdd: goAdd === true });
-    await hide();
+    await ctx.done({ key: goAdd === true ? apiKey : null, goAdd: goAdd === true, skipped: goAdd === false });
   } catch (e) {
     console.warn('Einführung:', e);
-    await hide();
   } finally {
+    await hiding;
     busy = false;
   }
 }
@@ -142,6 +160,12 @@ export function init(c) {
   $('#onb-next').addEventListener('click', () => { if (page < 2) goTo(page + 1); else finish(true); });
   $('#onb-later').addEventListener('click', () => finish('later'));
   $('#onb-skip').addEventListener('click', () => finish(false));
+  // Escape wirkt wie „Überspringen“; Tab bleibt in der Einführung.
+  document.addEventListener('keydown', (e) => {
+    if (!isOpen() || $('#onboarding').classList.contains('leaving')) return;
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); return; }
+    trapTab($('#onboarding'), e);
+  });
   $('#onb-key').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
 
   // Wischen zwischen den Seiten: Seite aus der Scroll-Position ablesen.

@@ -47,3 +47,35 @@ export const EMPTY_ART = `<svg class="empty-art" viewBox="0 0 200 150" aria-hidd
   <rect class="ea-slot" x="44" y="72" width="112" height="32" rx="8"/>
   <path class="ea-plus" d="M100 80v16M92 88h16"/>
 </svg>`;
+
+/* ---------------- Dialoge: Hintergrund sperren, Fokus halten und zurückgeben ---------------- */
+
+const FOCUSABLE = 'button:not([disabled]),[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/**
+ * Öffnet einen modalen Bereich: #app wird inert (weder antipp- noch fokussierbar, für
+ * Screenreader weg) und der bisher fokussierte Auslöser gemerkt. Liefert release(),
+ * das die Sperre aufhebt und den Fokus an den Auslöser zurückgibt – sofern es ihn noch gibt.
+ */
+export function modal() {
+  const app = document.getElementById('app');
+  const trigger = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
+  app.inert = true;
+  return ({ restore = true } = {}) => {
+    app.inert = false;
+    if (restore && trigger?.isConnected && !trigger.closest('[hidden], [inert]')) {
+      try { trigger.focus({ preventScroll: true }); } catch (_) { void _; }
+    }
+  };
+}
+
+/** Tab und Umschalt+Tab bleiben innerhalb von `box` (am Ende wieder vorn anfangen). */
+export function trapTab(box, e) {
+  if (e.key !== 'Tab') return;
+  const els = [...box.querySelectorAll(FOCUSABLE)].filter(el => !el.closest('[hidden], [inert]') && el.getClientRects().length);
+  if (!els.length) return;
+  const first = els[0], last = els[els.length - 1];
+  const inside = box.contains(document.activeElement);
+  if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
+}

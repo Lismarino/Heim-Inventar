@@ -1,13 +1,15 @@
 // Aktionsblatt von unten – für das Kontextmenü nach langem Drücken und kleine
 // Eingaben (Raum ändern, Umbenennen). Schließt per Tipp daneben, „Abbrechen“,
-// Escape oder nach unten ziehen.
-import { esc, icon } from './ui.js';
+// Escape oder nach unten ziehen. Solange es offen ist, ist der Rest der App inert;
+// beim Schließen geht der Fokus an den Auslöser zurück.
+import { esc, icon, modal, trapTab } from './ui.js';
 import { reduced } from './motion.js';
 
 const $ = (s) => document.querySelector(s);
 let onAction = null;
 let onSubmit = null;
 let closing = null;
+let release = null;   // hebt die Sperre des Hintergrunds auf (aus ui.modal)
 
 export const isOpen = () => !$('#sheet').hidden && !closing;
 
@@ -17,6 +19,7 @@ function show(html) {
   $('#sheet-body').innerHTML = html;
   if (!wrap.hidden && !closing) return;   // schon offen: nur Inhalt tauschen
   closing = null;
+  if (!release) release = modal();
   wrap.hidden = false;
   sheet.style.transform = '';
   if (!reduced() && sheet.animate) {
@@ -70,6 +73,9 @@ export function close() {
   const active = document.activeElement;
   if (active && wrap.contains(active)) active.blur();
   followKeyboard(false);
+  const rel = release;
+  release = null;
+  rel?.();   // Hintergrund sofort wieder bedienbar, Fokus zurück an den Auslöser
   const done = () => {
     wrap.hidden = true;
     sheet.style.transform = '';
@@ -128,6 +134,8 @@ export function init() {
   });
   // Escape im Eingabefeld schließt nur die Vorschlagsliste, sonst das Blatt.
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && isOpen() && !e.target.closest?.('#sheet input')) close(); });
+  // Tab bleibt im Blatt.
+  document.addEventListener('keydown', (e) => { if (isOpen()) trapTab(wrap.querySelector('.sheet'), e); });
 
   // Nach unten ziehen schließt – am Griff oder im Kopf.
   const sheet = wrap.querySelector('.sheet');

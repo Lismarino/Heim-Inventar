@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
-<meta name="app-version" content="1.5.0">
+<meta name="app-version" content="1.5.1">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -16,21 +16,11 @@
 <meta name="apple-mobile-web-app-title" content="Inventar">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
 <link rel="icon" href="./icons/icon-192.png">
-<!-- Startbildschirm beim Öffnen vom Home-Bildschirm (iOS wählt per Media Query). Erzeugt mit tools/splash.js -->
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-1320x2868-light.png" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-1206x2622-light.png" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-1290x2796-light.png" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-1179x2556-light.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-1284x2778-light.png" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-1170x2532-light.png" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-1125x2436-light.png" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-1080x2340-light.png" media="screen and (device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-1242x2688-light.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-828x1792-light.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-1242x2208-light.png" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-750x1334-light.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: light)">
-<link rel="apple-touch-startup-image" href="./icons/splash/splash-640x1136-light.png" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: light)">
+<!-- Startbildschirm beim Öffnen vom Home-Bildschirm (iOS wählt per Media Query). Erzeugt mit tools/splash.js.
+     Erst die dunklen Varianten mit Farbschema-Bedingung, danach die hellen ohne – die gelten als
+     Standard, falls iOS prefers-color-scheme hier nicht auswertet. -->
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-1320x2868-dark.png" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1260x2736-dark.png" media="screen and (device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-1206x2622-dark.png" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-1290x2796-dark.png" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-1179x2556-dark.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
@@ -43,6 +33,20 @@
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-1242x2208-dark.png" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)">
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-750x1334-dark.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)">
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-640x1136-dark.png" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1320x2868-light.png" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1260x2736-light.png" media="screen and (device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1206x2622-light.png" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1290x2796-light.png" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1179x2556-light.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1284x2778-light.png" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1170x2532-light.png" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1125x2436-light.png" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1080x2340-light.png" media="screen and (device-width: 360px) and (device-height: 780px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1242x2688-light.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-828x1792-light.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-1242x2208-light.png" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-750x1334-light.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="./icons/splash/splash-640x1136-light.png" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="stylesheet" href="./css/app.css">
 </head>
 <body>
@@ -76,6 +80,7 @@
   <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8.25" cy="15.75" r="4.25"/><path d="m11.3 12.7 8.2-8.2M16.5 7.5l2.5 2.5M14.25 9.75l2 2"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2"/></symbol>
   <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14.5 4.5 10 9 5.5"/><path d="M4.5 10h10a5 5 0 0 1 0 10H12"/></symbol>
+  <symbol id="i-rooms" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M11 3.5v5.25M11 12.25v8.25M3.5 12.25H8M11 12.25h9.5"/></symbol>
   <symbol id="i-done" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.25 12.25 2.5 2.5 5-5.25"/></symbol>
 </svg>
 
@@ -117,7 +122,7 @@
         <div class="recent" id="home-recent"></div>
       </section>
       <section>
-        <div class="sec-row"><h2 class="sec">Räume <span class="sec-n" id="home-rooms-count"></span></h2></div>
+        <div class="sec-row"><h2 class="sec">Räume <span class="sec-n" id="home-rooms-count"></span></h2><button class="sec-link" data-nav="places" id="home-rooms-all" hidden>Alle</button></div>
         <div class="room-grid" id="home-rooms"></div>
       </section>
     </div>
@@ -150,6 +155,17 @@
       <button class="noroom-hint" id="noroom-hint" data-nav="rooms" hidden></button>
       <div id="list" class="list"></div>
       <div class="empty" id="list-empty" hidden></div>
+    </div>
+  </section>
+
+  <!-- ============ RÄUME (Tab) ============ -->
+  <section class="view" id="view-places" hidden>
+    <header class="topbar large">
+      <h1>Räume</h1>
+      <span class="count" id="places-count"></span>
+    </header>
+    <div class="scroll places">
+      <div class="room-grid" id="places-grid"></div>
     </div>
   </section>
 
@@ -435,10 +451,15 @@
   </section>
 
   <!-- ============ NAV ============ -->
+  <!-- Zurückwischen: schmaler Streifen am linken Rand, nur in Push-Ansichten da (CSS) -->
+  <div id="edge" class="edge-strip" aria-hidden="true"></div>
+
+  <!-- ============ NAV: fünf gleich breite Plätze, die Kamera genau in der Mitte ============ -->
   <nav id="nav">
     <button data-nav="home" class="active"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Zuhause</span></button>
     <button data-nav="list"><svg class="ic" aria-hidden="true"><use href="#i-shelf"/></svg><span>Alles</span></button>
-    <button data-nav="add" class="add"><span class="fab"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span><span>Hinzufügen</span></button>
+    <button data-nav="add" class="add" aria-label="Hinzufügen"><span class="fab"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span></button>
+    <button data-nav="places"><svg class="ic" aria-hidden="true"><use href="#i-rooms"/></svg><span>Räume</span></button>
     <button data-nav="settings"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span>Einstellungen</span></button>
   </nav>
 </div>
@@ -505,7 +526,7 @@
   <button class="lb-close" id="lb-close" aria-label="Schließen"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
   <p class="lb-hint">Bild antippen zum Hineinzoomen</p>
 </div>
-<div id="toast" class="toast" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <div id="update-bar" class="update-bar" hidden><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg><span>Neue Version verfügbar</span><button id="update-go">Neu laden</button></div>
 
 <script>

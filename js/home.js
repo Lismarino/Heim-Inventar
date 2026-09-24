@@ -1,4 +1,4 @@
-// Startseite „Zuhause“ und die Ansicht eines Raums.
+// Startseite „Zuhause“, der Tab „Räume“ und die Ansicht eines Raums.
 // Die Daten kommen aus app.js (ctx) – hier wird nur gezeichnet.
 import * as db from './db.js';
 import * as img from './img.js';
@@ -37,7 +37,9 @@ export const isUnnamed = unnamed;
 /* ---------------- Titelbilder ----------------
    Die gespeicherten Vorschaubilder haben nur 160 px – für große Kacheln zu unscharf.
    Deshalb aus dem Original einmal eine 480-px-Fassung machen und für die Sitzung
-   merken. Bis sie da ist, steht das kleine Vorschaubild da. */
+   merken. Bis sie da ist, steht das kleine Vorschaubild da. Dekodiert wird nur für
+   Kacheln, die gerade (fast) im Bild sind und in einer sichtbaren Ansicht liegen –
+   dafür beobachtet ein IntersectionObserver die Bilder. */
 
 const covers = new Map();    // photoId -> Object-URL | Promise
 const COVER_MAX = 60;
@@ -48,11 +50,56 @@ function coverURL(photoId) {
   return typeof c === 'string' ? c : null;
 }
 
+// Liegt das Bild in einer Ansicht, die man gerade sieht? (Versteckte Ansichten bleiben
+// im Layout und würden sonst als „im Bild“ gelten.)
+const onScreen = (el) => el.isConnected && !el.closest('.view[hidden]');
+
+let io = null;
+function observer() {
+  if (io || typeof IntersectionObserver !== 'function') return io;
+  io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting || !onScreen(e.target)) continue;
+      io.unobserve(e.target);
+      watched.delete(e.target);
+      wantCover(e.target.dataset.cover);
+    }
+  }, { rootMargin: '240px 0px' });
+  return io;
+}
+
+// Nach dem Zeichnen: Bilder ohne scharfe Fassung beobachten, verwaiste URLs freigeben.
+const watched = new Set();
+function watchCovers(root) {
+  const obs = observer();
+  for (const el of watched) if (!el.isConnected) { obs?.unobserve(el); watched.delete(el); }
+  for (const el of root.querySelectorAll('img[data-cover]')) {
+    if (coverURL(el.dataset.cover)) continue;
+    if (obs) { obs.observe(el); watched.add(el); }
+    else if (onScreen(el)) wantCover(el.dataset.cover);   // sehr alte Browser: gleich laden
+  }
+  pruneCovers();
+}
+
+// Scharfe Fassungen, die keine Kachel mehr zeigt (Raum gelöscht, Eintrag archiviert
+// oder nicht mehr unter den neuesten), gleich freigeben statt sie bis COVER_MAX zu horten.
+function pruneCovers() {
+  const used = new Set([...document.querySelectorAll('img[data-cover]')].map(el => el.dataset.cover));
+  for (const [id, v] of covers) {
+    if (typeof v !== 'string' || used.has(id)) continue;
+    URL.revokeObjectURL(v);
+    covers.delete(id);
+  }
+}
+
 function wantCover(photoId) {
   if (!photoId || covers.has(photoId)) return;
   const job = coverChain.then(async () => {
     let src = null;
     try {
+      // Inzwischen weggescrollt, neu gezeichnet oder die Ansicht verlassen: nicht dekodieren.
+      const want = [...document.querySelectorAll(`img[data-cover="${CSS.escape(photoId)}"]`)].some(onScreen);
+      if (!want) { covers.delete(photoId); return; }
       const photo = await db.get('photos', photoId);
       if (!photo) { covers.delete(photoId); return; }
       src = await img.decode(new Blob([photo.buf], { type: photo.type || 'image/jpeg' }));
@@ -60,7 +107,11 @@ function wantCover(photoId) {
       const url = URL.createObjectURL(blob);
       covers.set(photoId, url);
       trimCovers();
-      for (const el of document.querySelectorAll(`img[data-cover="${CSS.escape(photoId)}"]`)) el.src = url;
+      for (const el of document.querySelectorAll(`img[data-cover="${CSS.escape(photoId)}"]`)) {
+        el.src = url;
+        io?.unobserve(el);
+        watched.delete(el);
+      }
     } catch (e) {
       covers.delete(photoId);
       console.warn('Titelbild:', e);
@@ -83,19 +134,19 @@ function trimCovers() {
 }
 
 // Bild für eine Kachel: scharfe Fassung, falls schon da, sonst das Vorschaubild.
+// Die scharfe Fassung bestellt erst watchCovers(), sobald die Kachel zu sehen ist.
 function pictureHTML(it, cls) {
   if (!isThumb(it.thumb)) return '';
   const sharp = it.photoId ? coverURL(it.photoId) : null;
-  if (it.photoId && !sharp) wantCover(it.photoId);
   return `<img class="${cls}" src="${esc(sharp || it.thumb)}" alt=""${it.photoId ? ` data-cover="${esc(it.photoId)}"` : ''} draggable="false">`;
 }
 
 /* ---------------- Zuhause ---------------- */
 
-export function renderHome() {
-  const { state } = ctx;
-  const items = live();
-  const rooms = state.rooms;
+// Auf Zuhause stehen nur die ersten Räume, alle weiteren im Tab „Räume“.
+export const HOME_ROOMS = 6;
+
+function itemsByRoom(items) {
   const byRoom = new Map();
   for (const it of items) {
     if (!ctx.hasRoom(it)) continue;
@@ -103,6 +154,35 @@ export function renderHome() {
     list.push(it);
     byRoom.set(it.roomId, list);
   }
+  return byRoom;
+}
+
+/**
+ * Kacheln für ein Raum-Raster – gemeinsam für Zuhause und den Tab „Räume“.
+ * limit: höchstens so viele Räume; noRoom: Kachel „Ohne Raum“ voranstellen (wenn > 0);
+ * „Raum hinzufügen“ steht am Ende, sofern alle Räume gezeigt werden.
+ */
+function roomTilesHTML(byRoom, { limit = Infinity, noRoom = false } = {}) {
+  const rooms = ctx.state.rooms;
+  const tiles = rooms.slice(0, limit).map(r => roomTile(r, byRoom.get(r.id) || []));
+  const nr = noRoom ? ctx.noRoomItems().length : 0;
+  if (nr) {
+    tiles.unshift(`<button class="rt rt-noroom" data-nav="rooms" aria-label="Ohne Raum, ${esc(plural(nr, 'Ding', 'Dinge'))}">
+      <span class="rt-pin">${icon('pin')}</span>
+      <span class="rt-txt"><b>Ohne Raum</b><small>${esc(plural(nr, 'Ding', 'Dinge'))} zuordnen</small></span></button>`);
+  }
+  if (rooms.length <= limit) {
+    tiles.push(`<button class="rt rt-add" data-room-add>
+      <span class="rt-plus">${icon('plus')}</span><span class="rt-add-txt">Raum hinzufügen</span></button>`);
+  }
+  return tiles.join('');
+}
+
+export function renderHome() {
+  const { state } = ctx;
+  const items = live();
+  const rooms = state.rooms;
+  const byRoom = itemsByRoom(items);
 
   $('#home-date').textContent = dayFmt.format(new Date());
   $('#home-hello').textContent = greeting();
@@ -141,12 +221,20 @@ export function renderHome() {
   $('#home-recent-sec').hidden = empty;
   $('#home-recent').innerHTML = recent.map(recentTile).join('');
 
-  // Räume
-  const tiles = rooms.map(r => roomTile(r, byRoom.get(r.id) || []));
-  tiles.push(`<button class="rt rt-add" data-room-add>
-      <span class="rt-plus">${icon('plus')}</span><span class="rt-add-txt">Raum hinzufügen</span></button>`);
-  $('#home-rooms').innerHTML = tiles.join('');
+  // Räume – die ersten sechs, „Alle“ führt in den Tab
+  $('#home-rooms').innerHTML = roomTilesHTML(byRoom, { limit: HOME_ROOMS });
   $('#home-rooms-count').textContent = rooms.length ? String(rooms.length) : '';
+  $('#home-rooms-all').hidden = rooms.length <= HOME_ROOMS;
+  watchCovers($('#view-home'));
+}
+
+/* ---------------- Räume (Tab) ---------------- */
+
+export function renderPlaces() {
+  const rooms = ctx.state.rooms;
+  $('#places-grid').innerHTML = roomTilesHTML(itemsByRoom(live()), { noRoom: true });
+  $('#places-count').textContent = rooms.length ? String(rooms.length) : '';
+  watchCovers($('#view-places'));
 }
 
 function todoRow(kind, ic, tone, title, sub) {

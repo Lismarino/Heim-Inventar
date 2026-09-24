@@ -11,7 +11,7 @@ import * as sheet from './sheet.js';
 import * as onboarding from './onboarding.js';
 import { haptic, longPress, swipeRows, edgeSwipe } from './gestures.js';
 
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.5.1';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 
@@ -19,7 +19,8 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
 // Tabs behalten ihre Scroll-Position; Push-Ansichten gleiten von rechts herein.
-const TABS = ['home', 'list', 'settings'];
+// „places“ ist der Tab „Räume“ – „rooms“ ist (historisch) die Ansicht „Ohne Raum“.
+const TABS = ['home', 'list', 'places', 'settings'];
 const PUSH = ['item', 'rooms', 'room', 'archive'];
 
 const state = {
@@ -28,7 +29,7 @@ const state = {
   cats: [],
   rooms: [],
   view: 'home',
-  origin: {},       // Ansicht -> woher man kam (für „Zurück“)
+  stack: ['home'],  // Navigationsstapel: unten der Tab, oben die aktuelle Ansicht
   roomId: null,     // Raum-Ansicht: welcher Raum
   listFilter: null, // „Alles“: null | 'unnamed'
   capture: { ids: [], busy: '' },   // Schnellerfassung: in dieser Runde erfasste Einträge
@@ -89,8 +90,9 @@ async function boot() {
     fillSettingsForm();
     navigate('home', { instant: true });
     $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
-    // Erster Start mit leerer Datenbank: Begrüßung. Scheitert sie, startet die App trotzdem.
-    await onboarding.maybeShow(state.settings, state.items.length).catch((e) => console.warn('Einführung:', e));
+    // Erster Start ohne jede Spur einer Einrichtung: Begrüßung. Scheitert sie, startet die App trotzdem.
+    await onboarding.maybeShow(state.settings, { items: state.items.length, rooms: state.rooms.length })
+      .catch((e) => console.warn('Einführung:', e));
   } catch (e) {
     showBootError('Die gespeicherten Daten konnten nicht geladen werden. Lade die Seite neu; hilft das nicht, schließe andere Tabs mit der App.', e);
     return;
@@ -130,7 +132,9 @@ function hideSplash() {
     .finished.catch(() => null).then(() => { el.hidden = true; });
 }
 
-async function finishOnboarding({ key, goAdd }) {
+// skipped: übersprungen (oder Escape) – dann bleibt man, wo man war (beim ersten Start
+// Zuhause, beim erneuten Zeigen die Einstellungen), und der Fokus kehrt zum Auslöser zurück.
+async function finishOnboarding({ key, goAdd, skipped }) {
   state.settings.onboarded = true;
   if (key && key !== (state.settings.apiKey || '')) {
     const n = await applyKey(key);
@@ -138,6 +142,7 @@ async function finishOnboarding({ key, goAdd }) {
     if (n) toast(markedMsg(n).trim());
   }
   await reloadAll();
+  if (skipped) { renderCurrent(); return; }
   navigate(goAdd ? 'add' : 'home', { instant: true });
   if (goAdd) resetCapture();
 }
@@ -183,12 +188,14 @@ function renderCurrent() {
 }
 
 function renderView(view) {
+  closeSwipes();   // eine offene Wisch-Zeile überlebt das Neuzeichnen nicht
   if (view === 'home') home.renderHome();
+  else if (view === 'places') home.renderPlaces();
   else if (view === 'list') renderList();
   else if (view === 'add') renderCapture();
   else if (view === 'rooms') renderRooms();
   else if (view === 'archive') renderArchive();
-  else if (view === 'room' && !home.renderRoom(state.roomId) && state.view === 'room') navigate('home');
+  else if (view === 'room' && !home.renderRoom(state.roomId) && state.view === 'room') navigate('back');
 }
 
 function refreshPickers() {
@@ -204,30 +211,61 @@ function fillSelect(sel, rows, allLabel) {
 
 /* =========================== Navigation =========================== */
 
-// Zu welchem Tab gehört eine Ansicht? (für die Markierung in der Leiste)
-function tabOf(view) {
-  for (let v = view, i = 0; v && i < 8; v = state.origin[v], i++) {
+// Zu welchem Tab gehört die aktuelle Ansicht? (für die Markierung in der Leiste)
+// Hinzufügen zählt als eigener Platz, solange es im Stapel liegt.
+function tabOf() {
+  for (let i = state.stack.length - 1; i >= 0; i--) {
+    const v = state.stack[i];
     if (TABS.includes(v) || v === 'add') return v;
   }
   return 'home';
 }
 
-function navigate(view, { instant = false } = {}) {
+// Vorige Ansicht im Stapel (für „Zurück“ und das Zurückwischen).
+const prevView = () => (state.stack.length > 1 ? state.stack[state.stack.length - 2] : 'home');
+
+/**
+ * Wechselt die Ansicht und führt den Stapel:
+ * - 'back' (Zurück, Zurückwischen, „Fertig“) nimmt die oberste Ansicht ab;
+ * - ein Tab setzt den Stapel auf diesen Tab zurück;
+ * - eine Ansicht, die schon im Stapel liegt, kürzt ihn bis dorthin (wie Zurück);
+ * - fresh: dieselbe Ansicht mit neuem Inhalt (anderer Eintrag, anderer Raum) – die alte
+ *   Stelle im Stapel zeigt es nicht mehr, sie fällt heraus, die Ansicht kommt oben neu drauf.
+ *   So pendelt Eintrag → Hinzufügen → Eintrag aus dem Streifen nicht endlos hin und her.
+ * - alles andere kommt oben drauf.
+ */
+function navigate(view, { instant = false, fresh = false } = {}) {
   const from = state.view;
-  let back = view === 'back';
-  if (back) view = state.origin[from] || 'home';
-  // Ausdrücklich zur vorigen Ansicht (z. B. Tab, aus dem man kam): wie „Zurück“ behandeln.
-  else if (view !== from && PUSH.includes(from) && state.origin[from] === view) back = true;
-  else if (view !== from) state.origin[view] = from;
+  const stack = state.stack;
+  let back = false;
+  if (view === 'back') {
+    back = true;
+    if (stack.length > 1) stack.pop();
+    else stack.splice(0, stack.length, 'home');
+    view = stack[stack.length - 1];
+  } else if (TABS.includes(view)) {
+    back = stack[0] === view && stack.length > 1;   // aus einer Unteransicht zurück zum eigenen Tab
+    stack.splice(0, stack.length, view);
+  } else if (view !== from) {
+    const at = stack.indexOf(view);
+    if (at >= 0 && !fresh) {
+      stack.length = at + 1;
+      back = true;
+    } else {
+      if (at >= 0) stack.splice(at, 1);
+      stack.push(view);
+    }
+  }
 
   motion.settle();
   closeLightbox();
   hideCombo();
   sheet.close();
+  closeSwipes();
   if (state.detailURL && view !== 'item') { URL.revokeObjectURL(state.detailURL); state.detailURL = null; }
   // Neue Erfassungsrunde – außer man kommt nur aus einem Eintrag oder „Ohne Raum“ zurück.
-  if (view === 'add' && !['add', 'item', 'rooms'].includes(from)) resetCapture();
-  if (view === 'rooms' && !['rooms', 'item'].includes(from)) resetRoomSel();
+  if (view === 'add' && !back && from !== 'add') resetCapture();
+  if (view === 'rooms' && !back && from !== 'rooms') resetRoomSel();
 
   const leaving = $('#view-' + from + ' .scroll');
   if (leaving) state.scrollPos[from] = leaving.scrollTop;
@@ -238,7 +276,7 @@ function navigate(view, { instant = false } = {}) {
   const toEl = $('#view-' + view);
   toEl.hidden = false;
   for (const v of $$('.view')) if (v !== toEl && v !== fromEl) v.hidden = true;
-  const tab = tabOf(view);
+  const tab = tabOf();
   $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.nav === tab));
 
   renderView(view);
@@ -250,7 +288,7 @@ function navigate(view, { instant = false } = {}) {
   if (sc) {
     if (view === from) {
       if (TABS.includes(view) && !instant) sc.scrollTo({ top: 0, behavior: motion.reduced() ? 'auto' : 'smooth' });
-    } else if (back || from === 'item') sc.scrollTop = state.scrollPos[view] || 0;
+    } else if (back || (from === 'item' && !fresh)) sc.scrollTop = state.scrollPos[view] || 0;
     else if (from === 'add' || !TABS.includes(view)) sc.scrollTop = 0;
   }
 
@@ -264,16 +302,31 @@ function navigate(view, { instant = false } = {}) {
 }
 
 // Zurückwischen vom linken Rand – nur in Push-Ansichten und wenn nichts darüber liegt.
+let swipeFrom = null;
 function beginSwipeBack() {
   if (!PUSH.includes(state.view) || motion.busy() || !$('#lightbox').hidden || sheet.isOpen() || onboarding.isOpen()) return null;
-  const prev = state.origin[state.view] || 'home';
+  const prev = prevView();
   const prevEl = $('#view-' + prev);
   if (!prevEl || prev === state.view) return null;
   hideCombo();
+  closeSwipes();
   if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
   renderView(prev);
+  swipeFrom = state.view;
   return motion.dragPop($('#view-' + state.view), prevEl);
 }
+
+// Nach dem Loslassen: nur zurück, wenn inzwischen nicht schon woandershin navigiert wurde
+// (z. B. Tab angetippt, während die Ansicht noch zurückgleitet).
+function commitSwipeBack() {
+  const at = swipeFrom;
+  swipeFrom = null;
+  if (at && state.view === at) navigate('back', { instant: true });
+}
+
+// Aufgeklappte Wisch-Zeilen schließen (vor dem Neuzeichnen einer Liste und beim Navigieren).
+const swipers = [];
+function closeSwipes() { for (const w of swipers) w.close(); }
 
 /* =========================== Liste =========================== */
 
@@ -683,7 +736,7 @@ function openRoom(id) {
   if (!state.rooms.some(r => r.id === id)) return;
   state.roomId = id;
   if (state.view === 'room') { renderView('room'); return; }
-  navigate('room');
+  navigate('room', { fresh: true });
 }
 
 // „Hier fotografieren“: Raum als gemerkten Raum vorbelegen und Hinzufügen öffnen.
@@ -818,7 +871,10 @@ async function setItemRoom(id, name) {
   return true;
 }
 
-// Ins Archiv – mit „Rückgängig“ im Toast statt einer Rückfrage vorher.
+// Ins Archiv – mit „Rückgängig“ im Toast statt einer Rückfrage vorher. Wischt man
+// mehrere nacheinander weg, sammelt der Toast sie („3 archiviert“), jedes Wischen startet
+// die 5 s neu, und Rückgängig holt alle zurück.
+let undoBatch = null;   // { ids: [] } – gehört zum gerade stehenden Rückgängig-Toast
 async function archiveWithUndo(id) {
   const it = state.items.find(x => x.id === id);
   if (!it) return;
@@ -827,11 +883,18 @@ async function archiveWithUndo(id) {
     await refreshItems();
     renderCurrent();
     updateStorageInfo();
-    toast(it.name ? `„${it.name}“ archiviert.` : 'Ins Archiv verschoben.', false, {
+    const batch = undoBatch && toastAction?.batch === undoBatch && !$('#toast').hidden ? undoBatch : { ids: [] };
+    if (!batch.ids.includes(id)) batch.ids.push(id);
+    undoBatch = batch;
+    const n = batch.ids.length;
+    const msg = n > 1 ? `${n} archiviert` : it.name ? `„${it.name}“ archiviert.` : 'Ins Archiv verschoben.';
+    toast(msg, false, {
       label: 'Rückgängig',
+      batch,
       run: async () => {
+        if (undoBatch === batch) undoBatch = null;
         try {
-          await db.restoreItem(id);
+          for (const x of batch.ids) await db.restoreItem(x);
           await refreshItems();
           renderCurrent();
           updateStorageInfo();
@@ -940,7 +1003,7 @@ async function openItem(id) {
   el.removeAttribute('src');
   $('#item-nophoto').hidden = false;
   $('#item-expand').hidden = true;
-  navigate('item');
+  navigate('item', { fresh: true });
 
   if (it.photoId) {
     const photo = await db.get('photos', it.photoId);
@@ -1402,8 +1465,9 @@ function wire() {
   $('#room-list').addEventListener('click', rowClick);
   $('#f-flag').addEventListener('click', () => { state.listFilter = null; renderList(); });
 
-  // --- Zuhause & Raum ---
+  // --- Zuhause, Räume & Raum ---
   $('#view-home').addEventListener('click', onHomeClick);
+  $('#view-places').addEventListener('click', onHomeClick);
   // Direkt im Tipp fokussieren, sonst öffnet iOS die Tastatur nicht.
   $('#home-search').addEventListener('click', () => { navigate('list'); $('#q').focus(); });
   $('#room-shoot').addEventListener('click', () => shootHere(state.roomId));
@@ -1417,12 +1481,13 @@ function wire() {
   // --- Gesten ---
   const archiveAct = `<span class="sa-in">${icon('archive')}<span>Archiv</span></span>`;
   for (const root of [$('#list'), $('#room-list')]) {
-    swipeRows(root, '.row', archiveAct, (row) => archiveWithUndo(row.dataset.id));
+    swipers.push(swipeRows(root, '.row', archiveAct, (row) => archiveWithUndo(row.dataset.id)));
     longPress(root, '.row', (row) => itemMenu(row.dataset.id));
   }
   longPress($('#home-recent'), '.rtile', (el) => itemMenu(el.dataset.id));
   longPress($('#home-rooms'), '.rt[data-room]', (el) => roomMenu(el.dataset.room));
-  edgeSwipe(beginSwipeBack, () => navigate('back', { instant: true }));
+  longPress($('#places-grid'), '.rt[data-room]', (el) => roomMenu(el.dataset.room));
+  edgeSwipe($('#edge'), beginSwipeBack, commitSwipeBack);
 
   // --- Vollbild-Ansicht ---
   $('#lb-close').addEventListener('click', closeLightbox);
@@ -1602,15 +1667,18 @@ async function addNamed(kind, input) {
 /* =========================== Toast & Service Worker =========================== */
 
 let toastTimer = null;
+let toastAction = null;   // Aktion des gerade stehenden Toasts (oder null)
 // action: { label, run } – z. B. „Rückgängig“; bleibt dann 5 s stehen.
 function toast(msg, isError, action) {
   const t = $('#toast');
+  toastAction = action || null;
   t.className = 'toast' + (isError ? ' err' : '') + (action ? ' has-act' : '');
   if (action) {
     t.innerHTML = `<span class="toast-msg">${esc(msg)}</span><button class="toast-act" type="button">${icon('undo')}${esc(action.label)}</button>`;
     t.querySelector('.toast-act').addEventListener('click', () => {
       clearTimeout(toastTimer);
       t.hidden = true;
+      toastAction = null;
       action.run();
     }, { once: true });
   } else {
@@ -1622,7 +1690,7 @@ function toast(msg, isError, action) {
   void t.offsetWidth;
   t.style.animation = '';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, action ? 5000 : isError ? 5200 : 2600);
+  toastTimer = setTimeout(() => { t.hidden = true; toastAction = null; }, action ? 5000 : isError ? 5200 : 2600);
 }
 
 // Mischstand nach einem Update beheben: den neuen Service Worker übernehmen lassen und

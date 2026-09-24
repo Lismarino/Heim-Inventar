@@ -5,7 +5,9 @@
 // Systemschrift verwendet. Die Aufteilung (Symbol 104 pt, darunter „Inventar“) muss
 // zum Start-Logo #splash in index.html/css passen, sonst springt das Bild beim Start.
 // Danach die PNGs am besten noch verlustfrei verkleinern (z. B. mit oxipng oder
-// als 256-Farben-PNG) – iOS lädt sie beim Installieren alle.
+// als 256-Farben-PNG) – iOS lädt sie beim Installieren alle. Ziel: höchstens ~55 KB je Bild.
+// In index.html stehen die dunklen Varianten (mit prefers-color-scheme: dark) vor den
+// hellen, die ohne Farbschema-Bedingung als Standard gelten.
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -14,7 +16,7 @@ const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'icons', 'splash');
 // [Breite, Höhe, Pixelverhältnis] in Punkten, hochkant
 const SIZES = [
-  [440, 956, 3], [402, 874, 3], [430, 932, 3], [393, 852, 3], [428, 926, 3], [390, 844, 3],
+  [440, 956, 3], [420, 912, 3], [402, 874, 3], [430, 932, 3], [393, 852, 3], [428, 926, 3], [390, 844, 3],
   [375, 812, 3], [360, 780, 3], [414, 896, 3], [414, 896, 2], [414, 736, 3], [375, 667, 2], [320, 568, 2],
 ];
 const THEMES = { light: { bg: '#f4eee3', fg: '#2b221c' }, dark: { bg: '#17130f', fg: '#f3eadd' } };
