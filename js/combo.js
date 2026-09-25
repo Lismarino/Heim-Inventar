@@ -4,7 +4,7 @@
 
 const MAX = 8;
 
-let sourceFn = null;   // (kind) => string[]
+let sourceFn = null;   // (kind, input) => string[] – Räume z. B. nach data-place des Felds
 let openInput = null;
 let listEl = null;
 let index = -1;
@@ -44,7 +44,7 @@ export function initCombos(getSource) {
 export function hideCombo() { hide(); }
 
 function show(input) {
-  const all = (sourceFn ? sourceFn(input.dataset.combo) : []) || [];
+  const all = (sourceFn ? sourceFn(input.dataset.combo, input) : []) || [];
   const q = norm(input.value);
 
   let items;

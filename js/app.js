@@ -12,8 +12,9 @@ import * as onboarding from './onboarding.js';
 import { haptic, longPress, swipeRows, edgeSwipe } from './gestures.js';
 import * as glass from './glass.js';
 import * as intro from './intro.js';
+import { byOrder, placeBadge, placeIcon, placeChipsHTML, styleHTML, suggestIcon, colorFor, safeIcon, safeColor } from './places.js';
 
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.7.0';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 // Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
@@ -23,7 +24,8 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
 // Tabs behalten ihre Scroll-Position; Push-Ansichten gleiten von rechts herein.
-// „places“ ist der Tab „Räume“ – „rooms“ ist (historisch) die Ansicht „Ohne Raum“.
+// „places“ ist der Tab „Räume“ – „rooms“ ist (historisch) die Ansicht „Ohne Ort“
+// (bis 1.6 „Ohne Raum“), „room“ zeigt einen Raum oder, ohne Raum, einen Ort selbst.
 const TABS = ['home', 'list', 'places', 'settings'];
 const PUSH = ['item', 'rooms', 'room', 'archive'];
 
@@ -32,12 +34,16 @@ const state = {
   items: [],
   cats: [],
   rooms: [],
+  places: [],       // Orte, geordnet (1.7.0)
   view: 'home',
   stack: ['home'],  // Navigationsstapel: unten der Tab, oben die aktuelle Ansicht
   roomId: null,     // Raum-Ansicht: welcher Raum
+  placeId: null,    // … oder ohne Raum: welcher Ort (was direkt dort liegt)
+  rsPlace: '',      // „Ohne Ort“: gewählter Ort in der Zuweisen-Leiste
+  itPlace: '',      // Eintrag: gewählter Ort
   listFilter: null, // „Alles“: null | 'unnamed'
   capture: { ids: [], busy: '' },   // Schnellerfassung: in dieser Runde erfasste Einträge
-  roomSel: new Set(),               // „Ohne Raum“: markierte Einträge
+  roomSel: new Set(),               // „Ohne Ort“: markierte Einträge
   scrollPos: {},                    // Ansicht -> Scroll-Position beim Verlassen
   currentId: null,
   shown: {},        // Detail: zuletzt angezeigte Feldwerte – gespeichert wird nur, was davon abweicht
@@ -47,16 +53,37 @@ const state = {
 };
 
 const catName = (id) => state.cats.find(c => c.id === id)?.name || '';
-const roomName = (id) => state.rooms.find(r => r.id === id)?.name || '';
+const roomById = (id) => (id && state.rooms.find(r => r.id === id)) || null;
+const placeById = (id) => (id && state.places.find(p => p.id === id)) || null;
+const roomName = (id) => roomById(id)?.name || '';
+const placeName = (id) => placeById(id)?.name || '';
+const roomsIn = (pid) => state.rooms.filter(r => r.placeId === pid);
+const multiPlaces = () => state.places.length > 1;
+const low = (s) => String(s || '').trim().toLowerCase();
 const hasKey = () => !!(state.settings.apiKey || '').trim();
 // Raum zählt nur, wenn es ihn auch gibt – eine Sicherung kann tote Verweise enthalten.
-const hasRoom = (it) => !!(it.roomId && roomName(it.roomId));
+const hasRoom = (it) => !!roomById(it.roomId);
+// Ort eines Eintrags: der seines Raums, sonst der, an dem er direkt liegt (db.js, oben).
+const placeOf = (it) => { const r = roomById(it.roomId); return r ? placeById(r.placeId) : placeById(it.placeId); };
+// Zugeordnet ist, was in einem Raum oder direkt an einem Ort liegt. Ein Raum zählt auch dann,
+// wenn sein Ort (noch) fehlt – so springt nichts nach „Ohne Ort“, falls die Zuordnung hakt.
+const hasPlace = (it) => hasRoom(it) || !!placeById(it.placeId);
+// „Auto › Kofferraum“. Den Ort nur, wenn es mehrere gibt oder kein Raum da ist – mit einem
+// einzigen Ort versteht er sich von selbst.
+function whereText(placeId, roomId, sep = ' › ') {
+  const r = roomById(roomId);
+  const p = r ? placeById(r.placeId) : placeById(placeId);
+  return [p && (multiPlaces() || !r) ? p.name : '', r ? r.name : ''].filter(Boolean).join(sep);
+}
+const whereOf = (it, sep) => whereText(it.placeId, it.roomId, sep);
+const whereShort = (it) => roomName(it.roomId) || placeOf(it)?.name || '';
 // Wartet ein Eintrag auf die Erkennung, geht das nur mit Key voran. Ohne Key nicht
 // ewig „wird erkannt …“ drehen, sondern sagen, woran es hängt.
 const aiBusy = (it) => it.aiState === 'pending' && hasKey();
 const aiNeedsKey = (it) => it.aiState === 'pending' && !hasKey();
+// „Ohne Ort“ (Name aus der Zeit, als es „Ohne Raum“ hieß): weder Raum noch Ort.
 const noRoomItems = () => state.items
-  .filter(i => !i.archived && !hasRoom(i))
+  .filter(i => !i.archived && !hasPlace(i))
   .sort((a, b) => b.createdAt - a.createdAt);
 
 /* =========================== Boot =========================== */
@@ -69,25 +96,35 @@ async function boot() {
     console.warn(`Versionen passen nicht zusammen: index.html ${pageVersion || 'alt'}, app.js ${APP_VERSION}.`);
     if (await rescueUpdate('Version')) return;
   }
+  db.onDbEvent(onDbEvent);
   try {
     await db.openDB();
   } catch (e) {
     showBootError('Die lokale Datenbank konnte nicht geöffnet werden. Im privaten Modus von Safari steht IndexedDB nicht zur Verfügung.', e);
     return;
   }
+  // 1.7.0: Räume ohne Ort nach „Zuhause“ (einmalig, idempotent, eine Transaktion). Scheitert es,
+  // bleibt alles, wie es war, und die App startet trotzdem – der nächste Start versucht es erneut.
+  try {
+    const m = await db.migratePlaces();
+    if (m.rooms || m.items || m.merged) console.info('Orte eingerichtet:', m);
+  } catch (e) {
+    console.warn('Zuordnung zu Orten fehlgeschlagen – nächster Start versucht es erneut:', e);
+  }
   try {
     await reloadAll();
     wire();
     glass.init();
-    initCombos(kind => (kind === 'categories' ? state.cats : state.rooms).map(x => x.name));
+    initCombos(comboSource);
     sheet.init();
     home.init({
-      state, roomName, catName, hasRoom, aiBusy, aiNeedsKey, noRoomItems,
+      state, roomName, catName, roomById, placeById, placeOf, hasRoom, aiBusy, aiNeedsKey, noRoomItems, whereShort,
       rowHTML: (it, opts) => rowHTML(it, '', opts),
       queueNote: () => queue.status().note,
     });
     onboarding.init({
-      rooms: () => state.rooms.map(r => r.name),
+      places: () => state.places.map(p => ({ name: p.name, icon: p.icon })),
+      rooms: () => state.rooms.map(r => ({ name: r.name, place: placeName(r.placeId) })),
       apiKey: () => state.settings.apiKey,
       done: finishOnboarding,
     });
@@ -96,7 +133,7 @@ async function boot() {
     navigate('home', { instant: true });
     $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
     // Erster Start ohne jede Spur einer Einrichtung: Begrüßung. Scheitert sie, startet die App trotzdem.
-    await onboarding.maybeShow(state.settings, { items: state.items.length, rooms: state.rooms.length })
+    await onboarding.maybeShow(state.settings, { items: state.items.length, rooms: state.rooms.length, places: state.places.length })
       .catch((e) => console.warn('Einführung:', e));
   } catch (e) {
     showBootError('Die gespeicherten Daten konnten nicht geladen werden. Lade die Seite neu; hilft das nicht, schließe andere Tabs mit der App.', e);
@@ -128,6 +165,32 @@ function showBootError(msg, err) {
   console.error('Start fehlgeschlagen:', err);
 }
 
+// Datenbank-Ereignisse (db.js). blocked: Das Upgrade auf Version 2 wartet, weil ein anderer
+// Tab mit einer älteren Fassung die Datenbank offen hält (etwa eingefroren im Hintergrund) –
+// dann sagen, was los ist, statt still zu hängen; es geht von selbst weiter, sobald er zu ist.
+// versionchange: Eine neuere Fassung in einem anderen Tab will upgraden – wir haben
+// losgelassen und bieten Neuladen an.
+function onDbEvent(type) {
+  const box = $('#boot-error');
+  if (type === 'blocked') {
+    window.__inventarFailed = true;   // der Start-Wächter soll hier nicht „Datei fehlt“ melden
+    box.querySelector('h2').textContent = 'Einen Moment …';
+    box.querySelector('p').textContent = 'Die App ist noch in einem anderen Tab oder Fenster mit einer älteren Version geöffnet. '
+      + 'Schließe es dort (oder lade es neu) – dann geht es hier von selbst weiter.';
+    $('#boot-error-detail').textContent = 'Deine Einträge werden dabei auf Orte umgestellt (Version 1.7.0). Es geht nichts verloren.';
+    box.hidden = false;
+  } else if (type === 'unblocked') {
+    window.__inventarFailed = false;
+    box.hidden = true;
+    box.querySelector('h2').textContent = 'Die App konnte nicht starten';
+  } else if (type === 'versionchange') {
+    const bar = $('#update-bar');
+    bar.querySelector('span').textContent = 'Neue Version in einem anderen Tab';
+    bar.hidden = false;
+    $('#update-go').addEventListener('click', () => location.reload(), { once: true });
+  }
+}
+
 // Die Start-Szene öffnet sich in die App, sobald sie steht (js/intro.js). Liegt darunter die
 // Einführung, bekommt danach deren Überschrift den Fokus (vorher ist sie inert).
 function hideSplash() {
@@ -150,14 +213,34 @@ async function finishOnboarding({ key, goAdd, skipped }) {
 }
 
 async function reloadAll() {
-  const [settings, items, cats, rooms] = await Promise.all([
-    db.loadSettings(), db.getAll('items'), db.getAll('categories'), db.getAll('rooms'),
+  const [settings, items, cats, rooms, places] = await Promise.all([
+    db.loadSettings(), db.getAll('items'), db.getAll('categories'), db.getAll('rooms'), db.getAll('places'),
   ]);
   state.settings = settings;
   state.items = items;
   state.cats = cats.sort((a, b) => a.name.localeCompare(b.name, 'de'));
   state.rooms = rooms.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  state.places = places.sort(byOrder);
+  // Ort am Eintrag mit dem seines Raums gleichziehen, falls ein älterer Tab (oder eine alte
+  // Fassung) einen Eintrag ohne placeId geschrieben hat – ohne extra Lesen, nur bei Bedarf.
+  const drift = items.filter(it => { const r = roomById(it.roomId); return r && placeById(r.placeId) && it.placeId !== r.placeId; });
+  if (drift.length) {
+    for (const it of drift) it.placeId = roomById(it.roomId).placeId;
+    await db.syncItemPlaces(drift.map(it => it.id)).catch((e) => console.warn('Orte nachziehen:', e));
+  }
+  // Gemerkte Orte, die es nicht mehr gibt (gelöscht, Sicherung ersetzt): vergessen.
+  if (settings.lastPlace && !placeById(settings.lastPlace)) settings.lastPlace = '';
+  if (settings.homePlace && !placeById(settings.homePlace)) settings.homePlace = '';
+  if (state.rsPlace && !placeById(state.rsPlace)) state.rsPlace = '';
   refreshPickers();
+}
+
+// Vorschläge: Kategorien; Räume nur aus dem Ort des Felds (data-place), ohne Ort alle.
+function comboSource(kind, input) {
+  if (kind === 'categories') return state.cats.map(c => c.name);
+  const pid = input?.dataset.place || '';
+  const rooms = pid && placeById(pid) ? roomsIn(pid) : state.rooms;
+  return [...new Map(rooms.map(r => [low(r.name), r.name])).values()];
 }
 
 // Leichter als reloadAll(): nur Einträge und Kategorien – für die Hintergrund-Erkennung.
@@ -197,12 +280,26 @@ function renderView(view) {
   else if (view === 'add') renderCapture();
   else if (view === 'rooms') renderRooms();
   else if (view === 'archive') renderArchive();
-  else if (view === 'room' && !home.renderRoom(state.roomId) && state.view === 'room') navigate('back');
+  else if (view === 'room' && !home.renderRoom(state.roomId, state.placeId) && state.view === 'room') navigate('back');
 }
 
 function refreshPickers() {
   fillSelect($('#f-cat'), state.cats, 'Alle Kategorien');
-  fillSelect($('#f-room'), state.rooms, 'Alle Räume');
+  const fp = $('#f-place');
+  fillSelect(fp, state.places, 'Alle Orte');
+  // Mit nur einem Ort wäre der Filter nutzlos.
+  fp.hidden = state.places.length < 2;
+  if (fp.hidden) fp.value = '';
+  $('#filters').classList.toggle('three', !fp.hidden);
+  fillRoomFilter();
+}
+
+// Raum-Filter: nur Räume des gewählten Orts; ohne Ort-Filter bei mehreren Orten mit Ortsnamen.
+function fillRoomFilter() {
+  const pid = $('#f-place').value;
+  const rows = (pid ? roomsIn(pid) : state.rooms)
+    .map(r => ({ id: r.id, name: !pid && multiPlaces() ? `${r.name} (${placeName(r.placeId)})` : r.name }));
+  fillSelect($('#f-room'), rows, 'Alle Räume');
 }
 
 function fillSelect(sel, rows, allLabel) {
@@ -265,7 +362,7 @@ function navigate(view, { instant = false, fresh = false } = {}) {
   sheet.close();
   closeSwipes();
   if (state.detailURL && view !== 'item') { URL.revokeObjectURL(state.detailURL); state.detailURL = null; }
-  // Neue Erfassungsrunde – außer man kommt nur aus einem Eintrag oder „Ohne Raum“ zurück.
+  // Neue Erfassungsrunde – außer man kommt nur aus einem Eintrag oder „Ohne Ort“ zurück.
   if (view === 'add' && !back && from !== 'add') resetCapture();
   if (view === 'rooms' && !back && from !== 'rooms') resetRoomSel();
 
@@ -340,16 +437,18 @@ function closeSwipes() { for (const w of swipers) w.close(); }
 /* =========================== Liste =========================== */
 
 function haystack(it) {
-  return [it.name, catName(it.categoryId), roomName(it.roomId), it.locationDetail, it.quantity, it.note]
+  return [it.name, catName(it.categoryId), placeOf(it)?.name, roomName(it.roomId), it.locationDetail, it.quantity, it.note]
     .filter(Boolean).join(' ');
 }
 
 function visibleItems() {
   const q = norm($('#q').value);
   const cat = $('#f-cat').value;
+  const place = $('#f-place').value;
   const room = $('#f-room').value;
   return state.items
     .filter(i => !i.archived)
+    .filter(i => !place || placeOf(i)?.id === place)
     .filter(i => !cat || i.categoryId === cat)
     .filter(i => !room || i.roomId === room)
     .filter(i => state.listFilter !== 'unnamed' || home.isUnnamed(i))
@@ -357,13 +456,15 @@ function visibleItems() {
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
-// opts.inRoom: in der Raum-Ansicht den Raum weglassen; opts.noCat: Kategorie steht schon darüber.
+// opts.inRoom: in der Raum-Ansicht Ort und Raum weglassen; opts.noCat: Kategorie steht schon darüber.
+// Wo: „Auto · Kofferraum · Regal 2“ mit dem Symbol des Orts.
 function rowHTML(it, why, opts = {}) {
   const thumb = isThumb(it.thumb)
     ? `<img class="thumb" src="${esc(it.thumb)}" alt="">`
     : placeholderHTML(it, 'thumb');
   const cat = opts.noCat ? '' : catName(it.categoryId);
-  const place = [opts.inRoom ? '' : roomName(it.roomId), it.locationDetail].filter(Boolean).join(' · ');
+  const p = opts.inRoom ? null : placeOf(it);
+  const place = [opts.inRoom ? '' : whereOf(it, ' · '), it.locationDetail].filter(Boolean).join(' · ');
   const title = aiBusy(it)
     ? `<div class="name pending"><span class="spin"></span>${esc(it.name || 'wird erkannt …')}</div>`
     : it.name
@@ -375,7 +476,7 @@ function rowHTML(it, why, opts = {}) {
     ${thumb}
     <div class="body">
       ${title}
-      <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${place ? `<span class="place">${icon('pin')}<span>${esc(place)}</span></span>` : ''}${it.quantity ? `<span class="qty">${esc(it.quantity)}</span>` : ''}</div>
+      <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${place ? `<span class="place">${p ? placeIcon(p) : icon('pin')}<span>${esc(place)}</span></span>` : ''}${it.quantity ? `<span class="qty">${esc(it.quantity)}</span>` : ''}</div>
       ${why ? `<div class="why">${esc(why)}</div>` : `<div class="when">${dtf.format(new Date(it.createdAt))}</div>`}
     </div>
   </button>`;
@@ -391,7 +492,7 @@ function renderList() {
   const hint = $('#noroom-hint');
   hint.hidden = !nr;
   if (nr) hint.innerHTML = `<span class="nr-ic">${icon('pin')}</span>`
-    + `<span class="nr-txt"><b>${plural(nr, 'Eintrag', 'Einträge')} ohne Raum</b><small>Jetzt gesammelt zuordnen</small></span>`
+    + `<span class="nr-txt"><b>${plural(nr, 'Eintrag', 'Einträge')} ohne Ort</b><small>Jetzt gesammelt zuordnen</small></span>`
     + icon('chev-r', 'go');
   const rows = visibleItems();
   const total = state.items.filter(i => !i.archived).length;
@@ -460,6 +561,7 @@ async function runAiSearch() {
       n: i + 1,
       name: it.name,
       category: catName(it.categoryId),
+      place: placeOf(it)?.name || '',
       room: roomName(it.roomId),
       location: it.locationDetail,
       quantity: it.quantity,
@@ -492,15 +594,69 @@ function renderArchive() {
   $('#arch-empty').hidden = rows.length > 0;
 }
 
+/* =========================== Orte: gemeinsame Bausteine =========================== */
+
+// Chips zur Wahl des Orts in `box` zeichnen – nur neu, wenn sich Orte oder Wahl geändert
+// haben (sonst springt die Chip-Reihe beim Hintergrund-Aktualisieren an den Anfang zurück).
+function drawPlaceChips(box, selected, opts) {
+  const sig = state.places.map(p => [p.id, p.name, p.icon, p.color].join('\u0001')).join('\u0002') + '|' + selected;
+  if (box.dataset.sig === sig) return;
+  const first = box.dataset.sig == null;
+  box.dataset.sig = sig;
+  const keep = box.querySelector('.pchips')?.scrollLeft || 0;
+  box.innerHTML = placeChipsHTML(state.places, selected, opts);
+  const row = box.querySelector('.pchips');
+  if (!first) row.scrollLeft = keep;
+  const on = row.querySelector('.pchip.on');
+  if (on && (on.offsetLeft < row.scrollLeft || on.offsetLeft + on.offsetWidth > row.scrollLeft + row.clientWidth)) {
+    row.scrollLeft = Math.max(0, on.offsetLeft - 16);
+  }
+}
+
+// Tipp auf einen Orts-Chip: gewählt – oder, noch einmal angetippt, wieder offen.
+// Liefert die neue Wahl, null bei einem Tipp daneben; „Neuer Ort“ öffnet das Anlegen.
+function pickPlace(e, current, onNew) {
+  if (e.target.closest('[data-place-new]')) { addPlaceSheet({ onDone: onNew }); return null; }
+  const b = e.target.closest('[data-place]');
+  if (!b) return null;
+  haptic();
+  return b.dataset.place === current ? '' : b.dataset.place;
+}
+
+// Ein Raumfeld folgt dem gewählten Ort: Vorschläge nur aus diesem Ort; steht darin ein Raum,
+// den es dort nicht gibt, wird es geleert – sonst entstünde beim Speichern still ein neuer.
+function followPlace(input, pid) {
+  input.dataset.place = pid || '';
+  const v = input.value.trim();
+  if (v && pid && !roomsIn(pid).some(r => low(r.name) === low(v))) input.value = '';
+  hideCombo();
+}
+
+/**
+ * Ort und Raumnamen in IDs auflösen (neue Räume entstehen im Ort). Ohne Ort, aber mit Raum:
+ * der Ort, in dem es den Raum schon gibt – sonst der Standard-Ort (db.ensureRoom, notfalls
+ * wird „Zuhause“ angelegt). Liefert { placeId, roomId }.
+ */
+async function resolveWhere(placeId, roomName) {
+  const clean = String(roomName || '').trim();
+  let pid = placeById(placeId)?.id || '';
+  if (!clean) return { placeId: pid || null, roomId: null };
+  if (!pid) pid = state.rooms.find(r => low(r.name) === low(clean))?.placeId || '';
+  const roomId = await db.ensureRoom(pid, clean);
+  if (!roomById(roomId)) await reloadAll();
+  return { placeId: roomById(roomId)?.placeId || pid || null, roomId };
+}
+
 /* =========================== Hinzufügen: Schnellerfassung =========================== */
 
-// Neue Erfassungsrunde: Zähler leeren, gemerkten Raum vorbelegen.
+// Neue Erfassungsrunde: Zähler leeren, gemerkten Ort und Raum vorbelegen.
 function resetCapture() {
   state.capture = { ids: [], busy: state.capture.busy };
   $('#cap-room').value = state.settings.lastRoom || '';
   $('#cap-loc').value = state.settings.lastLoc || '';
   $('#manual').open = false;
   resetManual();
+  renderCapWhere();
 }
 
 function resetManual() {
@@ -508,19 +664,60 @@ function resetManual() {
   $('#man-more').open = false;
 }
 
-// Raum und Ort-Details merken, bis die Nutzerin sie ändert. Leer ist erlaubt.
+// „Du bist gerade in: Auto › Kofferraum“ – oben groß, darunter die Orts-Chips.
+function renderCapWhere() {
+  const pid = placeById(state.settings.lastPlace)?.id || '';
+  drawPlaceChips($('#cap-places'), pid, { label: 'Ort' });
+  $('#cap-room').dataset.place = pid;
+  renderCapNow();
+}
+
+function renderCapNow() {
+  const p = placeById(state.settings.lastPlace);
+  const room = $('#cap-room').value.trim();
+  $('#cap-now').innerHTML = !p && !room
+    ? '<span class="open">Noch offen</span> <small>ordnest du später zu</small>'
+    : (p ? `${placeIcon(p)}<b>${esc(p.name)}</b>` : '') + (room ? `${p ? ' <i>›</i> ' : ''}<b>${esc(room)}</b>` : '');
+}
+
+async function setCapPlace(id) {
+  state.settings.lastPlace = id;
+  followPlace($('#cap-room'), id);
+  renderCapWhere();
+  try {
+    await db.setSetting('lastPlace', id);
+    await rememberWhere();
+  } catch (e) { console.warn('Ort merken fehlgeschlagen:', e); }
+}
+
+// Ort, Raum und genauen Platz merken, bis die Nutzerin sie ändert. Leer ist erlaubt.
 async function rememberWhere() {
   const room = $('#cap-room').value.trim();
   const loc = $('#cap-loc').value.trim();
   if (room !== (state.settings.lastRoom || '')) { state.settings.lastRoom = room; await db.setSetting('lastRoom', room); }
   if (loc !== (state.settings.lastLoc || '')) { state.settings.lastLoc = loc; await db.setSetting('lastLoc', loc); }
-  return { room, loc };
+  renderCapNow();
+  return { placeId: placeById(state.settings.lastPlace)?.id || '', room, loc };
+}
+
+// Ort und Raum für neue Einträge auflösen. Ergab sich der Ort erst aus dem Raum, ihn
+// ab jetzt auch oben zeigen und merken.
+async function captureWhere() {
+  const { placeId, room, loc } = await rememberWhere();
+  const where = await resolveWhere(placeId, room);
+  if (!placeId && where.placeId) {
+    state.settings.lastPlace = where.placeId;
+    await db.setSetting('lastPlace', where.placeId);
+    renderCapWhere();
+  }
+  return { ...where, loc };
 }
 
 function renderCapture() {
   const hint = $('#cap-hint');
   hint.hidden = hasKey();
   hint.textContent = 'Ohne API-Key in den Einstellungen werden Fotos nicht erkannt. Sie landen als „Unbenannt“ in der Liste – trägst du später einen Key ein, werden sie automatisch erkannt.';
+  renderCapWhere();
 
   const mine = state.capture.ids.map(id => state.items.find(i => i.id === id)).filter(Boolean);
   const busy = state.capture.busy;
@@ -552,7 +749,7 @@ function renderCapture() {
   const nr = noRoomItems().length;
   const link = $('#cap-noroom');
   link.hidden = !nr;
-  link.textContent = `${plural(nr, 'Eintrag', 'Einträge')} ohne Raum – zuordnen`;
+  link.textContent = `${plural(nr, 'Eintrag', 'Einträge')} ohne Ort – zuordnen`;
 }
 
 // Mehrere Auswahlen nacheinander abarbeiten, nie parallel (Speicher auf dem iPhone).
@@ -565,9 +762,7 @@ function capturePhotos(files) {
 
 // Jedes Foto wird sofort ein Eintrag – erkannt wird später im Hintergrund.
 async function captureBatch(files) {
-  const { room, loc } = await rememberWhere();
-  const roomId = await db.ensureNamed('rooms', room);
-  if (roomId && !state.rooms.some(r => r.id === roomId)) await reloadAll();
+  const { placeId, roomId, loc } = await captureWhere();
   const pending = hasKey();
   const max = Number(state.settings.imgMax) || 1600;
   let failed = 0;
@@ -585,6 +780,7 @@ async function captureBatch(files) {
       const now = Date.now();
       const photo = { id: db.uid(), buf: await blob.arrayBuffer(), type: 'image/jpeg', createdAt: now };
       const it = db.newItem({
+        placeId,
         roomId,
         locationDetail: loc,
         photoId: photo.id,
@@ -619,12 +815,12 @@ async function saveManual() {
   const btn = $('#man-save');
   btn.disabled = true;
   try {
-    const { room, loc } = await rememberWhere();
-    const roomId = await db.ensureNamed('rooms', room);
+    const { placeId, roomId, loc } = await captureWhere();
     const categoryId = await db.ensureNamed('categories', $('#man-cat').value);
     const it = db.newItem({
       name,
       categoryId,
+      placeId,
       roomId,
       locationDetail: loc,
       quantity: $('#man-qty').value.trim(),
@@ -661,10 +857,12 @@ async function suggestCategoryLater(id, name) {
   }
 }
 
-/* =========================== Ohne Raum =========================== */
+/* =========================== Ohne Ort =========================== */
 
+// Neue Runde: nichts markiert, Ort vorbelegt (gemerkter Ort der Schnellerfassung, sonst der erste).
 function resetRoomSel() {
   state.roomSel.clear();
+  state.rsPlace = placeById(state.settings.lastPlace)?.id || state.places[0]?.id || '';
   $('#rs-room').value = '';
   $('#rs-loc').value = '';
 }
@@ -697,6 +895,8 @@ function renderRooms() {
   $('#rs-bar').hidden = !rows.length;
   $('#rs-empty').hidden = rows.length > 0;
   $('#rs-grid').innerHTML = rows.map(pickHTML).join('');
+  drawPlaceChips($('#rs-places'), state.rsPlace, { label: 'Ort' });
+  $('#rs-room').dataset.place = state.rsPlace;
   updateAssignButton();
 }
 
@@ -720,18 +920,18 @@ async function assignRooms() {
   const ids = [...state.roomSel];
   if (!ids.length) return;
   const room = $('#rs-room').value.trim();
-  if (!room) { toast('Bitte einen Raum eintragen.', true); $('#rs-room').focus(); return; }
+  if (!state.rsPlace && !room) { toast('Bitte einen Ort wählen.', true); return; }
   const btn = $('#rs-assign');
   btn.disabled = true;
   try {
-    const roomId = await db.ensureNamed('rooms', room);
-    const res = await db.assignRoom(ids, roomId, $('#rs-loc').value);
+    const where = await resolveWhere(state.rsPlace, room);
+    const res = await db.moveItems(ids, where.placeId, where.roomId, $('#rs-loc').value);
     state.roomSel.clear();
     hideCombo();
     await reloadAll();
     renderRooms();
     haptic();
-    toast(`${plural(res.changed, 'Eintrag', 'Einträge')} → ${roomName(roomId)}`);
+    toast(`${plural(res.changed, 'Eintrag', 'Einträge')} → ${whereText(where.placeId, where.roomId)}`);
   } catch (e) {
     toast('Zuweisen fehlgeschlagen: ' + e.message, true);
   } finally {
@@ -739,34 +939,47 @@ async function assignRooms() {
   }
 }
 
-/* =========================== Raum =========================== */
+/* =========================== Raum & Ort =========================== */
 
 function openRoom(id) {
-  if (!state.rooms.some(r => r.id === id)) return;
+  if (!roomById(id)) return;
   state.roomId = id;
+  state.placeId = null;
   if (state.view === 'room') { renderView('room'); return; }
   navigate('room', { fresh: true });
 }
 
-// „Hier fotografieren“: Raum als gemerkten Raum vorbelegen und Hinzufügen öffnen.
-function shootHere(roomId) {
-  const name = roomName(roomId);
-  if (!name) return;
-  state.settings.lastRoom = name;
+// Ein Ort selbst: was dort direkt liegt, ohne Raum (dieselbe Ansicht wie ein Raum).
+function openPlace(pid) {
+  if (!placeById(pid)) return;
+  state.roomId = null;
+  state.placeId = pid;
+  if (state.view === 'room') { renderView('room'); return; }
+  navigate('room', { fresh: true });
+}
+
+// „Hier fotografieren“: Ort und Raum als gemerkte Stelle vorbelegen und Hinzufügen öffnen.
+function shootHere(roomId, placeId) {
+  const r = roomById(roomId);
+  const p = r ? placeById(r.placeId) : placeById(placeId);
+  if (!r && !p) return;
+  state.settings.lastPlace = p?.id || '';
+  state.settings.lastRoom = r?.name || '';
   state.settings.lastLoc = '';
-  Promise.all([db.setSetting('lastRoom', name), db.setSetting('lastLoc', '')])
-    .catch((e) => console.warn('Raum merken fehlgeschlagen:', e));
+  Promise.all([db.setSetting('lastPlace', state.settings.lastPlace), db.setSetting('lastRoom', state.settings.lastRoom), db.setSetting('lastLoc', '')])
+    .catch((e) => console.warn('Ort merken fehlgeschlagen:', e));
   navigate('add');
 }
 
 const roomHead = (r) => {
   const n = home.roomItems(r.id).length;
+  const sub = [multiPlaces() ? placeName(r.placeId) : '', n ? plural(n, 'Ding', 'Dinge') : 'noch leer'].filter(Boolean).join(' · ');
   return `<span class="sh-pic ph ph-${toneOf(r.name)}">${esc(initialOf(r.name))}</span>`
-    + `<span class="sh-txt"><b>${esc(r.name)}</b><small>${esc(n ? plural(n, 'Ding', 'Dinge') : 'noch leer')}</small></span>`;
+    + `<span class="sh-txt"><b>${esc(r.name)}</b><small>${esc(sub)}</small></span>`;
 };
 
 function roomMenu(id) {
-  const r = state.rooms.find(x => x.id === id);
+  const r = roomById(id);
   if (!r) return;
   sheet.open({
     head: roomHead(r),
@@ -794,13 +1007,17 @@ function roomMenu(id) {
   });
 }
 
-function addRoomSheet() {
+// Neuer Raum – im angegebenen Ort; ohne Ort im Standard-Ort (notfalls entsteht „Zuhause“).
+function addRoomSheet(placeId) {
+  const p = placeById(placeId);
   sheet.form({
-    title: 'Neuer Raum', label: 'Name', placeholder: 'z. B. Werkstatt', submit: 'Anlegen',
+    head: p ? placeHead(p) : '',
+    title: p && multiPlaces() ? `Neuer Raum in ${p.name}` : 'Neuer Raum', label: 'Name',
+    placeholder: p?.icon === 'auto' || p?.icon === 'bus' ? 'z. B. Kofferraum' : 'z. B. Werkstatt', submit: 'Anlegen',
     onSubmit: async (v) => {
       if (!v) { toast('Bitte einen Namen eintragen.', true); return false; }
       try {
-        await db.ensureNamed('rooms', v);
+        await db.ensureRoom(p?.id, v);
         await reloadAll();
         renderCurrent();
         haptic();
@@ -813,11 +1030,222 @@ function addRoomSheet() {
   });
 }
 
+const placeHead = (p) => {
+  const rooms = roomsIn(p.id).length;
+  const n = state.items.filter(it => !it.archived && placeOf(it)?.id === p.id).length;
+  return placeBadge(p, 'sh-pic')
+    + `<span class="sh-txt"><b>${esc(p.name)}</b><small>${esc(`${plural(rooms, 'Raum', 'Räume')} · ${plural(n, 'Ding', 'Dinge')}`)}</small></span>`;
+};
+
+function placeMenu(pid) {
+  const p = placeById(pid);
+  if (!p) return;
+  sheet.open({
+    head: placeHead(p),
+    actions: [
+      { id: 'shoot', label: 'Hier fotografieren', icon: 'camera' },
+      { id: 'room', label: 'Raum hinzufügen', icon: 'plus' },
+      { id: 'rename', label: 'Umbenennen', icon: 'pencil' },
+      { id: 'style', label: 'Symbol & Farbe', icon: 'pl-' + safeIcon(p.icon) },
+      { id: 'drop', label: 'Ort löschen', icon: 'trash', danger: true },
+    ],
+    onAction: (a) => {
+      if (a === 'shoot') shootHere(null, pid);
+      else if (a === 'room') addRoomSheet(pid);
+      else if (a === 'rename') {
+        sheet.form({
+          head: placeHead(p), title: 'Ort umbenennen', label: 'Name', value: p.name, submit: 'Umbenennen',
+          onSubmit: async (v) => {
+            if (!v) { toast('Bitte einen Namen eintragen.', true); return false; }
+            await renamePlace(pid, v);
+            return true;
+          },
+        });
+      } else if (a === 'style') placeStyleSheet(pid);
+      else if (a === 'drop') placeDropSheet(pid);
+    },
+  });
+}
+
+// Symbol und Farbe wählen – im Blatt eines Orts oder beim Anlegen.
+function styleClick(e, sel) {
+  const ic = e.target.closest('[data-icon]');
+  const col = e.target.closest('[data-color]');
+  if (!ic && !col) return false;
+  if (ic) sel.icon = ic.dataset.icon;
+  if (col) sel.color = col.dataset.color;
+  markStyle(sel);
+  return ic ? 'icon' : 'color';
+}
+function markStyle(sel) {
+  for (const b of $$('#sheet-body [data-icon]')) { const on = b.dataset.icon === sel.icon; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
+  for (const b of $$('#sheet-body [data-color]')) { const on = b.dataset.color === sel.color; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
+  // Vorschau: das Symbol in den Farben des Orts.
+  for (const b of $$('#sheet-body [data-icon]')) b.className = b.className.replace(/\bpc-\S+/g, '').trim() + ` pc-${sel.color}`;
+}
+
+function placeStyleSheet(pid) {
+  const p = placeById(pid);
+  if (!p) return;
+  const sel = { icon: safeIcon(p.icon), color: safeColor(p.color) };
+  sheet.panel({
+    head: placeHead(p), title: 'Symbol & Farbe', html: styleHTML(sel.icon, sel.color), submit: 'Übernehmen',
+    onClick: (e) => { if (styleClick(e, sel)) haptic(); },
+    onSubmit: async () => {
+      try {
+        const cur = await db.get('places', pid);
+        if (cur) await db.put('places', { ...cur, icon: sel.icon, color: sel.color });
+        await reloadAll();
+        renderManagers();
+        renderCurrent();
+      } catch (e) { toast(e.message, true); }
+      return true;
+    },
+  });
+  markStyle(sel);
+}
+
+/** Neuer Ort: Name, dazu Symbol und Farbe – vorgeschlagen aus dem Namen, bis man selbst wählt. */
+function addPlaceSheet({ onDone } = {}) {
+  const sel = { icon: 'haus', color: colorFor('haus') };
+  const manual = { icon: false, color: false };
+  sheet.panel({
+    title: 'Neuer Ort',
+    html: `<label class="field"><span>Name</span><input id="sheet-input" type="text" placeholder="z. B. Auto, Betrieb, Haus 2" autocomplete="off" enterkeyhint="done"></label>`
+      + styleHTML(sel.icon, sel.color),
+    submit: 'Anlegen', focus: '#sheet-input',
+    onClick: (e) => { const k = styleClick(e, sel); if (k) { manual[k] = true; haptic(); } },
+    onSubmit: async (v) => {
+      if (!v) { toast('Bitte einen Namen eintragen.', true); return false; }
+      try {
+        const twin = state.places.find(p => low(p.name) === low(v));
+        const id = twin ? twin.id : await db.ensurePlace(v, { icon: sel.icon, color: sel.color });
+        await reloadAll();
+        renderManagers();
+        renderCurrent();
+        haptic();
+        toast(twin ? `„${twin.name}“ gibt es schon.` : `„${v}“ angelegt.`);
+        onDone?.(id);
+      } catch (e) {
+        toast(e.message, true);
+      }
+      return true;
+    },
+  });
+  markStyle(sel);
+  $('#sheet-input').addEventListener('input', (e) => {
+    if (!manual.icon) sel.icon = suggestIcon(e.target.value);
+    if (!manual.color) sel.color = colorFor(sel.icon);
+    markStyle(sel);
+  });
+}
+
+// Gemerkte Orte (Schnellerfassung, Umschalter, Ansichten) nach Umbenennen-Zusammenführen
+// oder Löschen umbiegen. to: neuer Ort oder '' (weg).
+async function followPlaceGone(from, to) {
+  const s = state.settings;
+  if (s.lastPlace === from) {
+    s.lastPlace = to;
+    await db.setSetting('lastPlace', to);
+    if (!to && s.lastRoom) { s.lastRoom = ''; await db.setSetting('lastRoom', ''); $('#cap-room').value = ''; }
+  }
+  if (s.homePlace === from) { s.homePlace = to; await db.setSetting('homePlace', to); }
+  if (state.rsPlace === from) state.rsPlace = to;
+  if (state.itPlace === from) state.itPlace = to;
+  if (state.placeId === from) state.placeId = to || null;
+}
+
+// Liefert die ID, unter der der Ort danach steht (bei Zusammenführen die des Zwillings).
+async function renamePlace(pid, name) {
+  const clean = String(name || '').trim();
+  const p = placeById(pid);
+  if (!clean || !p) { renderManagers(); return pid; }
+  if (p.name === clean) return pid;
+  try {
+    const twin = state.places.find(x => x.id !== pid && low(x.name) === low(clean));
+    if (twin) {
+      const n = state.items.filter(it => placeOf(it)?.id === pid).length;
+      const msg = `„${clean}“ gibt es bereits. Zusammenführen?`
+        + ` ${plural(roomsIn(pid).length, 'Raum', 'Räume')} und ${plural(n, 'Ding', 'Dinge')} ziehen dorthin um.`;
+      if (!confirm(msg)) { renderManagers(); return pid; }
+      await db.dropPlace(pid, twin.id);
+      await followPlaceGone(pid, twin.id);
+      await reloadAll();
+      renderManagers();
+      renderCurrent();
+      toast('Zusammengeführt.');
+      return twin.id;
+    }
+    const cur = await db.get('places', pid);
+    if (cur) await db.put('places', { ...cur, name: clean });
+    await reloadAll();
+    renderManagers();
+    renderCurrent();
+    toast('Umbenannt.');
+  } catch (e) {
+    renderManagers();
+    toast(e.message, true);
+  }
+  return pid;
+}
+
+/**
+ * Ort löschen – mit Rückfrage im Blatt: Liegen dort Räume oder Dinge, wählt man, wohin sie
+ * kommen (anderer Ort; gleichnamige Räume werden dort zusammengeführt) oder „Ohne Ort“
+ * (Räume werden aufgelöst, die Dinge bleiben erhalten und stehen unter „Ohne Ort“).
+ */
+function placeDropSheet(pid) {
+  const p = placeById(pid);
+  if (!p) return;
+  const rooms = roomsIn(pid).length;
+  const n = state.items.filter(it => placeOf(it)?.id === pid).length;
+  const others = state.places.filter(x => x.id !== pid);
+  let target = others[0]?.id || '';
+  const draw = () => placeChipsHTML(others, target, { add: false, label: 'Wohin damit?' })
+    .replace('</div>', `<button type="button" class="pchip none${target ? '' : ' on'}" data-place="" aria-pressed="${!target}">${icon('pin')}<span>Ohne Ort</span></button></div>`);
+  const note = () => (target
+    ? `Räume und Dinge ziehen nach „${esc(placeName(target))}“ um. Gleichnamige Räume werden dort zusammengeführt.`
+    : 'Die Räume werden aufgelöst. Die Dinge bleiben erhalten und stehen danach unter „Ohne Ort“.');
+  const empty = !rooms && !n;
+  sheet.panel({
+    head: placeHead(p), title: `„${p.name}“ löschen?`, danger: true, submit: 'Ort löschen',
+    html: empty
+      ? '<p class="sheet-note">Hier liegt nichts – der Ort verschwindet einfach.</p>'
+      : `<p class="sheet-note">${esc(`${plural(rooms, 'Raum', 'Räume')} und ${plural(n, 'Ding', 'Dinge')} gehören dazu. Wohin damit?`)}</p>`
+        + `<div id="sheet-places">${draw()}</div><p class="sheet-note small" id="sheet-drop-note">${note()}</p>`,
+    onClick: (e) => {
+      const b = e.target.closest('[data-place]');
+      if (!b) return;
+      target = b.dataset.place;
+      $('#sheet-places').innerHTML = draw();
+      $('#sheet-drop-note').innerHTML = note();
+      haptic();
+    },
+    onSubmit: async () => {
+      try {
+        const to = empty ? '' : target;
+        const res = await db.dropPlace(pid, to || null);
+        await followPlaceGone(pid, to);
+        await reloadAll();
+        renderManagers();
+        const gone = state.view === 'room' && (state.placeId === pid || (state.roomId && !roomById(state.roomId)));
+        if (gone && to && state.placeId === to) renderCurrent();
+        else if (gone) navigate('back');
+        else renderCurrent();
+        toast(to ? `Gelöscht – ${plural(res.items, 'Ding', 'Dinge')} jetzt in „${placeName(to)}“.` : 'Ort gelöscht.');
+      } catch (e) {
+        toast(e.message, true);
+      }
+      return true;
+    },
+  });
+}
+
 /* =========================== Kontextmenü eines Eintrags =========================== */
 
 function itemHead(it) {
   const pic = isThumb(it.thumb) ? `<img class="sh-pic" src="${esc(it.thumb)}" alt="">` : placeholderHTML(it, 'sh-pic');
-  const place = hasRoom(it) ? [roomName(it.roomId), it.locationDetail].filter(Boolean).join(' · ') : 'Ohne Raum';
+  const place = hasPlace(it) ? [whereOf(it, ' · '), it.locationDetail].filter(Boolean).join(' · ') : 'Ohne Ort';
   const name = it.name || (aiBusy(it) ? 'wird erkannt …' : 'Unbenannt');
   return `${pic}<span class="sh-txt"><b>${esc(name)}</b><small>${esc(place)}</small></span>`;
 }
@@ -828,19 +1256,13 @@ function itemMenu(id) {
   sheet.open({
     head: itemHead(it),
     actions: [
-      { id: 'room', label: hasRoom(it) ? 'Raum ändern' : 'Raum zuweisen', icon: 'pin' },
+      { id: 'room', label: hasPlace(it) ? 'Ort ändern' : 'Ort zuweisen', icon: 'pin' },
       { id: 'rename', label: it.name ? 'Umbenennen' : 'Benennen', icon: 'pencil' },
       { id: 'archive', label: 'Archivieren', icon: 'archive', danger: true },
     ],
     onAction: (a) => {
-      if (a === 'room') {
-        sheet.form({
-          head: itemHead(it), title: hasRoom(it) ? 'Raum ändern' : 'Raum zuweisen', label: 'Raum',
-          placeholder: hasRoom(it) ? `Jetzt: ${roomName(it.roomId)}` : 'z. B. Keller', combo: 'rooms',
-          // Leer abschicken ändert nichts – den Raum entfernen geht im Eintrag selbst.
-          onSubmit: (v) => (v ? setItemRoom(id, v) : true),
-        });
-      } else if (a === 'rename') {
+      if (a === 'room') whereSheet(it);
+      else if (a === 'rename') {
         sheet.form({
           head: itemHead(it), title: it.name ? 'Umbenennen' : 'Benennen', label: 'Name', value: it.name || '',
           placeholder: 'z. B. Akkuschrauber',
@@ -864,16 +1286,69 @@ function itemMenu(id) {
   });
 }
 
-async function setItemRoom(id, name) {
+// „Ort ändern“: erst der Ort (Chips), darunter die Räume dieses Orts als Chips – ein Tipp
+// übernimmt sofort, „Kein Raum“ legt den Eintrag direkt an den Ort. Ein neuer Raum geht über
+// das Feld darunter. Bewusst ohne Autofokus: Die Vorschlagsliste des Felds öffnet im Blatt
+// nach oben und läge sonst über den Orts-Chips (auf dem iPhone samt Tastatur).
+function whereSheet(it) {
+  const sel = {
+    pid: placeOf(it)?.id || placeById(state.settings.lastPlace)?.id || state.places[0]?.id || '',
+    room: hasRoom(it) ? roomName(it.roomId) : '',
+  };
+  const drawRooms = () => {
+    const rooms = sel.pid ? roomsIn(sel.pid) : [];
+    const chip = (name, label, ic) => {
+      const on = low(name) === low(sel.room);
+      return `<button type="button" class="pchip room${name ? '' : ' none'}" data-room-pick="${esc(name)}" aria-pressed="${on}">${icon(ic)}<span>${esc(label)}</span></button>`;
+    };
+    $('#sheet-rooms').innerHTML = !sel.pid ? ''
+      : `<p class="pstyle-lbl">Raum in ${esc(placeName(sel.pid))}</p><div class="pchips" role="group" aria-label="Raum">`
+        + chip('', 'Kein Raum', 'pin') + rooms.map(r => chip(r.name, r.name, 'door')).join('') + '</div>';
+    for (const b of $$('#sheet-rooms .pchip')) b.classList.toggle('on', b.getAttribute('aria-pressed') === 'true');
+  };
+  sheet.panel({
+    head: itemHead(it), title: hasPlace(it) ? 'Ort ändern' : 'Ort zuweisen', submit: 'Übernehmen',
+    html: `<div id="sheet-places" class="sheet-places"></div>
+      <div id="sheet-rooms" class="sheet-rooms"></div>
+      <label class="field"><span>Neuer Raum <small>(optional)</small></span>
+        <input id="sheet-input" type="text" placeholder="z. B. Kofferraum" autocomplete="off" data-combo="rooms" data-place="${esc(sel.pid)}" enterkeyhint="done">
+      </label>`,
+    comboSubmit: true,
+    onClick: (e) => {
+      const rb = e.target.closest('[data-room-pick]');
+      if (rb) {
+        haptic();
+        sel.room = rb.dataset.roomPick;
+        const form = $('#sheet .sheet-form');
+        $('#sheet-input').value = '';
+        if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event('submit', { cancelable: true }));
+        return;
+      }
+      const next = pickPlace(e, sel.pid);
+      if (next == null) return;
+      sel.pid = next;
+      if (!roomsIn(next).some(r => low(r.name) === low(sel.room))) sel.room = '';
+      drawPlaceChips($('#sheet-places'), sel.pid, { add: false, label: 'Ort' });
+      followPlace($('#sheet-input'), sel.pid);
+      drawRooms();
+    },
+    onSubmit: (v) => setItemWhere(it.id, sel.pid, v || sel.room),
+  });
+  drawPlaceChips($('#sheet-places'), sel.pid, { add: false, label: 'Ort' });
+  drawRooms();
+}
+
+async function setItemWhere(id, pid, name) {
+  if (!pid && !String(name || '').trim()) { toast('Bitte einen Ort wählen.', true); return false; }
   try {
-    const roomId = await db.ensureNamed('rooms', name);   // leer: Raum entfernen
-    await db.patchItem(id, { roomId });
+    const where = await resolveWhere(pid, name);
+    await db.setItemWhere(id, where.placeId, where.roomId);
     await reloadAll();
     hideCombo();
     renderCurrent();
     haptic();
     const it = state.items.find(x => x.id === id);
-    toast(roomId ? `${it?.name ? `„${it.name}“` : 'Eintrag'} → ${roomName(roomId)}` : 'Raum entfernt.');
+    toast(`${it?.name ? `„${it.name}“` : 'Eintrag'} → ${whereText(where.placeId, where.roomId)}`);
   } catch (e) {
     toast('Zuweisen fehlgeschlagen: ' + e.message, true);
   }
@@ -934,11 +1409,29 @@ function onHomeClick(e) {
     }
     return;
   }
-  if (e.target.closest('[data-room-add]')) { addRoomSheet(); return; }
+  const hp = e.target.closest('[data-home-place]');
+  if (hp) { setHomePlace(hp.dataset.homePlace); return; }
+  if (e.target.closest('[data-place-add]')) { addPlaceSheet(); return; }
+  const pm = e.target.closest('[data-place-menu]');
+  if (pm) { placeMenu(pm.dataset.placeMenu); return; }
+  const po = e.target.closest('[data-place-open]');
+  if (po) { openPlace(po.dataset.placeOpen); return; }
+  const ra = e.target.closest('[data-room-add]');
+  if (ra) { addRoomSheet(ra.dataset.inPlace || ''); return; }
   const rt = e.target.closest('[data-room]');
   if (rt) { openRoom(rt.dataset.room); return; }
   const tile = e.target.closest('.rtile');
   if (tile) openItem(tile.dataset.id);
+}
+
+// Umschalter auf Zuhause: Ort wählen ('' = alle) und merken.
+async function setHomePlace(id) {
+  if (id && !placeById(id)) id = '';
+  if (home.homePlace() === id) return;
+  state.settings.homePlace = id;
+  home.renderHome();
+  home.revealSwitch(!motion.reduced());
+  try { await db.setSetting('homePlace', id); } catch (e) { console.warn('Ort merken fehlgeschlagen:', e); }
 }
 
 // Suchfeld leeren (auch ein KI-Ergebnis verwerfen).
@@ -992,6 +1485,9 @@ async function openItem(id) {
   showField('name', it.name || '');
   showField('cat', catName(it.categoryId));
   showField('room', roomName(it.roomId));
+  state.itPlace = placeOf(it)?.id || '';
+  state.shown.place = state.itPlace;
+  renderItPlace();
   showField('loc', it.locationDetail || '');
   showField('qty', it.quantity || '');
   showField('note', it.note || '');
@@ -1026,6 +1522,12 @@ async function openItem(id) {
   }
 }
 
+// Ort im Eintrag: Chips, der Raum darunter folgt dem gewählten Ort.
+function renderItPlace() {
+  drawPlaceChips($('#it-place'), state.itPlace, { label: 'Ort' });
+  $('#it-room').dataset.place = state.itPlace;
+}
+
 // Detail-Feld befüllen und den angezeigten Wert merken (Schlüssel: it-<key>).
 function showField(key, val) {
   $('#it-' + key).value = val;
@@ -1051,7 +1553,7 @@ function renderItemAi(it) {
   } else if (pending) {
     const note = queue.status().note;
     txt.className = 'hint';
-    txt.innerHTML = '<span class="spin"></span>Wird gerade erkannt … Raum oder Name kannst du trotzdem schon eintragen.'
+    txt.innerHTML = '<span class="spin"></span>Wird gerade erkannt … Ort, Raum oder Name kannst du trotzdem schon eintragen.'
       + (note ? ` ${esc(note)}` : '');
   } else if (failed) {
     txt.className = 'hint err';
@@ -1108,7 +1610,12 @@ async function saveItem() {
     const patch = {};
     if (fieldChanged('name') && name) patch.name = name;
     if (fieldChanged('cat')) patch.categoryId = await db.ensureNamed('categories', $('#it-cat').value);
-    if (fieldChanged('room')) patch.roomId = await db.ensureNamed('rooms', $('#it-room').value);
+    // Ort und Raum gehören zusammen: ändert sich eins, beides neu auflösen (neue Räume im Ort).
+    if (fieldChanged('room') || state.itPlace !== state.shown.place) {
+      const where = await resolveWhere(state.itPlace, $('#it-room').value);
+      patch.roomId = where.roomId;
+      patch.placeId = where.placeId;
+    }
     if (fieldChanged('loc')) patch.locationDetail = $('#it-loc').value.trim();
     if (fieldChanged('qty')) patch.quantity = $('#it-qty').value.trim();
     if (fieldChanged('note')) patch.note = $('#it-note').value.trim();
@@ -1181,37 +1688,56 @@ async function loadModelList() {
 }
 
 function renderManagers() {
-  const usedCat = new Map(), usedRoom = new Map();
+  const usedCat = new Map(), usedRoom = new Map(), usedPlace = new Map();
   for (const it of state.items) {
     if (it.categoryId) usedCat.set(it.categoryId, (usedCat.get(it.categoryId) || 0) + 1);
     if (it.roomId) usedRoom.set(it.roomId, (usedRoom.get(it.roomId) || 0) + 1);
+    const p = placeOf(it);
+    if (p) usedPlace.set(p.id, (usedPlace.get(p.id) || 0) + 1);
   }
-  const draw = (el, rows, used, kind) => {
-    el.innerHTML = rows.length
-      ? rows.map(r => `<div class="m" data-id="${esc(r.id)}" data-kind="${kind}">
-          <input value="${esc(r.name)}" data-rename aria-label="${labelOf(kind)} umbenennen">
+  const row = (r, used, kind, lead = '') => `<div class="m" data-id="${esc(r.id)}" data-kind="${kind}">
+          ${lead}<input value="${esc(r.name)}" data-rename aria-label="${labelOf(kind)} umbenennen">
           <span class="cnt">${used.get(r.id) || 0}</span>
           <button data-drop aria-label="${labelOf(kind)} „${esc(r.name)}“ löschen">${icon('trash')}</button>
-        </div>`).join('')
-      : `<div class="none">Noch nichts angelegt – entsteht automatisch beim Hinzufügen.</div>`;
-  };
-  draw($('#cat-mgr'), state.cats, usedCat, 'categories');
-  draw($('#room-mgr'), state.rooms, usedRoom, 'rooms');
+        </div>`;
+  const none = (txt) => `<div class="none">${txt}</div>`;
+  $('#cat-mgr').innerHTML = state.cats.length ? state.cats.map(r => row(r, usedCat, 'categories')).join('')
+    : none('Noch nichts angelegt – entsteht automatisch beim Hinzufügen.');
+  $('#place-mgr').innerHTML = state.places.length
+    ? state.places.map(p => row(p, usedPlace, 'places',
+      `<button class="m-badge" data-style aria-label="Symbol und Farbe von „${esc(p.name)}“">${placeBadge(p)}</button>`)).join('')
+    : none('Noch kein Ort – entsteht mit dem ersten Raum („Zuhause“) oder hier.');
+  // Räume nach Ort gruppiert; Räume, deren Ort fehlt, stehen am Ende für sich.
+  const groups = state.places.map(p => [p, roomsIn(p.id)]).filter(([, rs]) => rs.length);
+  const lost = state.rooms.filter(r => !placeById(r.placeId));
+  $('#room-mgr').innerHTML = state.rooms.length
+    ? groups.map(([p, rs]) => `<p class="mgr-sub">${placeBadge(p)}<span>${esc(p.name)}</span></p>` + rs.map(r => row(r, usedRoom, 'rooms')).join('')).join('')
+      + (lost.length ? `<p class="mgr-sub"><span>Ohne Ort</span></p>` + lost.map(r => row(r, usedRoom, 'rooms')).join('') : '')
+    : none('Noch nichts angelegt – entsteht automatisch beim Hinzufügen.');
+  const sel = $('#room-new-place');
+  const keep = sel.value;
+  sel.innerHTML = state.places.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+  sel.hidden = state.places.length < 2;
+  sel.value = state.places.some(p => p.id === keep) ? keep : (placeById(state.settings.lastPlace)?.id || state.places[0]?.id || '');
 }
 
-const fieldOf = (kind) => (kind === 'categories' ? 'categoryId' : 'roomId');
-const labelOf = (kind) => (kind === 'categories' ? 'Kategorie' : 'Raum');
+const fieldOf = (kind) => (kind === 'categories' ? 'categoryId' : kind === 'places' ? 'placeId' : 'roomId');
+const labelOf = (kind) => (kind === 'categories' ? 'Kategorie' : kind === 'places' ? 'Ort' : 'Raum');
 
-// Der gemerkte Raum der Schnellerfassung ist ein Name – bei Umbenennen/Löschen mitziehen.
-async function followLastRoom(oldName, newName) {
+// Der gemerkte Raum der Schnellerfassung ist ein Name im gemerkten Ort – bei Umbenennen/
+// Löschen eines Raums in diesem Ort mitziehen.
+async function followLastRoom(oldName, newName, placeId) {
   if (!oldName || norm(state.settings.lastRoom) !== norm(oldName)) return;
+  if (placeId && state.settings.lastPlace && state.settings.lastPlace !== placeId) return;
   state.settings.lastRoom = newName;
   await db.setSetting('lastRoom', newName);
   if (norm($('#cap-room').value) === norm(oldName)) $('#cap-room').value = newName;
 }
 
 // Liefert die ID, unter der der Name danach steht (bei Zusammenführen die des Zwillings).
+// Räume: nur innerhalb ihres Orts eindeutig – „Keller“ darf es in Zuhause und in Haus 2 geben.
 async function renameNamed(kind, id, name) {
+  if (kind === 'places') return renamePlace(id, name);
   const clean = name.trim();
   if (!clean) { renderManagers(); return id; }
   try {
@@ -1219,7 +1745,7 @@ async function renameNamed(kind, id, name) {
     if (!rec || rec.name === clean) return id;
 
     // Gibt es den Namen schon? Dann zusammenführen statt ein Duplikat anzulegen.
-    const list = kind === 'categories' ? state.cats : state.rooms;
+    const list = kind === 'categories' ? state.cats : state.rooms.filter(r => r.placeId === rec.placeId);
     const twin = list.find(x => x.id !== id && x.name.toLowerCase() === clean.toLowerCase());
     if (twin) {
       const field = fieldOf(kind);
@@ -1228,7 +1754,7 @@ async function renameNamed(kind, id, name) {
         (affected.length ? ` ${plural(affected.length, 'Eintrag wird', 'Einträge werden')} umgehängt.` : '');
       if (!confirm(msg)) { renderManagers(); return id; }
       await db.moveAndDropNamed(kind, id, twin.id);
-      if (kind === 'rooms') await followLastRoom(rec.name, twin.name);
+      if (kind === 'rooms') await followLastRoom(rec.name, twin.name, rec.placeId);
       if (kind === 'rooms' && state.roomId === id) state.roomId = twin.id;
       await reloadAll();
       renderManagers();
@@ -1240,7 +1766,7 @@ async function renameNamed(kind, id, name) {
     const oldName = rec.name;
     rec.name = clean;
     await db.put(kind, rec);
-    if (kind === 'rooms') await followLastRoom(oldName, clean);
+    if (kind === 'rooms') await followLastRoom(oldName, clean, rec.placeId);
     await reloadAll();
     renderManagers();
     renderCurrent();
@@ -1253,17 +1779,19 @@ async function renameNamed(kind, id, name) {
 }
 
 async function dropNamed(kind, id) {
+  if (kind === 'places') { placeDropSheet(id); return false; }
   const field = fieldOf(kind);
   const affected = state.items.filter(i => i[field] === id);
   const label = labelOf(kind);
-  const msg = affected.length
-    ? `${label} löschen? Bei ${plural(affected.length, 'Eintrag', 'Einträgen')} wird das Feld geleert. Die Einträge selbst bleiben erhalten.`
-    : `${label} löschen?`;
+  const room = kind === 'rooms' ? roomById(id) : null;
+  const msg = !affected.length ? `${label} löschen?`
+    : room && placeById(room.placeId)
+      ? `${label} löschen? ${plural(affected.length, 'Eintrag bleibt', 'Einträge bleiben')} erhalten und ${affected.length === 1 ? 'liegt' : 'liegen'} dann direkt in „${placeName(room.placeId)}“.`
+      : `${label} löschen? Bei ${plural(affected.length, 'Eintrag', 'Einträgen')} wird das Feld geleert. Die Einträge selbst bleiben erhalten.`;
   if (!confirm(msg)) return false;
   try {
-    const oldName = kind === 'rooms' ? roomName(id) : '';
     await db.moveAndDropNamed(kind, id, null);
-    if (oldName) await followLastRoom(oldName, '');
+    if (room) await followLastRoom(room.name, '', room.placeId);
     await reloadAll();
     renderManagers();
     if (state.view === 'room' && state.roomId === id) navigate('back');
@@ -1317,7 +1845,7 @@ async function buildBackup() {
     const c = exportFile.counts;
     out.className = 'hint ok';
     out.textContent = `Fertig: ${plural(c.items, 'Eintrag', 'Einträge')}, ${c.photos} Fotos, `
-      + `${c.categories} Kategorien, ${c.rooms} Räume – ${mb(exportFile.blob.size)}.`;
+      + `${c.categories} Kategorien, ${plural(c.places, 'Ort', 'Orte')}, ${c.rooms} Räume – ${mb(exportFile.blob.size)}.`;
     $('#exp-save').hidden = false;
   } catch (e) {
     out.className = 'hint err';
@@ -1368,9 +1896,13 @@ async function readImportFile(file) {
     const c = importData.counts || {};
     const when = importData.exportedAt ? dtf.format(new Date(importData.exportedAt)) : 'unbekannt';
     out.className = 'hint';
+    const places = Array.isArray(importData.places) ? importData.places.length : 0;
     out.textContent = `Sicherung vom ${when}: ${c.items ?? importData.items.length} Einträge, `
       + `${(importData.photos || []).length} Fotos, ${(importData.categories || []).length} Kategorien, `
-      + `${(importData.rooms || []).length} Räume. Wie soll eingelesen werden?`;
+      + (places ? `${plural(places, 'Ort', 'Orte')}, ` : '')
+      + `${(importData.rooms || []).length} Räume`
+      + (!places && (importData.rooms || []).length ? ' (aus der Zeit vor den Orten – sie kommen nach „Zuhause“)' : '')
+      + '. Wie soll eingelesen werden?';
     $('#imp-choice').hidden = false;
   } catch (e) {
     importData = null;
@@ -1417,7 +1949,7 @@ async function runDiagnostics() {
     const c = await db.rawCounts();
     const lines = [
       `Adresse: ${location.origin}${location.pathname}`,
-      `Datenbank: ${c.items} Einträge, ${c.photos} Fotos, ${c.categories} Kategorien, ${c.rooms} Räume`,
+      `Datenbank: ${c.items} Einträge, ${c.photos} Fotos, ${c.categories} Kategorien, ${c.places} Orte, ${c.rooms} Räume`,
       `Modus: ${window.matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'vom Home-Bildschirm' : 'im Browser'}`,
     ];
     if (indexedDB.databases) {
@@ -1455,6 +1987,7 @@ function wire() {
     updateAskButton();
   });
   $('#f-cat').addEventListener('change', renderList);
+  $('#f-place').addEventListener('change', () => { fillRoomFilter(); renderList(); });
   $('#f-room').addEventListener('change', renderList);
   $('#ai-search').addEventListener('click', runAiSearch);
   $('#ai-clear').addEventListener('click', clearAiSearch);
@@ -1479,8 +2012,9 @@ function wire() {
   $('#view-places').addEventListener('click', onHomeClick);
   // Direkt im Tipp fokussieren, sonst öffnet iOS die Tastatur nicht.
   $('#home-search').addEventListener('click', () => { navigate('list'); $('#q').focus(); });
-  $('#room-shoot').addEventListener('click', () => shootHere(state.roomId));
-  $('#room-menu').addEventListener('click', () => roomMenu(state.roomId));
+  $('#room-shoot').addEventListener('click', () => shootHere(state.roomId, state.placeId));
+  $('#room-menu').addEventListener('click', () => (state.roomId ? roomMenu(state.roomId) : placeMenu(state.placeId)));
+  $('#places-add').addEventListener('click', () => addPlaceSheet());
   const roomScroll = $('#view-room .scroll');
   roomScroll.addEventListener('scroll', () => {
     $('#view-room').classList.toggle('scrolled', roomScroll.scrollTop > 40);
@@ -1494,8 +2028,11 @@ function wire() {
     longPress(root, '.row', (row) => itemMenu(row.dataset.id));
   }
   longPress($('#home-recent'), '.rtile', (el) => itemMenu(el.dataset.id));
-  longPress($('#home-rooms'), '.rt[data-room]', (el) => roomMenu(el.dataset.room));
-  longPress($('#places-grid'), '.rt[data-room]', (el) => roomMenu(el.dataset.room));
+  for (const root of [$('#home-rooms'), $('#places-grid')]) {
+    longPress(root, '.rt[data-room]', (el) => roomMenu(el.dataset.room));
+    longPress(root, '.rt[data-place-open]', (el) => placeMenu(el.dataset.placeOpen));
+    longPress(root, '.pgroup-head', (el) => placeMenu(el.dataset.placeHead || el.dataset.homePlace));
+  }
   edgeSwipe($('#edge'), beginSwipeBack, commitSwipeBack);
 
   // --- Vollbild-Ansicht ---
@@ -1522,6 +2059,11 @@ function wire() {
   };
   $('#cap-camera-input').addEventListener('change', onFiles);
   $('#cap-library-input').addEventListener('change', onFiles);
+  $('#cap-places').addEventListener('click', (e) => {
+    const next = pickPlace(e, placeById(state.settings.lastPlace)?.id || '', (id) => { if (id) setCapPlace(id); });
+    if (next != null) setCapPlace(next);
+  });
+  $('#cap-room').addEventListener('input', renderCapNow);
   $('#cap-room').addEventListener('change', rememberWhere);
   $('#cap-loc').addEventListener('change', rememberWhere);
   $('#cap-strip').addEventListener('click', (e) => {
@@ -1535,7 +2077,14 @@ function wire() {
     if (chip) $('#man-qty').value = chip.dataset.qty;
   });
 
-  // --- Ohne Raum ---
+  // --- Ohne Ort ---
+  $('#rs-places').addEventListener('click', (e) => {
+    const next = pickPlace(e, state.rsPlace, (id) => { if (id) { state.rsPlace = id; renderRooms(); } });
+    if (next == null) return;
+    state.rsPlace = next;
+    followPlace($('#rs-room'), next);
+    renderRooms();
+  });
   $('#rs-grid').addEventListener('click', (e) => {
     const pick = e.target.closest('.pick');
     if (!pick) return;
@@ -1553,6 +2102,13 @@ function wire() {
   $('#rs-assign').addEventListener('click', assignRooms);
 
   // --- Detail ---
+  $('#it-place').addEventListener('click', (e) => {
+    const next = pickPlace(e, state.itPlace, (id) => { if (id) { state.itPlace = id; followPlace($('#it-room'), id); renderItPlace(); } });
+    if (next == null) return;
+    state.itPlace = next;
+    followPlace($('#it-room'), next);
+    renderItPlace();
+  });
   $('#item-save').addEventListener('click', saveItem);
   $('#it-retry').addEventListener('click', retryItem);
   // Kein Rückfrage-Dialog mehr: der Toast bietet 5 s lang „Rückgängig“.
@@ -1640,12 +2196,15 @@ function wire() {
 
   const mgrHandler = (root) => {
     root.addEventListener('change', (e) => {
+      if (e.target.closest('select')) return;
       const inp = e.target.closest('[data-rename]');
       if (!inp) return;
       const m = inp.closest('.m');
       renameNamed(m.dataset.kind, m.dataset.id, inp.value);
     });
     root.addEventListener('click', (e) => {
+      const st = e.target.closest('[data-style]');
+      if (st) { placeStyleSheet(st.closest('.m').dataset.id); return; }
       const btn = e.target.closest('[data-drop]');
       if (!btn) return;
       const m = btn.closest('.m');
@@ -1653,9 +2212,11 @@ function wire() {
     });
   };
   mgrHandler($('#cat-mgr'));
+  mgrHandler($('#place-mgr'));
   mgrHandler($('#room-mgr'));
 
   $('#cat-add').addEventListener('click', () => addNamed('categories', $('#cat-new')));
+  $('#place-add').addEventListener('click', () => addNamed('places', $('#place-new')));
   $('#room-add').addEventListener('click', () => addNamed('rooms', $('#room-new')));
 }
 
@@ -1663,7 +2224,9 @@ async function addNamed(kind, input) {
   const name = input.value.trim();
   if (!name) return;
   try {
-    await db.ensureNamed(kind, name);
+    if (kind === 'rooms') await db.ensureRoom($('#room-new-place').value, name);
+    else if (kind === 'places') await db.ensurePlace(name);
+    else await db.ensureNamed(kind, name);
     input.value = '';
     await reloadAll();
     renderManagers();

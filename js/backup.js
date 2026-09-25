@@ -1,9 +1,12 @@
 // Sicherung: komplette Liste inklusive Fotos in eine JSON-Datei und zurück.
+// Format 2 (1.7.0): zusätzlich „places“ (Orte), Räume mit placeId, Einträge mit placeId.
+// Format 1 (ohne Orte) wird weiter gelesen: alle Räume kommen dann nach „Zuhause“.
 import * as db from './db.js';
 import { blobToBase64 } from './img.js';
+import { DEFAULT_PLACE, PLACE_ICONS, PLACE_COLORS, suggestIcon, colorFor } from './places.js';
 
 const FORMAT = 'heim-inventar';
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = 2;
 
 /* ---------------- Export ---------------- */
 
@@ -13,17 +16,20 @@ const FORMAT_VERSION = 1;
  * einen dreistelligen Megabyte-String im Speicher erzeugen.
  */
 export async function buildExport({ withPhotos = true, onProgress } = {}) {
-  const [items, cats, rooms, settings] = await Promise.all([
-    db.getAll('items'), db.getAll('categories'), db.getAll('rooms'), db.loadSettings(),
+  const [items, cats, rooms, places, settings] = await Promise.all([
+    db.getAll('items'), db.getAll('categories'), db.getAll('rooms'), db.getAll('places'), db.loadSettings(),
   ]);
   const photos = withPhotos ? await db.getAll('photos') : [];
+  // Ort am Eintrag immer gleich dem seines Raums (maßgeblich ist der Raum).
+  const placeOfRoom = new Map(rooms.map(r => [r.id, r.placeId]));
+  for (const it of items) if (placeOfRoom.get(it.roomId)) it.placeId = placeOfRoom.get(it.roomId);
 
   const head = {
     app: FORMAT,
     version: FORMAT_VERSION,
     exportedAt: new Date().toISOString(),
     withPhotos,
-    counts: { items: items.length, photos: photos.length, categories: cats.length, rooms: rooms.length },
+    counts: { items: items.length, photos: photos.length, categories: cats.length, rooms: rooms.length, places: places.length },
     // Der API-Key wird bewusst NICHT mitgesichert.
     settings: { model: settings.model, imgMax: settings.imgMax },
   };
@@ -31,6 +37,7 @@ export async function buildExport({ withPhotos = true, onProgress } = {}) {
   const parts = [];
   const h = JSON.stringify(head);
   parts.push(h.slice(0, -1) + ',');                       // schließende Klammer offen lassen
+  parts.push('"places":' + JSON.stringify(places) + ',');
   parts.push('"categories":' + JSON.stringify(cats) + ',');
   parts.push('"rooms":' + JSON.stringify(rooms) + ',');
   parts.push('"items":' + JSON.stringify(items) + ',');
@@ -110,6 +117,63 @@ function mapNamed(list, existing) {
   return { map, add };
 }
 
+const key = (s) => String(s || '').trim().toLowerCase();
+
+// Orte nach NAMEN abgleichen (wie Kategorien). Symbol und Farbe nur aus den festen
+// Listen – sie landen in Klassennamen und Symbol-Verweisen.
+function mapPlaces(list, existing) {
+  const map = new Map();
+  const add = [];
+  const byName = new Map(existing.map(x => [key(x.name), x.id]));
+  const usedIds = new Set(existing.map(x => x.id));
+  let order = existing.reduce((m, p) => Math.max(m, Number(p.order) || 0), -1);
+  const fresh = (rec, name) => {
+    const ic = PLACE_ICONS.includes(rec?.icon) ? rec.icon : suggestIcon(name);
+    const id = isId(rec?.id) && !usedIds.has(rec.id) ? rec.id : db.uid();
+    const color = PLACE_COLORS.includes(rec?.color) ? rec.color : colorFor(ic);
+    const out = { id, name, icon: ic, color, createdAt: num(rec?.createdAt, Date.now()), order: ++order };
+    usedIds.add(id);
+    byName.set(key(name), id);
+    add.push(out);
+    return id;
+  };
+  for (const rec of Array.isArray(list) ? list : []) {
+    const name = String(rec?.name || '').trim();
+    if (!name) continue;
+    const id = byName.get(key(name)) || fresh(rec, name);
+    if (isId(rec.id)) map.set(rec.id, id);
+  }
+  // Ort für Räume ohne (gültigen) Ort – bei alten Sicherungen alle: „Zuhause“, erst bei Bedarf.
+  const fallback = () => byName.get(key(DEFAULT_PLACE)) || fresh({ icon: 'haus' }, DEFAULT_PLACE);
+  return { map, add, fallback };
+}
+
+// Räume nach (Ort, Name) abgleichen – „Keller“ in Zuhause und in Haus 2 sind zwei Räume.
+function mapRooms(list, existing, places) {
+  const map = new Map();
+  const placeOf = new Map();   // neue Raum-ID -> Orts-ID
+  const add = [];
+  const byKey = new Map(existing.map(x => [x.placeId + '|' + key(x.name), x.id]));
+  for (const r of existing) placeOf.set(r.id, r.placeId);
+  const usedIds = new Set(existing.map(x => x.id));
+  for (const rec of Array.isArray(list) ? list : []) {
+    const name = String(rec?.name || '').trim();
+    if (!name) continue;
+    const placeId = (rec.placeId && places.map.get(rec.placeId)) || places.fallback();
+    const k = placeId + '|' + key(name);
+    let id = byKey.get(k);
+    if (!id) {
+      id = isId(rec.id) && !usedIds.has(rec.id) ? rec.id : db.uid();
+      add.push({ id, name, placeId, createdAt: num(rec.createdAt, Date.now()) });
+      usedIds.add(id);
+      byKey.set(k, id);
+      placeOf.set(id, placeId);
+    }
+    if (isId(rec.id)) map.set(rec.id, id);
+  }
+  return { map, add, placeOf };
+}
+
 /**
  * mode 'merge'   – Vorhandenes bleibt, Neues kommt dazu (nach ID abgeglichen).
  * mode 'replace' – Alles Bisherige wird gelöscht und durch die Datei ersetzt.
@@ -122,12 +186,13 @@ export async function applyBackup(data, mode, onProgress) {
   const stats = { items: 0, photos: 0, skipped: 0 };
 
   // Bei „ersetzen“ zählt der bisherige Bestand nicht – er wird ja geleert.
-  const [existCats, existRooms, photoKeys, itemKeys] = replace
-    ? [[], [], [], []]
-    : await Promise.all([db.getAll('categories'), db.getAll('rooms'), db.getAllKeys('photos'), db.getAllKeys('items')]);
+  const [existCats, existRooms, existPlaces, photoKeys, itemKeys] = replace
+    ? [[], [], [], [], []]
+    : await Promise.all([db.getAll('categories'), db.getAll('rooms'), db.getAll('places'), db.getAllKeys('photos'), db.getAllKeys('items')]);
 
   const cats = mapNamed(data.categories, existCats);
-  const rooms = mapNamed(data.rooms, existRooms);
+  const places = mapPlaces(data.places, existPlaces);
+  const rooms = mapRooms(data.rooms, existRooms, places);
 
   // Fotos vorab dekodieren – kaputtes base64 fällt hier auf, bevor etwas geschrieben ist.
   const havePhotos = new Set(photoKeys);
@@ -163,6 +228,10 @@ export async function applyBackup(data, mode, onProgress) {
     const it = db.newItem({ ...raw });
     it.categoryId = raw.categoryId ? (cats.map.get(raw.categoryId) || null) : null;
     it.roomId = raw.roomId ? (rooms.map.get(raw.roomId) || null) : null;
+    // Ort: bei einem Raum immer der des Raums; sonst der mitgebrachte (falls es ihn gibt).
+    // Alte Sicherungen ohne Orte: Einträge ohne Raum bleiben „ohne Ort“ (wie „ohne Raum“ bisher).
+    it.placeId = it.roomId ? (rooms.placeOf.get(it.roomId) || null)
+      : (raw.placeId && places.map.get(raw.placeId)) || null;
     it.archived = raw.archived ? 1 : 0;
     it.thumb = safeThumb(raw.thumb);
     // Verweis auf ein Foto, das weder in der Datei noch auf dem Gerät liegt: leeren.
@@ -180,7 +249,7 @@ export async function applyBackup(data, mode, onProgress) {
     items.push(it);
   }
 
-  await db.writeImport({ replace, categories: cats.add, rooms: rooms.add, photos, items });
+  await db.writeImport({ replace, places: places.add, categories: cats.add, rooms: rooms.add, photos, items });
   stats.items = items.length;
   stats.photos = photos.length;
   return stats;

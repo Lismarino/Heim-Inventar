@@ -96,6 +96,38 @@ export function setTab(tab, { instant = false } = {}) {
   lensAnim.finished.then(() => { lensAnim = null; }, () => {});
 }
 
+/* ---------------- Linse im Orts-Umschalter (Zuhause) ----------------
+   Dieselbe Glas-Linse wie in der Tab-Leiste: gleitet federnd zum gewählten Ort und zieht
+   sich unterwegs in die Länge. Die Breite folgt per scaleX (Ursprung links) – animiert
+   werden nur transform und opacity. */
+
+const lenses = new WeakMap();   // Linse -> { x, w, anim }
+
+/** Linse `el` unter den Knopf `btn` (im selben positionierten Träger) bewegen. */
+export function moveLens(el, btn, { instant = false } = {}) {
+  if (!el || !btn) return;
+  const st = lenses.get(el) || { x: null, w: null, anim: null };
+  lenses.set(el, st);
+  st.anim?.cancel();
+  st.anim = null;
+  const x = btn.offsetLeft;
+  const w = btn.offsetWidth;
+  if (!w) return;
+  const from = st.x, fromW = st.w;
+  st.x = x; st.w = w;
+  el.style.width = w + 'px';
+  el.style.transform = `translateX(${num(x)}px)`;
+  el.style.opacity = '1';
+  if (instant || reduced() || !el.animate || from == null || (from === x && fromW === w)) return;
+  const d = x - from;
+  st.anim = springAnimate(el, (p, v) => {
+    const stretch = Math.min(0.28, Math.abs(v * d) / 5200);
+    const sx = (fromW + (w - fromW) * p) / w;
+    return { transform: `translateX(${num(from + d * p)}px) scale(${num(sx * (1 + stretch))}, ${num(1 - stretch * 0.38)})` };
+  }, { stiffness: 330, damping: 25 });
+  st.anim.finished.then(() => { st.anim = null; }, () => {});
+}
+
 /* ---------------- Leiste schrumpft beim Scrollen ---------------- */
 
 let compact = false;
@@ -167,8 +199,8 @@ function measureBars() {
 
 // PRESS: quillt beim Drücken auf (Klasse .is-pressed). GLINT: davon die Glas-Knöpfe mit
 // Glanzlicht (::after in app.css, dieselbe Liste) – nur für sie wird die Fingerposition gemessen.
-const GLINT = '#nav button, .topbar .link, .sheet-cancel, .toast-act, #update-go, .lb-close, .home-search, #onb-next, .onb-skip';
-const PRESS = GLINT + ', .flag';
+const GLINT = '#nav button, .topbar .link, .sheet-cancel, .toast-act, #update-go, .lb-close, .home-search, #onb-next, .onb-skip, .pseg';
+const PRESS = GLINT + ', .flag, .pchip';
 let pressed = null;
 let glinting = false;   // hat das gedrückte Element ein Glanzlicht?
 let glintRaf = 0;
