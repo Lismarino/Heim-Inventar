@@ -160,10 +160,11 @@ const inPlace = (pid) => (it) => ctx.placeOf(it)?.id === pid;
 /** Einträge, die direkt am Ort liegen – ohne (gültigen) Raum. */
 export const directItems = (pid) => live().filter(it => !ctx.hasRoom(it) && it.placeId === pid && ctx.placeById(pid));
 
-/** Gewählter Ort im Umschalter – '' für alle (auch wenn der gemerkte Ort nicht mehr existiert). */
+/** Gewählter Ort im Umschalter – '' für alle (auch wenn der gemerkte Ort nicht mehr existiert
+ *  oder es nur noch einen Ort gibt – dann gibt es keinen Umschalter). */
 export function homePlace() {
   const id = ctx.state.settings.homePlace || '';
-  return id && ctx.placeById(id) ? id : '';
+  return id && multi() && ctx.placeById(id) ? id : '';
 }
 
 function itemsByRoom(items) {
@@ -212,13 +213,14 @@ function placeTiles(p, byRoom, { limit = Infinity } = {}) {
   return { html: tiles.join(''), shown: shown.length, total: rooms.length };
 }
 
-// Kopf einer Orts-Gruppe. Zuhause: ein Tipp wählt den Ort im Umschalter.
-// Räume-Tab: Name mit ⋯ für die Verwaltung (auch langes Drücken auf den Kopf).
+// Kopf einer Orts-Gruppe. Zuhause: Überschrift plus Aktion „Nur … zeigen“ (ein Tipp auf den
+// Kopf tut dasselbe). Räume-Tab: Name mit ⋯ für die Verwaltung (auch langes Drücken auf den Kopf).
 function groupHead(p, n, where) {
   const count = `<span class="sec-n">${n || ''}</span>`;
   if (where === 'home') {
-    return `<button type="button" class="pgroup-head" data-home-place="${esc(p.id)}" aria-label="Nur ${esc(p.name)} zeigen">
-      ${placeBadge(p)}<h3 class="pgroup-name">${esc(p.name)}</h3>${count}${icon('chev-r', 'go')}</button>`;
+    return `<div class="pgroup-head home" data-home-head="${esc(p.id)}">
+      ${placeBadge(p)}<h3 class="pgroup-name">${esc(p.name)}</h3>${count}
+      <button type="button" class="pgroup-go" data-home-place="${esc(p.id)}" aria-label="Nur ${esc(p.name)} zeigen">${icon('chev-r', 'go')}</button></div>`;
   }
   return `<div class="pgroup-head" data-place-head="${esc(p.id)}">
       ${placeBadge(p)}<h2 class="pgroup-name">${esc(p.name)}</h2>${count}
@@ -227,11 +229,14 @@ function groupHead(p, n, where) {
 
 /* ---------------- Umschalter ---------------- */
 
+// Erst ab zwei Orten gibt es etwas umzuschalten. Mit genau einem Ort steht stattdessen ein
+// leiser Hinweis „Ort hinzufügen (z. B. Auto)“ da – so findet man die Orte nach dem Update.
 function renderSwitch(pid) {
   const box = $('#home-places');
   const places = ctx.state.places;
-  box.hidden = !places.length;
-  if (!places.length) return;
+  box.hidden = places.length < 2;
+  $('#home-place-hint').hidden = places.length !== 1;
+  if (box.hidden) return;
   const track = box.querySelector('.pswitch-track');
   const sig = places.map(p => [p.id, p.name, p.icon, p.color].join('\u0001')).join('\u0002');
   const fresh = box.dataset.sig !== sig;
@@ -347,8 +352,19 @@ export function renderPlaces() {
     const t = placeTiles(p, byRoom);
     parts.push(`<section class="pgroup" aria-label="${esc(p.name)}">${groupHead(p, t.total, 'places')}<div class="room-grid">${t.html}</div></section>`);
   }
+  // Räume, deren Ort fehlt (etwa aus einem älteren Tab, bevor der nächste Start sie zuordnet):
+  // eigene Gruppe am Ende, mit „Einem Ort zuordnen“ – sonst wären sie hier unsichtbar.
+  const lost = state.rooms.filter(r => !ctx.placeById(r.placeId));
+  if (lost.length) {
+    const tiles = lost.map(r => roomTile(r, byRoom.get(r.id) || [])).join('');
+    const act = state.places.length
+      ? '<button type="button" class="pgroup-assign" data-rooms-assign>Einem Ort zuordnen</button>' : '';
+    parts.push(`<section class="pgroup pgroup-lost" aria-label="Räume ohne Ort"><div class="pgroup-head">
+      <span class="pbadge" aria-hidden="true">${icon('pin')}</span><h2 class="pgroup-name">Ohne Ort</h2><span class="sec-n">${lost.length}</span>${act}</div>
+      <div class="room-grid">${tiles}</div></section>`);
+  }
   // Noch gar kein Ort: „Raum hinzufügen“ legt „Zuhause“ gleich mit an.
-  if (!state.places.length) parts.push(`<div class="room-grid">${addTile(null)}</div>`);
+  if (!state.places.length && !lost.length) parts.push(`<div class="room-grid">${addTile(null)}</div>`);
   parts.push(`<button type="button" class="place-add" data-place-add>${icon('plus')}<span>Ort hinzufügen</span><small>z. B. Auto, Betrieb, Garten</small></button>`);
   $('#places-grid').innerHTML = parts.join('');
   $('#places-count').textContent = state.rooms.length ? String(state.rooms.length) : '';

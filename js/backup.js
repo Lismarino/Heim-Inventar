@@ -1,6 +1,7 @@
 // Sicherung: komplette Liste inklusive Fotos in eine JSON-Datei und zurück.
 // Format 2 (1.7.0): zusätzlich „places“ (Orte), Räume mit placeId, Einträge mit placeId.
-// Format 1 (ohne Orte) wird weiter gelesen: alle Räume kommen dann nach „Zuhause“.
+// Format 1 (ohne Orte) wird weiter gelesen: alle Räume kommen dann nach „Zuhause“ (bzw. in
+// den ersten Ort, wenn es kein „Zuhause“ gibt – siehe mapPlaces).
 import * as db from './db.js';
 import { blobToBase64 } from './img.js';
 import { DEFAULT_PLACE, PLACE_ICONS, PLACE_COLORS, suggestIcon, colorFor } from './places.js';
@@ -143,8 +144,14 @@ function mapPlaces(list, existing) {
     const id = byName.get(key(name)) || fresh(rec, name);
     if (isId(rec.id)) map.set(rec.id, id);
   }
-  // Ort für Räume ohne (gültigen) Ort – bei alten Sicherungen alle: „Zuhause“, erst bei Bedarf.
-  const fallback = () => byName.get(key(DEFAULT_PLACE)) || fresh({ icon: 'haus' }, DEFAULT_PLACE);
+  // Ort für Räume ohne (gültigen) Ort – bei alten Sicherungen alle. Dieselbe Regel wie beim
+  // Start (db.defaultPlace): „Zuhause“, sonst der erste Ort nach Reihenfolge – wer seinen
+  // Heim-Ort umbenannt hat, bekommt so kein zweites „Zuhause“ –, erst sonst neu anlegen.
+  let fallbackId = null;
+  const fallback = () => {
+    if (!fallbackId) fallbackId = db.defaultPlace([...existing, ...add])?.id || fresh({ icon: 'haus' }, DEFAULT_PLACE);
+    return fallbackId;
+  };
   return { map, add, fallback };
 }
 

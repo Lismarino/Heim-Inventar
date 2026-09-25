@@ -14,7 +14,7 @@ import * as glass from './glass.js';
 import * as intro from './intro.js';
 import { byOrder, placeBadge, placeIcon, placeChipsHTML, styleHTML, suggestIcon, colorFor, safeIcon, safeColor } from './places.js';
 
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 // Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
@@ -105,12 +105,7 @@ async function boot() {
   }
   // 1.7.0: Räume ohne Ort nach „Zuhause“ (einmalig, idempotent, eine Transaktion). Scheitert es,
   // bleibt alles, wie es war, und die App startet trotzdem – der nächste Start versucht es erneut.
-  try {
-    const m = await db.migratePlaces();
-    if (m.rooms || m.items || m.merged) console.info('Orte eingerichtet:', m);
-  } catch (e) {
-    console.warn('Zuordnung zu Orten fehlgeschlagen – nächster Start versucht es erneut:', e);
-  }
+  await runPlacesMigration();
   try {
     await reloadAll();
     wire();
@@ -151,6 +146,45 @@ async function boot() {
   updateStorageInfo();
 }
 
+// Umstellung auf Orte beim ersten Start von 1.7.x. Bei großen Beständen dauert sie ein paar
+// Sekunden: Dann den Start-Wächter in index.html anhalten (__inventarMigrating) und sagen, was
+// passiert – sonst meldete er nach 6 s „konnte nicht starten“, und ein Neuladen bräche die
+// Umstellung ab (schadet nicht, sie beginnt dann von vorn – aber es käme nie ans Ziel).
+// Die Start-Szene schimmert darunter ruhig weiter; die Anzeige erscheint erst, wenn es
+// länger als einen Augenblick dauert.
+async function runPlacesMigration() {
+  let pending = null;
+  try {
+    pending = await db.placesMigrationPending();
+  } catch (e) {
+    console.warn('Prüfung der Orte fehlgeschlagen:', e);
+  }
+  if (!pending) return;
+  window.__inventarMigrating = true;
+  const box = $('#migrate');
+  const bar = $('#migrate-bar');
+  const count = $('#migrate-n');
+  let last = [0, pending.items];
+  const draw = () => {
+    const [n, total] = last;
+    const pct = total ? Math.min(100, Math.round(n / total * 100)) : 0;
+    bar.style.transform = `scaleX(${pct / 100})`;
+    bar.parentElement.setAttribute('aria-valuenow', String(pct));
+    count.textContent = total ? `${n.toLocaleString('de-DE')} von ${total.toLocaleString('de-DE')} Einträgen` : '';
+  };
+  const show = setTimeout(() => { draw(); box.hidden = false; }, pending.items > 400 ? 0 : 500);
+  try {
+    const m = await db.migratePlaces({ onProgress: (n, total) => { last = [n, total]; if (!box.hidden) draw(); } });
+    if (m.rooms || m.items || m.merged) console.info('Orte eingerichtet:', m);
+  } catch (e) {
+    console.warn('Zuordnung zu Orten fehlgeschlagen – nächster Start versucht es erneut:', e);
+  } finally {
+    clearTimeout(show);
+    box.hidden = true;
+    window.__inventarMigrating = false;
+  }
+}
+
 // Zeigt die Startfehler-Seite aus index.html mit einer passenden Meldung.
 function showBootError(msg, err) {
   window.__inventarFailed = true;   // der Wächter in index.html überschreibt dann nichts mehr
@@ -170,19 +204,23 @@ function showBootError(msg, err) {
 // dann sagen, was los ist, statt still zu hängen; es geht von selbst weiter, sobald er zu ist.
 // versionchange: Eine neuere Fassung in einem anderen Tab will upgraden – wir haben
 // losgelassen und bieten Neuladen an.
+// Die Fehlerseite wird für „Einen Moment …“ ausgeliehen – ihr Originaltext bleibt hier, damit
+// sie danach wieder vollständig die ist, die der Start-Wächter erwartet.
+let bootBoxOriginal = null;
 function onDbEvent(type) {
   const box = $('#boot-error');
   if (type === 'blocked') {
+    if (bootBoxOriginal === null) bootBoxOriginal = box.innerHTML;
     window.__inventarFailed = true;   // der Start-Wächter soll hier nicht „Datei fehlt“ melden
     box.querySelector('h2').textContent = 'Einen Moment …';
     box.querySelector('p').textContent = 'Die App ist noch in einem anderen Tab oder Fenster mit einer älteren Version geöffnet. '
       + 'Schließe es dort (oder lade es neu) – dann geht es hier von selbst weiter.';
-    $('#boot-error-detail').textContent = 'Deine Einträge werden dabei auf Orte umgestellt (Version 1.7.0). Es geht nichts verloren.';
+    $('#boot-error-detail').textContent = 'Deine Einträge werden dabei auf Orte umgestellt (Version 1.7). Es geht nichts verloren.';
     box.hidden = false;
   } else if (type === 'unblocked') {
     window.__inventarFailed = false;
     box.hidden = true;
-    box.querySelector('h2').textContent = 'Die App konnte nicht starten';
+    if (bootBoxOriginal !== null) { box.innerHTML = bootBoxOriginal; bootBoxOriginal = null; }
   } else if (type === 'versionchange') {
     const bar = $('#update-bar');
     bar.querySelector('span').textContent = 'Neue Version in einem anderen Tab';
@@ -657,6 +695,7 @@ function resetCapture() {
   $('#manual').open = false;
   resetManual();
   renderCapWhere();
+  capNowSaid = capNowText();   // Ausgangslage – angesagt wird erst eine Änderung
 }
 
 function resetManual() {
@@ -672,18 +711,27 @@ function renderCapWhere() {
   renderCapNow();
 }
 
-function renderCapNow() {
+// announce: auch dem Screenreader sagen (nur nach einer Wahl – Ort-Chip, Feld verlassen –,
+// nicht bei jedem Tastendruck im Raumfeld; dafür ist die Live-Region getrennt).
+let capNowSaid = '';
+const capNowText = () => $('#cap-now').textContent.replace(/\s+/g, ' ').trim();
+function renderCapNow(announce = false) {
   const p = placeById(state.settings.lastPlace);
   const room = $('#cap-room').value.trim();
-  $('#cap-now').innerHTML = !p && !room
+  const now = $('#cap-now');
+  now.innerHTML = !p && !room
     ? '<span class="open">Noch offen</span> <small>ordnest du später zu</small>'
     : (p ? `${placeIcon(p)}<b>${esc(p.name)}</b>` : '') + (room ? `${p ? ' <i>›</i> ' : ''}<b>${esc(room)}</b>` : '');
+  const said = capNowText();
+  if (announce && said !== capNowSaid) $('#cap-now-live').textContent = `Du bist gerade in: ${said}`;
+  if (announce) capNowSaid = said;
 }
 
 async function setCapPlace(id) {
   state.settings.lastPlace = id;
   followPlace($('#cap-room'), id);
   renderCapWhere();
+  renderCapNow(true);
   try {
     await db.setSetting('lastPlace', id);
     await rememberWhere();
@@ -696,7 +744,7 @@ async function rememberWhere() {
   const loc = $('#cap-loc').value.trim();
   if (room !== (state.settings.lastRoom || '')) { state.settings.lastRoom = room; await db.setSetting('lastRoom', room); }
   if (loc !== (state.settings.lastLoc || '')) { state.settings.lastLoc = loc; await db.setSetting('lastLoc', loc); }
-  renderCapNow();
+  renderCapNow(true);
   return { placeId: placeById(state.settings.lastPlace)?.id || '', room, loc };
 }
 
@@ -981,15 +1029,18 @@ const roomHead = (r) => {
 function roomMenu(id) {
   const r = roomById(id);
   if (!r) return;
+  const lost = !placeById(r.placeId);
   sheet.open({
     head: roomHead(r),
     actions: [
       { id: 'shoot', label: 'Hier fotografieren', icon: 'camera' },
       { id: 'rename', label: 'Umbenennen', icon: 'pencil' },
+      { id: 'move', label: lost ? 'Einem Ort zuordnen' : 'In anderen Ort verschieben', icon: 'pin' },
       { id: 'drop', label: 'Raum löschen', icon: 'trash', danger: true },
     ],
     onAction: (a) => {
       if (a === 'shoot') shootHere(id);
+      else if (a === 'move') moveRoomSheet(id);
       else if (a === 'rename') {
         sheet.form({
           head: roomHead(r), title: 'Raum umbenennen', label: 'Name', value: r.name, submit: 'Umbenennen',
@@ -1005,6 +1056,125 @@ function roomMenu(id) {
       }
     },
   });
+}
+
+// Wohin mit Räumen? Chips der Ziel-Orte (plus „Neuer Ort“: danach geht es hier weiter).
+// reopen(pid) zeigt dasselbe Blatt mit dem neuen Ort erneut, sobald „Neuer Ort“ zu ist.
+function roomTargetSheet({ head, title, others, target, note, submit, reopen, onSubmit }) {
+  const draw = () => placeChipsHTML(others, target, { label: 'Wohin?' });
+  sheet.panel({
+    head, title, submit,
+    html: `<div id="sheet-places">${draw()}</div><p class="sheet-note small" id="sheet-move-note">${esc(note(target))}</p>`,
+    onClick: (e) => {
+      if (e.target.closest('[data-place-new]')) {
+        addPlaceSheet({ onDone: (pid) => { sheet.close().then(() => reopen(pid)); } });
+        return;
+      }
+      const b = e.target.closest('[data-place]');
+      if (!b) return;
+      target = b.dataset.place;
+      $('#sheet-places').innerHTML = draw();
+      $('#sheet-move-note').textContent = note(target);
+      haptic();
+    },
+    onSubmit: () => {
+      if (!placeById(target)) { toast('Bitte einen Ort wählen.', true); return false; }
+      return onSubmit(target);
+    },
+  });
+}
+
+// Gleichnamige Räume im Ziel – die, die beim Verschieben zusammengeführt würden.
+function twinsIn(ids, target) {
+  const moving = ids.map(roomById).filter(r => r && r.placeId !== target);
+  const seen = new Set(roomsIn(target).filter(x => !ids.includes(x.id)).map(x => low(x.name)));
+  const twins = [];
+  for (const r of moving) { if (seen.has(low(r.name))) twins.push(r); else seen.add(low(r.name)); }
+  return twins;
+}
+
+/**
+ * Raum (samt allem, was darin liegt) in einen anderen Ort verschieben. Gibt es dort schon einen
+ * gleichnamigen Raum, erst nach Rückfrage zusammenführen. Ein Raum ohne gültigen Ort wird so
+ * einem Ort zugeordnet.
+ */
+function moveRoomSheet(id, preselect = '') {
+  const r = roomById(id);
+  if (!r) return;
+  const others = state.places.filter(p => p.id !== r.placeId);
+  const lost = !placeById(r.placeId);
+  const n = home.roomItems(r.id).length;
+  roomTargetSheet({
+    head: roomHead(r),
+    title: lost ? 'Einem Ort zuordnen' : 'In anderen Ort verschieben',
+    submit: 'Verschieben',
+    others,
+    target: others.some(p => p.id === preselect) ? preselect : (others.length === 1 ? others[0].id : ''),
+    note: (t) => {
+      const p = placeById(t);
+      if (!p) return others.length ? 'Wähle den Ort, in den der Raum umzieht.' : 'Es gibt noch keinen anderen Ort – leg einen an, z. B. „Auto“.';
+      const twin = twinsIn([id], t).length ? roomsIn(t).find(x => low(x.name) === low(r.name)) : null;
+      if (twin) return `In „${p.name}“ gibt es schon „${twin.name}“ – beide werden zusammengeführt.`;
+      return n ? `${plural(n, 'Ding zieht', 'Dinge ziehen')} mit nach „${p.name}“.` : `Der Raum ist leer und zieht nach „${p.name}“.`;
+    },
+    reopen: (pid) => moveRoomSheet(id, pid),
+    onSubmit: (t) => moveRoomsTo([id], t),
+  });
+}
+
+// Tab „Räume“, Gruppe „Ohne Ort“: alle Räume ohne gültigen Ort auf einmal einem Ort zuordnen.
+function assignLostRoomsSheet(preselect = '') {
+  const lost = state.rooms.filter(r => !placeById(r.placeId));
+  if (!lost.length) return;
+  const others = state.places;
+  roomTargetSheet({
+    head: '',
+    title: `${plural(lost.length, 'Raum', 'Räume')} einem Ort zuordnen`,
+    submit: 'Zuordnen',
+    others,
+    target: others.some(p => p.id === preselect) ? preselect : (others.length === 1 ? others[0].id : ''),
+    note: (t) => {
+      const p = placeById(t);
+      if (!p) return 'Wähle den Ort, zu dem diese Räume gehören.';
+      const tw = twinsIn(lost.map(r => r.id), t).length;
+      return `Die Räume ziehen samt Inhalt nach „${p.name}“.` + (tw ? ` ${plural(tw, 'gleichnamiger Raum wird', 'gleichnamige Räume werden')} dort zusammengeführt.` : '');
+    },
+    reopen: (pid) => assignLostRoomsSheet(pid),
+    onSubmit: (t) => moveRoomsTo(lost.map(r => r.id), t),
+  });
+}
+
+// Verschieben ausführen (eine Transaktion, db.moveRooms). Liefert false, wenn das Blatt offen
+// bleiben soll (Zusammenführen abgelehnt, Fehler).
+async function moveRoomsTo(ids, target) {
+  const to = placeById(target);
+  if (!to) return false;
+  const twins = twinsIn(ids, target);
+  if (twins.length) {
+    const msg = ids.length === 1
+      ? `„${twins[0].name}“ gibt es in „${to.name}“ schon. Zusammenführen? Alles liegt danach in einem Raum.`
+      : `${twins.map(r => `„${r.name}“`).join(', ')} gibt es in „${to.name}“ schon. Zusammenführen?`;
+    if (!confirm(msg)) return false;
+  }
+  const moved = ids.map(roomById).filter(Boolean);
+  try {
+    const res = await db.moveRooms(ids, target, { merge: true });
+    // Der gemerkte Raum der Schnellerfassung zieht mit um.
+    const s = state.settings;
+    const hit = moved.find(r => s.lastRoom && low(r.name) === low(s.lastRoom) && (!s.lastPlace || s.lastPlace === r.placeId || !placeById(r.placeId)));
+    if (hit && s.lastPlace !== target) { s.lastPlace = target; await db.setSetting('lastPlace', target); }
+    if (state.roomId && res.map[state.roomId]) state.roomId = res.map[state.roomId];
+    await reloadAll();
+    renderManagers();
+    renderCurrent();
+    haptic();
+    const what = ids.length === 1 ? `„${moved[0]?.name || 'Raum'}“` : plural(ids.length, 'Raum', 'Räume');
+    toast(`${what} → ${to.name}${res.merged ? ' (zusammengeführt)' : ''}`);
+    return true;
+  } catch (e) {
+    toast(e.message, true);
+    return false;
+  }
 }
 
 // Neuer Raum – im angegebenen Ort; ohne Ort im Standard-Ort (notfalls entsteht „Zuhause“).
@@ -1409,9 +1579,10 @@ function onHomeClick(e) {
     }
     return;
   }
-  const hp = e.target.closest('[data-home-place]');
-  if (hp) { setHomePlace(hp.dataset.homePlace); return; }
+  const hp = e.target.closest('[data-home-place]') || e.target.closest('[data-home-head]');
+  if (hp) { setHomePlace(hp.dataset.homePlace ?? hp.dataset.homeHead); return; }
   if (e.target.closest('[data-place-add]')) { addPlaceSheet(); return; }
+  if (e.target.closest('[data-rooms-assign]')) { assignLostRoomsSheet(); return; }
   const pm = e.target.closest('[data-place-menu]');
   if (pm) { placeMenu(pm.dataset.placeMenu); return; }
   const po = e.target.closest('[data-place-open]');
@@ -2031,7 +2202,7 @@ function wire() {
   for (const root of [$('#home-rooms'), $('#places-grid')]) {
     longPress(root, '.rt[data-room]', (el) => roomMenu(el.dataset.room));
     longPress(root, '.rt[data-place-open]', (el) => placeMenu(el.dataset.placeOpen));
-    longPress(root, '.pgroup-head', (el) => placeMenu(el.dataset.placeHead || el.dataset.homePlace));
+    longPress(root, '.pgroup-head[data-place-head], .pgroup-head[data-home-head]', (el) => placeMenu(el.dataset.placeHead || el.dataset.homeHead));
   }
   edgeSwipe($('#edge'), beginSwipeBack, commitSwipeBack);
 
@@ -2063,7 +2234,7 @@ function wire() {
     const next = pickPlace(e, placeById(state.settings.lastPlace)?.id || '', (id) => { if (id) setCapPlace(id); });
     if (next != null) setCapPlace(next);
   });
-  $('#cap-room').addEventListener('input', renderCapNow);
+  $('#cap-room').addEventListener('input', () => renderCapNow());
   $('#cap-room').addEventListener('change', rememberWhere);
   $('#cap-loc').addEventListener('change', rememberWhere);
   $('#cap-strip').addEventListener('click', (e) => {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
-<meta name="app-version" content="1.7.0">
+<meta name="app-version" content="1.7.1">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -126,6 +126,17 @@
   <p class="small" id="boot-error-detail"></p>
 </div>
 
+<!-- Umstellung auf Orte beim ersten Start von 1.7 (js/app.js, runPlacesMigration): liegt über
+     der Start-Szene; solange sie läuft, hält der Start-Wächter unten still. -->
+<div id="migrate" class="migrate" role="status" hidden>
+  <div class="migrate-card">
+    <p class="migrate-title">Einen Moment – deine Daten werden auf Orte umgestellt.</p>
+    <p class="migrate-sub">Bitte App offen lassen.</p>
+    <div class="migrate-track" role="progressbar" aria-label="Umstellung auf Orte" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="migrate-bar"></i></div>
+    <p class="migrate-n" id="migrate-n"></p>
+  </div>
+</div>
+
 <div id="app">
 
   <!-- ============ ZUHAUSE ============ -->
@@ -141,6 +152,10 @@
       <div class="pswitch" id="home-places" hidden>
         <div class="pswitch-track" role="group" aria-label="Ort wählen"></div>
       </div>
+      <!-- Nur ein Ort: statt des Umschalters ein Hinweis, dass es weitere geben kann -->
+      <button type="button" class="place-hint" id="home-place-hint" data-place-add hidden>
+        <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>Ort hinzufügen</span><small>z. B. Auto</small>
+      </button>
       <button class="home-search" id="home-search" type="button">
         <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><span>Suchen oder KI fragen …</span>
       </button>
@@ -216,7 +231,8 @@
 
       <div class="card cap-where">
         <p class="where-lbl"><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg>Du bist gerade in</p>
-        <p class="where-now" id="cap-now" aria-live="polite"></p>
+        <p class="where-now" id="cap-now"></p>
+        <p class="sr-only" id="cap-now-live" aria-live="polite"></p>
         <div class="where-places" id="cap-places"></div>
         <label class="field where-room">
           <span>Raum <small>(optional)</small></span>
@@ -687,12 +703,15 @@
 
 // Startet die App nicht (z. B. fehlende Datei), darf der Nutzer nicht vor einer
 // leeren Liste stehen und denken, seine Daten seien weg.
-setTimeout(function () {
+// __inventarMigrating: app.js stellt gerade die Daten auf Orte um (kann bei vielen Einträgen
+// länger dauern und zeigt das selbst an) – dann nicht Alarm schlagen, sondern später nachsehen.
+setTimeout(function watchdog() {
   // __inventarFailed: app.js hat selbst schon eine genauere Meldung gezeigt.
   if (window.__inventarReady || window.__inventarFailed) return;
+  if (window.__inventarMigrating) { setTimeout(watchdog, 6000); return; }
   // Vielleicht ein Mischstand nach einem Update – dann rettet sich die App selbst.
   window.__inventarRescue('Zeitüberschreitung').then(function (rescuing) {
-    if (window.__inventarReady || window.__inventarFailed) return;
+    if (window.__inventarReady || window.__inventarFailed || window.__inventarMigrating) return;
     document.getElementById('boot-error').hidden = false;
     document.getElementById('app').hidden = true;
     document.getElementById('splash').hidden = true;

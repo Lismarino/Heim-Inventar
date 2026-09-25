@@ -100,7 +100,8 @@ Haus) – ändern lässt es sich jederzeit. Gibt es nur einen Ort, nennt die App
 dazu; ab zwei Orten steht er vor dem Raum („Auto · Kofferraum“).
 
 **Zuhause** ist die Startseite: Begrüßung und „127 Dinge an 3 Orten“ (mit nur einem Ort:
-„… in 8 Räumen“), darunter der **Orts-Umschalter** „Alle · Zuhause · Auto · +“. Er zeigt
+„… in 8 Räumen“), darunter – ab zwei Orten – der **Orts-Umschalter** „Alle · Zuhause · Auto · +“.
+Gibt es erst einen Ort, steht dort stattdessen ein leiser Knopf **Ort hinzufügen (z. B. Auto)**. Der Umschalter zeigt
 zunächst alle Orte; ein Tipp auf einen Ort beschränkt die Seite darauf („12 Dinge in 3 Räumen“)
 – die Glas-Linse gleitet wie in der Tab-Leiste hinüber, und die App merkt sich die Wahl bis zum
 nächsten Mal. **+** legt einen neuen Ort an. Dann ein Suchfeld (führt in **Alles**, die KI-Suche
@@ -110,7 +111,7 @@ funktioniert dort wie gewohnt). Die Karte **Zu erledigen** erscheint nur, wenn e
 „N werden erkannt“ und „N warten auf API-Key“ (führt zum Key in den Einstellungen) – außer „ohne
 Ort“ jeweils für den gewählten Ort. Dann **Zuletzt hinzugefügt** als Streifen zum Wischen und
 die **Räume** als große Kacheln mit dem neuesten Foto des Raums: beim gewählten Ort die ersten
-sechs, bei „Alle“ nach Ort gruppiert (Überschrift mit Symbol – antippen wählt den Ort) mit je bis
+sechs, bei „Alle“ nach Ort gruppiert (Überschrift mit Symbol und **›** – antippen wählt den Ort) mit je bis
 zu vier; gibt es mehr, führt **Alle** in den Tab **Räume**. Liegt etwas direkt an einem Ort ohne
 Raum, steht vorneweg eine Kachel in der Farbe des Orts. Ist noch nichts erfasst, steht dort ein
 großer Kamera-Knopf. Zuhause aktualisiert sich von selbst, sobald die KI etwas erkannt hat.
@@ -125,12 +126,16 @@ hinzufügen**, **Umbenennen** (auf einen vorhandenen Namen: zusammenführen), **
 **Ort löschen**. Beim Löschen fragt die App, wohin Räume und Dinge sollen: in einen anderen Ort
 (gleichnamige Räume werden dort zusammengeführt) oder **Ohne Ort** (die Räume werden aufgelöst,
 die Dinge bleiben erhalten und stehen danach unter „Ohne Ort“). Verloren geht dabei nie etwas.
-Langes Drücken auf eine Raumkachel öffnet wie auf Zuhause das Raum-Menü.
+Langes Drücken auf eine Raumkachel öffnet wie auf Zuhause das Raum-Menü. Räume, deren Ort fehlt
+(selten – etwa angelegt in einem noch offenen Tab der alten Version), stehen am Ende in einer
+eigenen Gruppe **Ohne Ort** mit **Einem Ort zuordnen**.
 Eine Kachel antippen öffnet den Raum: großer Titel (bei mehreren Orten mit dem Ort darüber), alle
 Dinge darin nach Kategorie gruppiert und **Hier fotografieren** – das öffnet Hinzufügen mit Ort
 und Raum schon eingetragen. Die Kachel eines Orts zeigt genauso, was dort direkt liegt. Über
-**⋯** oben rechts: Hier fotografieren, Umbenennen, Raum löschen (die Dinge bleiben – sie liegen
-danach direkt im Ort des Raums).
+**⋯** oben rechts: Hier fotografieren, Umbenennen, **In anderen Ort verschieben**, Raum löschen
+(die Dinge bleiben – sie liegen danach direkt im Ort des Raums). Beim Verschieben wählt man den
+Ziel-Ort (oder legt ihn gleich an); alles im Raum zieht mit. Gibt es dort schon einen Raum mit
+demselben Namen, fragt die App, ob beide zusammengeführt werden sollen.
 
 Die Titelfotos der Kacheln lädt die App in einer schärferen Fassung nach – aber nur für
 Kacheln, die gerade zu sehen sind, und gibt sie wieder frei, sobald keine Kachel sie mehr zeigt.
@@ -333,7 +338,8 @@ Transaktion – scheitert etwas, bleibt der alte Stand vollständig erhalten.
 kommt die Liste `places` (Orte mit Name, Symbol, Farbe, Reihenfolge), Räume tragen `placeId`,
 Einträge ebenfalls (bei einem Raum gleich dem Ort des Raums, sonst der Ort, an dem sie direkt
 liegen, oder leer für „ohne Ort“). **Ältere Sicherungen (Version 1, ohne Orte) lassen sich weiter
-einlesen:** Alle Räume kommen dann nach „Zuhause“ (vorhanden oder neu angelegt), Einträge in einem
+einlesen:** Alle Räume kommen dann nach „Zuhause“ (vorhanden – sonst in den ersten Ort, falls es
+„Zuhause“ unter anderem Namen gibt –, erst sonst neu angelegt), Einträge in einem
 Raum mit; Einträge ohne Raum stehen danach unter „Ohne Ort“, wie vorher unter „Ohne Raum“. Eine
 Sicherung aus 1.7.0 lässt sich in älteren Fassungen **nicht** einlesen („stammt aus einer neueren
 Version“). Symbole und Farben aus der Datei werden nur aus den festen Listen der App übernommen.
@@ -346,8 +352,15 @@ dazu. Dinge, die bisher **ohne Raum** waren, bleiben ohne Ort – sie stehen wei
 (jetzt „N ohne Ort“) und lassen sich wie gewohnt gesammelt zuordnen. Der gemerkte Raum der
 Schnellerfassung liegt danach in Zuhause. Die Umstellung läuft in einer einzigen Transaktion
 (scheitert sie, bleibt alles wie es war, und der nächste Start versucht es erneut) und ist beliebig
-oft wiederholbar, ohne etwas doppelt anzulegen. Sicherheitshalber **vorher eine Sicherung
-machen**. Ist die App noch in einem anderen Safari-Tab mit der alten Version offen, wartet die
+oft wiederholbar, ohne etwas doppelt anzulegen. Gibt es gleichnamige Räume (etwa „Küche“ und
+„küche“), werden sie zusammengeführt; es bleibt immer der älteste (bei Gleichstand der mit mehr
+Einträgen) – auf jedem Gerät derselbe. Bei sehr vielen Einträgen dauert die Umstellung ein paar
+Sekunden; die App zeigt dann „Einen Moment – deine Daten werden auf Orte umgestellt. Bitte App
+offen lassen.“ mit Fortschritt (seit 1.7.1). Wird sie trotzdem geschlossen oder neu geladen, geht
+nichts verloren – der nächste Start beginnt die Umstellung von vorn. Einträge ohne Raum werden
+dabei gar nicht angefasst. Sicherheitshalber **vorher eine Sicherung machen**. **Zurück auf 1.6.x
+geht nicht** (die umgestellte Datenbank kann die alte Fassung nicht mehr öffnen) – nur über eine
+Sicherung, die mit 1.6.x gemacht wurde. Ist die App noch in einem anderen Safari-Tab mit der alten Version offen, wartet die
 neue mit dem Hinweis „Einen Moment … noch in einem anderen Tab geöffnet“ – den anderen Tab
 schließen, dann geht es von selbst weiter. Ein noch offener alter Tab gibt die Datenbank frei und
 kann danach nichts mehr speichern; einfach neu laden.
