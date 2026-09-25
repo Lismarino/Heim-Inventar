@@ -11,6 +11,7 @@ import { origin } from './glass.js';
 const $ = (s) => document.querySelector(s);
 let onAction = null;
 let onSubmit = null;
+let onPanelClick = null;   // Klicks im Inhalt eines Blatts aus panel()
 let closing = null;
 let release = null;   // hebt die Sperre des Hintergrunds auf (aus ui.modal)
 let source = null;    // Element, aus dem das Blatt gewachsen ist (für den Rückweg)
@@ -63,6 +64,7 @@ function show(html) {
 export function open({ head = '', actions, onAction: fn }) {
   onAction = fn;
   onSubmit = null;
+  onPanelClick = null;
   show(`${head ? `<div class="sheet-head">${head}</div>` : ''}
     <div class="sheet-actions">${actions.map(a => `<button class="sheet-act${a.danger ? ' danger' : ''}" data-act="${esc(a.id)}">${a.icon ? icon(a.icon) : ''}<span>${esc(a.label)}</span></button>`).join('')}</div>
     <button class="sheet-cancel" data-sheet-close>Abbrechen</button>`);
@@ -74,6 +76,7 @@ export function open({ head = '', actions, onAction: fn }) {
 export function form({ head = '', title, label, value = '', placeholder = '', combo = '', submit = 'Übernehmen', onSubmit: fn }) {
   onAction = null;
   onSubmit = fn;
+  onPanelClick = null;
   show(`${head ? `<div class="sheet-head">${head}</div>` : ''}
     <form class="sheet-form" novalidate>
       <h2 class="sheet-title" id="sheet-title">${esc(title)}</h2>
@@ -96,6 +99,36 @@ export function form({ head = '', title, label, value = '', placeholder = '', co
   try { input.focus({ preventScroll: true }); input.select(); } catch (_) { void _; }
 }
 
+/**
+ * Blatt mit freiem Inhalt (Ort wählen, Symbol & Farbe …). `html` ist fertiges (escaptes)
+ * Markup; enthält es ein Feld #sheet-input, bekommt onSubmit dessen Wert. onSubmit(value, form)
+ * darf false liefern, um offen zu bleiben; onClick(e) bekommt Klicks im Inhalt.
+ * comboSubmit: Wahl aus der Vorschlagsliste von #sheet-input schickt gleich ab.
+ * focus: Selektor des Elements, das den Fokus bekommt (Tastatur öffnet sich nur bei Feldern).
+ */
+export function panel({ head = '', title, html, submit = 'Übernehmen', danger = false, comboSubmit = false, focus = '', onSubmit: fn, onClick }) {
+  onAction = null;
+  onSubmit = fn;
+  onPanelClick = onClick || null;
+  show(`${head ? `<div class="sheet-head">${head}</div>` : ''}
+    <form class="sheet-form sheet-panel" novalidate>
+      <h2 class="sheet-title" id="sheet-title">${esc(title)}</h2>
+      ${html}
+      <button class="btn ${danger ? 'danger' : 'primary'} block" type="submit">${esc(submit)}</button>
+    </form>
+    <button class="sheet-cancel" data-sheet-close>Abbrechen</button>`);
+  const input = $('#sheet-input');
+  if (input && comboSubmit) {
+    input.addEventListener('change', (e) => {
+      if (e.isTrusted || !input.value.trim()) return;
+      if (input.form.requestSubmit) input.form.requestSubmit();
+      else input.form.dispatchEvent(new Event('submit', { cancelable: true }));
+    });
+  }
+  const el = focus ? $('#sheet-body ' + focus) : null;
+  if (el) { try { el.focus({ preventScroll: true }); if (el.select) el.select(); } catch (_) { void _; } }
+}
+
 export function close() {
   const wrap = $('#sheet');
   if (wrap.hidden || closing) return closing || Promise.resolve();
@@ -110,7 +143,7 @@ export function close() {
     wrap.hidden = true;
     sheet.style.transform = '';
     $('#sheet-body').innerHTML = '';
-    onAction = onSubmit = null;
+    onAction = onSubmit = onPanelClick = null;
     closing = null;
   };
   if (reduced() || !sheet.animate) { done(); return Promise.resolve(); }
@@ -154,6 +187,7 @@ export function init() {
   const wrap = $('#sheet');
   wrap.addEventListener('click', (e) => {
     if (e.target.closest('[data-sheet-close]')) { close(); return; }
+    if (onPanelClick && e.target.closest('.sheet-panel')) { onPanelClick(e); return; }
     const act = e.target.closest('[data-act]');
     if (act && onAction) {
       const fn = onAction;
@@ -166,7 +200,8 @@ export function init() {
     const btn = wrap.querySelector('.sheet-form [type="submit"]');
     btn.disabled = true;
     try {
-      const keep = await onSubmit($('#sheet-input').value.trim());
+      const input = $('#sheet-input');
+      const keep = await onSubmit(input ? input.value.trim() : '', wrap.querySelector('.sheet-form'));
       if (keep !== false) close();
     } finally {
       btn.disabled = false;

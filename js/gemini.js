@@ -210,7 +210,7 @@ const SEARCH_SCHEMA = {
  */
 export async function searchInventory(settings, question, entries) {
   const list = entries.map(e => [
-    e.n, e.name || '-', e.category || '-', e.room || '-',
+    e.n, e.name || '-', e.category || '-', e.place || '-', e.room || '-',
     e.location || '-', e.quantity || '-', e.note || '-',
   ].join(' | ')).join('\n');
 
@@ -218,7 +218,8 @@ export async function searchInventory(settings, question, entries) {
 
 Frage der Person: "${question}"
 
-Inventar (Nummer | Name | Kategorie | Raum | Ort-Details | Bestand | Notiz):
+Inventar (Nummer | Name | Kategorie | Ort | Raum | Genauer Platz | Bestand | Notiz):
+„Ort“ ist, wo die Sachen sind (z. B. Zuhause, Auto, Betrieb), „Raum“ der Raum oder Bereich darin (Keller, Kofferraum, Werkzeugkiste).
 ${list}
 
 Aufgabe:
@@ -227,7 +228,7 @@ Aufgabe:
 - Das Brauchbarste zuerst, höchstens 10 Treffer.
 - "n" muss eine Nummer aus der Liste oben sein. Erfinde nichts, was dort nicht steht.
 - "why": höchstens acht Wörter dazu, warum es passt.
-- "answer": ein bis zwei Sätze auf Deutsch, direkt an die Person. Nenne Namen und Ort, zum Beispiel „Sekundenkleber liegt im Keller, Schrank 1“. Passt gar nichts, sag das ehrlich und nenne kurz, was fehlt.`;
+- "answer": ein bis zwei Sätze auf Deutsch, direkt an die Person. Nenne Namen, Ort und Raum, zum Beispiel „Der Sekundenkleber liegt im Auto, in der Werkzeugkiste“ oder „… Zuhause im Keller, Schrank 1“. Passt gar nichts, sag das ehrlich und nenne kurz, was fehlt.`;
 
   const text = await call(settings, {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],

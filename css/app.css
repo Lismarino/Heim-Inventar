@@ -492,12 +492,12 @@ details[open]>summary .chev{transform:rotate(180deg)}
   flex:none;min-width:28px;padding:2px 8px;border-radius:999px;background:var(--fill);
   font-size:13px;font-weight:600;color:var(--fg2);text-align:center;font-variant-numeric:tabular-nums;
 }
-.mgr .m button{
+.mgr .m button[data-drop]{
   flex:none;width:40px;height:40px;border:0;border-radius:var(--r-sm);background:none;color:var(--danger);
   display:grid;place-items:center;padding:0;transition:background-color .15s;
 }
-.mgr .m button:active{background:var(--danger-tint)}
-.mgr .m button .ic{width:20px;height:20px}
+.mgr .m button[data-drop]:active{background:var(--danger-tint)}
+.mgr .m button[data-drop] .ic{width:20px;height:20px}
 .mgr .none{color:var(--fg2);font-size:14px;padding:16px 16px 4px}
 .add-row{padding:0 16px}
 
@@ -608,13 +608,11 @@ body[data-view="rooms"] .toast{bottom:calc(var(--nav-y) + var(--nav-h) + var(--r
 .cap-where{background:var(--accent-tint);box-shadow:none;padding:14px 16px 16px}
 .cap-where .field>span{color:var(--accent-ink)}
 .cap-where .field>span small{color:var(--accent-ink);opacity:.75}
-.cap-where .where-lbl{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px}
+.cap-where .where-lbl{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;margin:0 0 4px;color:var(--accent-ink)}
 .cap-where .where-lbl .ic{width:16px;height:16px;stroke-width:2.2}
 .cap-where input{background:var(--surface);border-color:transparent}
-.cap-where .where-room input{
-  min-height:56px;padding:12px 16px;font-family:var(--font-round);font-size:21px;font-weight:650;letter-spacing:-.01em;
-}
-.cap-where .where-room input::placeholder{font-family:var(--font-text);font-size:16px;font-weight:400;letter-spacing:0}
+.cap-where .where-room input{min-height:48px;font-weight:600}
+.cap-where .where-room input::placeholder{font-weight:400}
 
 .cap-btns{display:flex;flex-direction:column;gap:12px;margin:0 0 16px}
 .cap-btn{
@@ -1621,3 +1619,270 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
   #nav.compact button span:not(.fab){opacity:1}
   .toast,.update-bar{animation:toast-fade .01s both}
 }
+
+/* =====================================================================
+   1.7.0 – Orte: Ebene über den Räumen („Zuhause“, „Auto“, „Betrieb“ …)
+   Kein neues Glas mit Unschärfe: Umschalter, Chips und Köpfe sind „Glas light“ oder solide –
+   das Budget von höchstens etwa vier gleichzeitig sichtbaren backdrop-filter-Flächen bleibt.
+   ===================================================================== */
+
+/* ---------- Farben der Orte (Palette der App) ----------
+   --pc: Fläche der Plakette, --pc-tint: zarte Kachel, --pc-ink: Symbol und Schrift darauf */
+.pc-tanne{--pc:#2e5e45;--pc-tint:#dfe8dc;--pc-ink:#24503a}
+.pc-salbei{--pc:#56826a;--pc-tint:#e1ebe2;--pc-ink:#33523e}
+.pc-terrakotta{--pc:#b4532a;--pc-tint:#f6e3d3;--pc-ink:#7f361a}
+.pc-senf{--pc:#a8781a;--pc-tint:#f4e6c2;--pc-ink:#6a4c0a}
+.pc-tinte{--pc:#34475f;--pc-tint:#dde4ee;--pc-ink:#2c3d52}
+.pc-pflaume{--pc:#7a4461;--pc-tint:#efdde7;--pc-ink:#5f3149}
+.pc-holz{--pc:#855f3b;--pc-tint:#efe2d0;--pc-ink:#5c4127}
+@media (prefers-color-scheme: dark){
+  .pc-tanne{--pc:#3f7458;--pc-tint:#24342a;--pc-ink:#a9d8ba}
+  .pc-salbei{--pc:#4f7a61;--pc-tint:#26332b;--pc-ink:#b8dcc3}
+  .pc-terrakotta{--pc:#a9542c;--pc-tint:#3a261a;--pc-ink:#f2b791}
+  .pc-senf{--pc:#8f6b1c;--pc-tint:#3a3018;--pc-ink:#ebcb85}
+  .pc-tinte{--pc:#435a7c;--pc-tint:#232d3b;--pc-ink:#b5c8de}
+  .pc-pflaume{--pc:#7d4867;--pc-tint:#382431;--pc-ink:#e2b5cd}
+  .pc-holz{--pc:#7c5c3c;--pc-tint:#382c20;--pc-ink:#e0c29e}
+}
+
+/* Plakette: Symbol hell auf der Farbe des Orts */
+.pbadge{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:10px;background:var(--pc);color:#fbf6ec;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 2px 6px -3px rgba(40,25,10,.35)}
+.pbadge .ic{width:19px;height:19px;stroke-width:2}
+.sh-pic.pbadge{width:54px;height:54px;border-radius:15px}
+.sh-pic.pbadge .ic{width:28px;height:28px;stroke-width:1.9}
+/* Nur das Symbol, getönt */
+.pic{display:inline-grid;place-items:center;flex:none;color:var(--pc-ink)}
+
+/* ---------- Zuhause: Umschalter „Alle · Zuhause · Auto …“ ---------- */
+.pswitch{
+  margin:0 -16px 16px;padding:2px 16px 6px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+  scrollbar-width:none;overscroll-behavior-x:contain;
+}
+.pswitch::-webkit-scrollbar{display:none}
+.pswitch-track{
+  position:relative;display:inline-flex;gap:2px;padding:4px;border-radius:999px;isolation:isolate;
+  background:var(--lite);box-shadow:var(--lite-rim);
+}
+.pswitch .lens{
+  position:absolute;left:0;top:4px;bottom:4px;z-index:0;border-radius:999px;pointer-events:none;opacity:0;
+  transform-origin:0 50%;background:var(--lens);box-shadow:var(--lens-rim);
+}
+.pseg{
+  position:relative;z-index:1;flex:none;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 15px;
+  border:0;border-radius:999px;background:none;color:var(--fg2);font-size:15px;font-weight:650;white-space:nowrap;
+  isolation:isolate;touch-action:manipulation;transition:color .2s,transform var(--spring-pop-dur) var(--spring-pop);
+}
+.pseg .pic .ic{width:19px;height:19px;stroke-width:2}
+.pseg.on{color:var(--accent-ink)}
+.pseg.add{width:40px;padding:0;justify-content:center;color:var(--accent-text)}
+.pseg.add .ic{width:20px;height:20px;stroke-width:2.2}
+.pseg:focus-visible{outline-offset:-3px}
+.pseg::after{
+  content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(circle 30px at var(--gx) var(--gy),var(--glass-glint),rgba(255,255,255,0));
+  opacity:0;transition:opacity .35s ease-out;
+}
+.pseg.is-pressed::after{opacity:1;transition-duration:.06s}
+.pseg.is-pressed{transform:scale(1.06)}
+.home-sum + .pswitch,.home-head + .pswitch{margin-top:-4px}
+
+/* Orts-Gruppen (Zuhause bei „Alle“, Tab „Räume“) */
+.pgroup + .pgroup,.room-grid + .pgroup{margin-top:24px}
+.pgroup-head{display:flex;align-items:center;gap:10px;min-height:44px;margin:0 2px 10px;padding:0;min-width:0}
+button.pgroup-head{width:calc(100% - 4px);border:0;background:none;color:inherit;text-align:left;border-radius:var(--r-md);transition:opacity .15s}
+button.pgroup-head:active{opacity:.6}
+.pgroup-name{margin:0;min-width:0;font-family:var(--font-round);font-size:20px;font-weight:720;letter-spacing:-.012em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pgroup-head .sec-n{flex:none;color:var(--fg2);font-size:12px;font-weight:650}
+.pgroup-head .go{margin-left:auto;width:18px;height:18px;color:var(--fg3);stroke-width:2.2}
+.pgroup-more{
+  flex:none;margin-left:auto;width:40px;height:40px;padding:0;border:0;border-radius:50%;display:grid;place-items:center;
+  background:var(--lite);box-shadow:var(--lite-rim);color:var(--accent-text);transition:transform var(--spring-pop-dur) var(--spring-pop);
+}
+.pgroup-more .ic{width:24px;height:24px}
+.pgroup-head.pressing{opacity:.6;transition:opacity .45s}
+#home-rooms > .pgroup:first-child,#places-grid > :first-child{margin-top:0}
+
+/* „Ohne Ort“ allein in seiner Reihe: breites Band statt einer halb leeren Zeile */
+.room-grid > .rt-noroom:only-child{grid-column:1 / -1;aspect-ratio:auto;height:92px}
+.room-grid > .rt-noroom:only-child .rt-pin{top:23px}
+.room-grid > .rt-noroom:only-child .rt-txt{left:76px;top:0;bottom:0;justify-content:center}
+.room-grid > .rt-noroom:only-child::before{
+  content:"";position:absolute;right:16px;top:50%;width:20px;height:20px;margin-top:-10px;background:var(--clay);
+  -webkit-mask:var(--m-chev) center/contain no-repeat;mask:var(--m-chev) center/contain no-repeat;
+}
+
+/* Kachel für den Ort selbst (was direkt dort liegt) */
+.rt-place{background:var(--pc-tint);color:var(--pc-ink)}
+.rt-place .rt-badge{position:absolute;left:14px;top:14px;width:46px;height:46px;border-radius:var(--r-md)}
+.rt-place .rt-badge .ic{width:25px;height:25px}
+.rt-place.has-pic{color:#fff}
+
+/* „Ort hinzufügen“ am Ende des Tabs „Räume“ */
+.place-add{
+  display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;margin:26px 0 0;padding:16px 16px 14px;
+  border:2px dashed var(--line-strong);border-radius:var(--r-xl);background:transparent;color:var(--accent-text);
+  font-size:16px;font-weight:650;transition:transform .12s ease;
+}
+.place-add .ic{width:26px;height:26px;stroke-width:2.2}
+.place-add small{font-size:13px;font-weight:500;color:var(--fg3)}
+.place-add:active{transform:scale(.985)}
+.topbar.large #places-add{padding:0 14px 0 10px}
+.topbar.large #places-add .ic{width:20px;height:20px;margin-left:-2px;stroke-width:2.2}
+
+/* Raum-/Ort-Ansicht: Ort über dem Titel */
+.room-crumb{display:flex;align-items:center;gap:6px;margin:0 0 4px;font-size:14px;font-weight:650;color:var(--fg2)}
+.room-crumb .pic .ic{width:18px;height:18px;stroke-width:2}
+
+/* Zeilen und Streifen: Symbol des Orts vor „Auto · Kofferraum“ */
+.row .place .pic .ic{width:15px;height:15px;stroke-width:2}
+.rtile-room{display:flex;align-items:center;gap:3px}
+.rtile-room > span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.rtile-room .pic .ic{width:13px;height:13px;stroke-width:2.2}
+
+/* ---------- Orts-Chips (Hinzufügen, Zuweisen, Eintrag, Aktionsblatt) ---------- */
+.pchips{
+  display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  overscroll-behavior-x:contain;
+}
+.pchips::-webkit-scrollbar{display:none}
+.pchip{
+  flex:none;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 15px 0 11px;border:0;border-radius:999px;
+  background:var(--surface);color:var(--fg);font-size:15px;font-weight:620;white-space:nowrap;
+  box-shadow:inset 0 0 0 1px var(--line),0 1px 2px rgba(60,40,20,.06);
+  transition:background-color .15s,color .15s,transform var(--spring-pop-dur) var(--spring-pop);
+}
+.pchip .ic{width:19px;height:19px;stroke-width:2;color:var(--pc-ink,var(--accent-text))}
+.pchip.on{background:var(--pc);color:#fbf6ec;box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 6px 14px -9px rgba(40,25,10,.6)}
+.pchip.on .ic{color:inherit}
+.pchip.add{background:transparent;color:var(--accent-text);box-shadow:inset 0 0 0 1.5px var(--line-strong)}
+.pchip.none .ic{color:var(--clay)}
+.pchip.none.on{background:var(--clay);color:var(--on-clay)}
+.pchip.is-pressed{transform:scale(1.05)}
+.cap-where .pchips{margin:0 -16px 14px;padding:2px 16px 4px}
+.assign-places .pchips{margin:0 -10px 10px;padding:2px 10px 4px}
+.sheet-places .pchips,#sheet-places .pchips{margin:0 -14px 14px;padding:2px 14px 4px}
+#sheet-rooms .pchips{margin:0 -14px 12px;padding:2px 14px 4px}
+#sheet-rooms .pstyle-lbl{margin-top:0}
+.pchip.room .ic,.pchip.room.none .ic{color:var(--fg3)}
+.pchip.room.on,.pchip.room.none.on{background:var(--accent);color:var(--on-accent)}
+.pchip.room.on .ic{color:inherit}
+.it-place{flex:1;min-width:0;align-self:stretch;display:flex;align-items:center}
+.it-place .pchips{margin-right:-16px;padding:7px 16px 7px 0;width:calc(100% + 16px)}
+.it-place .pchip{min-height:36px;font-size:15px}
+.group .place-field{min-height:52px}
+
+/* Hinzufügen: „Du bist gerade in: Auto › Kofferraum“ */
+.where-now{
+  display:flex;align-items:center;flex-wrap:wrap;gap:4px 7px;min-height:34px;margin:0 0 12px;
+  font-family:var(--font-round);font-size:23px;line-height:1.2;font-weight:720;letter-spacing:-.015em;color:var(--fg);
+}
+.where-now .pic .ic{width:24px;height:24px;stroke-width:2}
+.where-now b{font-weight:inherit;overflow-wrap:anywhere}
+.where-now i{font-style:normal;color:var(--fg3);font-weight:600}
+.where-now .open{color:var(--accent-ink)}
+.where-now small{font-family:var(--font-text);font-size:14px;font-weight:500;letter-spacing:0;color:var(--accent-ink);opacity:.8}
+
+/* Aktionsblatt: Hinweistext, Symbol & Farbe */
+.sheet-note{margin:0 2px 12px;color:var(--fg2);font-size:15px;line-height:1.45}
+.sheet-note.small{margin:-2px 2px 4px;font-size:13px;color:var(--fg3)}
+.sheet{max-height:calc(100% - var(--safe-t) - 16px);overflow-y:auto;overscroll-behavior:contain}
+.pstyle-lbl{margin:4px 2px 8px;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--fg2)}
+.pstyle-icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:8px;margin-bottom:14px}
+.pstyle-ic{
+  height:46px;padding:0;border:0;border-radius:14px;display:grid;place-items:center;
+  background:var(--lite-strong);box-shadow:var(--lite-rim);color:var(--pc-ink,var(--fg));transition:background-color .15s,color .15s;
+}
+.pstyle-ic .ic{width:24px;height:24px;stroke-width:1.9}
+.pstyle-ic.on{background:var(--pc);color:#fbf6ec}
+.pstyle-colors{display:flex;flex-wrap:wrap;gap:12px;padding:2px}
+.pstyle-col{
+  width:36px;height:36px;padding:0;border:0;border-radius:50%;background:var(--pc);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3);transition:box-shadow .15s;
+}
+.pstyle-col.on{box-shadow:0 0 0 3px var(--glass-tint-strong),0 0 0 5.5px var(--pc)}
+
+/* Einstellungen: Orte, Räume nach Ort */
+.mgr .m .m-badge{flex:none;padding:0;border:0;background:none;border-radius:10px;display:grid}
+.mgr-sub{display:flex;align-items:center;gap:8px;margin:14px 16px 0;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--fg2)}
+.mgr-sub:first-child{margin-top:10px}
+.mgr-sub .pbadge{width:24px;height:24px;border-radius:8px}
+.mgr-sub .pbadge .ic{width:15px;height:15px}
+.add-row select{
+  flex:0 1 auto;min-width:0;max-width:38%;min-height:46px;padding:0 30px 0 12px;border:1px solid var(--line);border-radius:var(--r-md);
+  background:var(--field) var(--chev) no-repeat right 10px center/16px;appearance:none;-webkit-appearance:none;text-overflow:ellipsis;
+}
+
+/* Alles: drei Filter – bei wenig Breite waagerecht scrollbar */
+.filters.three{overflow-x:auto;scrollbar-width:none;margin:0 calc(-1 * var(--gut));padding:2px var(--gut)}
+.filters.three::-webkit-scrollbar{display:none}
+.filters.three select{flex:0 0 auto;width:auto;max-width:72%}
+
+/* Einführung: Orte mit Symbol, Umschalter zwischen den Orten auf der Räume-Seite */
+.onb-chip .onb-pic{width:19px;height:19px;margin-left:-5px;stroke-width:2}
+.onb-chip.on .onb-pic{display:none}
+.onb-rtabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.onb-rtab{
+  display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 15px 0 11px;border:0;border-radius:999px;
+  background:var(--lite);box-shadow:var(--lite-rim);color:var(--fg2);font-size:15px;font-weight:650;
+}
+.onb-rtab .ic{width:19px;height:19px;stroke-width:2}
+.onb-rtab.on{background:var(--accent-tint);color:var(--accent-ink);box-shadow:inset 0 0 0 1.5px var(--accent-text)}
+
+@media (prefers-reduced-motion: reduce){
+  .place-add:active,button.pgroup-head:active{transform:none}
+}
+@media (prefers-reduced-transparency: reduce){
+  .pswitch-track{background:var(--surface-2)}
+}
+
+/* ---------- 1.7.1: Umstellung auf Orte beim ersten Start ----------
+   Schwebt über der Start-Szene (z-index über .splash, unter der Fehlerseite). */
+.migrate{
+  position:fixed;left:0;right:0;bottom:calc(var(--safe-b) + 28px);z-index:160;
+  display:flex;justify-content:center;padding:0 16px;pointer-events:none;animation:rise .3s ease-out;
+}
+.migrate-card{
+  width:100%;max-width:420px;padding:16px 18px 14px;border-radius:24px;
+  background:var(--glass-tint-strong);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  box-shadow:inset 0 1px 0 var(--glass-rim),0 10px 30px -12px rgba(40,25,10,.35);color:var(--fg);
+}
+.migrate-title{margin:0;font-family:var(--font-round);font-size:17px;font-weight:700;line-height:1.35}
+.migrate-sub{margin:2px 0 12px;font-size:15px;color:var(--fg2)}
+.migrate-track{height:6px;border-radius:999px;background:var(--line-strong);overflow:hidden}
+.migrate-track i{display:block;height:100%;border-radius:inherit;background:var(--accent);transform:scaleX(0);transform-origin:0 50%;transition:transform .25s ease-out}
+.migrate-n{margin:8px 0 0;font-size:13px;color:var(--fg3);font-variant-numeric:tabular-nums}
+.migrate-n:empty{display:none}
+@media (prefers-reduced-motion: reduce){ .migrate{animation:none} .migrate-track i{transition:none} }
+
+/* Nur für Screenreader (Ansagen) */
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* Zuhause mit nur einem Ort: statt des Umschalters ein leiser Hinweis auf weitere Orte */
+.place-hint{
+  display:inline-flex;align-items:center;gap:8px;min-height:40px;margin:-6px 0 12px;padding:0 14px 0 10px;
+  border:0;border-radius:999px;background:var(--lite);box-shadow:var(--lite-rim);color:var(--accent-text);
+  font-size:15px;font-weight:650;transition:transform var(--spring-pop-dur) var(--spring-pop);
+}
+.place-hint .ic{width:18px;height:18px;stroke-width:2.2}
+.place-hint small{font-size:14px;font-weight:500;color:var(--fg3)}
+.place-hint:active{transform:scale(.97)}
+
+/* Orts-Gruppe auf Zuhause: Überschrift plus Aktion „Nur … zeigen“ */
+.pgroup-go{
+  flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:2px;min-height:40px;padding:0 6px 0 12px;
+  border:0;border-radius:999px;background:none;color:var(--accent-text);font-size:14px;font-weight:650;
+}
+.pgroup-go .go{margin-left:0}
+.pgroup-go:active{opacity:.6}
+.pgroup-head.home{cursor:pointer}
+
+/* Tab „Räume“: Räume, deren Ort fehlt */
+.pgroup-lost .pgroup-name{color:var(--fg2)}
+.pgroup-lost .pbadge{background:var(--fill-strong);color:var(--fg2)}
+.pgroup-assign{
+  flex:none;margin-left:auto;min-height:40px;padding:0 14px;border:0;border-radius:999px;
+  background:var(--accent-tint);color:var(--accent-ink);font-size:14px;font-weight:650;
+}
+@media (prefers-reduced-motion: reduce){ .place-hint:active{transform:none} }

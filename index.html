@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
-<meta name="app-version" content="1.6.2">
+<meta name="app-version" content="1.7.1">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -82,6 +82,16 @@
   <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14.5 4.5 10 9 5.5"/><path d="M4.5 10h10a5 5 0 0 1 0 10H12"/></symbol>
   <symbol id="i-rooms" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M11 3.5v5.25M11 12.25v8.25M3.5 12.25H8M11 12.25h9.5"/></symbol>
   <symbol id="i-done" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.25 12.25 2.5 2.5 5-5.25"/></symbol>
+  <!-- Orte (1.7.0): gleicher Strich, #i-pl-<symbol> – Liste in js/places.js -->
+  <symbol id="i-pl-haus" viewBox="0 0 24 24"><path d="M3.75 11 12 4.25 20.25 11"/><path d="M6 9.25v9.5a1.75 1.75 0 0 0 1.75 1.75h8.5A1.75 1.75 0 0 0 18 18.75v-9.5"/><path d="M10 20.5v-4.75a2 2 0 0 1 4 0v4.75"/></symbol>
+  <symbol id="i-pl-wohnung" viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M8.75 7.5h1.5M13.75 7.5h1.5M8.75 11h1.5M13.75 11h1.5M8.75 14.5h1.5M13.75 14.5h1.5M10.5 20.5v-2.25h3v2.25"/></symbol>
+  <symbol id="i-pl-ferien" viewBox="0 0 24 24"><path d="M3 20.5h12.5"/><path d="M4.5 20.5 9.75 7l5.25 13.5"/><path d="M8.25 20.5l1.5-4 1.5 4"/><path d="M19 20.5v-3.25M16.5 17.25h5L19 12z"/><circle cx="18.25" cy="5.75" r="1.75"/></symbol>
+  <symbol id="i-pl-auto" viewBox="0 0 24 24"><path d="M5.2 16H3.75v-3.1a1.5 1.5 0 0 1 1.05-1.43l2.3-.72 1.9-2.9A1.5 1.5 0 0 1 10.25 7.2h4.4a1.5 1.5 0 0 1 1.18.57l2.35 3 1.5.52a1.5 1.5 0 0 1 1.07 1.43V16H18.8M9.3 16h5.4"/><circle cx="7.25" cy="16.25" r="2"/><circle cx="16.75" cy="16.25" r="2"/><path d="M7.4 10.75h10.4M12.4 7.25v3.5"/></symbol>
+  <symbol id="i-pl-bus" viewBox="0 0 24 24"><path d="M5.35 17H3.75V7.25a1.75 1.75 0 0 1 1.75-1.75h9.25a1.75 1.75 0 0 1 1.75 1.75V9.5h1.9a1.5 1.5 0 0 1 1.22.63l1.83 2.57V17h-1.4M9.1 17h5.85"/><path d="M16.5 9.5v3.75h3.8"/><circle cx="7.25" cy="17.25" r="1.9"/><circle cx="16.9" cy="17.25" r="1.9"/></symbol>
+  <symbol id="i-pl-firma" viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="12.5" rx="2.5"/><path d="M8.75 7.5V6a1.75 1.75 0 0 1 1.75-1.75h3A1.75 1.75 0 0 1 15.25 6v1.5M3.5 12.75c5.5 2 11.5 2 17 0M11 14h2"/></symbol>
+  <symbol id="i-pl-werkstatt" viewBox="0 0 24 24"><path d="M14.9 4.4a4.3 4.3 0 0 0-5.3 5.5l-5.35 5.35a1.95 1.95 0 0 0 2.75 2.75l5.35-5.35a4.3 4.3 0 0 0 5.5-5.3l-2.5 2.5-2.6-.35-.35-2.6z"/></symbol>
+  <symbol id="i-pl-garten" viewBox="0 0 24 24"><path d="M12 20.5v-8.25"/><path d="M12 12.25C12 8.6 9.6 6 5.25 6c0 3.65 2.4 6.25 6.75 6.25z"/><path d="M12 14.75c0-3.4 2.3-5.75 6.75-5.75 0 3.4-2.3 5.75-6.75 5.75z"/><path d="M6 20.5h12"/></symbol>
+  <symbol id="i-pl-lager" viewBox="0 0 24 24"><rect x="3.75" y="12.25" width="7.75" height="7.75" rx="1.25"/><rect x="12.5" y="12.25" width="7.75" height="7.75" rx="1.25"/><rect x="8.1" y="4" width="7.75" height="7.75" rx="1.25"/><path d="M6.4 14.9h2.45M15.15 14.9h2.45M10.75 6.65h2.45"/></symbol>
   <!-- Liquid Glass: Lichtbrechung an den Rändern – nur Chromium kann backdrop-filter: url(…),
        js/glass.js schaltet sie dort per Klasse „refract“ zu. Safari bleibt bei blur() + saturate(). -->
   <filter id="lg-refract" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
@@ -116,6 +126,17 @@
   <p class="small" id="boot-error-detail"></p>
 </div>
 
+<!-- Umstellung auf Orte beim ersten Start von 1.7 (js/app.js, runPlacesMigration): liegt über
+     der Start-Szene; solange sie läuft, hält der Start-Wächter unten still. -->
+<div id="migrate" class="migrate" role="status" hidden>
+  <div class="migrate-card">
+    <p class="migrate-title">Einen Moment – deine Daten werden auf Orte umgestellt.</p>
+    <p class="migrate-sub">Bitte App offen lassen.</p>
+    <div class="migrate-track" role="progressbar" aria-label="Umstellung auf Orte" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="migrate-bar"></i></div>
+    <p class="migrate-n" id="migrate-n"></p>
+  </div>
+</div>
+
 <div id="app">
 
   <!-- ============ ZUHAUSE ============ -->
@@ -127,6 +148,14 @@
         <h1 class="home-hello" id="home-hello">Hallo</h1>
         <p class="home-sum" id="home-sum"></p>
       </header>
+      <!-- Orts-Umschalter: Alle · Zuhause · Auto … – die Linse gleitet zum gewählten (js/glass.js) -->
+      <div class="pswitch" id="home-places" hidden>
+        <div class="pswitch-track" role="group" aria-label="Ort wählen"></div>
+      </div>
+      <!-- Nur ein Ort: statt des Umschalters ein Hinweis, dass es weitere geben kann -->
+      <button type="button" class="place-hint" id="home-place-hint" data-place-add hidden>
+        <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>Ort hinzufügen</span><small>z. B. Auto</small>
+      </button>
       <button class="home-search" id="home-search" type="button">
         <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><span>Suchen oder KI fragen …</span>
       </button>
@@ -138,7 +167,7 @@
       </section>
       <section>
         <div class="sec-row"><h2 class="sec">Räume <span class="sec-n" id="home-rooms-count"></span></h2><button class="sec-link" data-nav="places" id="home-rooms-all" hidden>Alle</button></div>
-        <div class="room-grid" id="home-rooms"></div>
+        <div class="room-groups" id="home-rooms"></div>
       </section>
     </div>
   </section>
@@ -156,6 +185,7 @@
           <input id="q" type="search" placeholder="Suchen oder KI fragen …" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="Suchen">
         </label>
         <div class="filters" id="filters">
+          <select id="f-place" required aria-label="Ort filtern" hidden><option value="">Alle Orte</option></select>
           <select id="f-cat" required aria-label="Kategorie filtern"><option value="">Alle Kategorien</option></select>
           <select id="f-room" required aria-label="Raum filtern"><option value="">Alle Räume</option></select>
         </div>
@@ -181,10 +211,11 @@
       <header class="topbar large">
         <h1>Räume</h1>
         <span class="count" id="places-count"></span>
+        <button class="link" id="places-add" aria-label="Ort hinzufügen"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Ort</button>
       </header>
     </div>
     <div class="scroll places">
-      <div class="room-grid" id="places-grid"></div>
+      <div class="room-groups" id="places-grid"></div>
     </div>
   </section>
 
@@ -199,12 +230,16 @@
     <div class="scroll">
 
       <div class="card cap-where">
+        <p class="where-lbl"><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg>Du bist gerade in</p>
+        <p class="where-now" id="cap-now"></p>
+        <p class="sr-only" id="cap-now-live" aria-live="polite"></p>
+        <div class="where-places" id="cap-places"></div>
         <label class="field where-room">
-          <span class="where-lbl"><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg>Du bist gerade in</span>
-          <input id="cap-room" data-combo="rooms" placeholder="Raum, z. B. Keller – oder leer lassen" autocomplete="off">
+          <span>Raum <small>(optional)</small></span>
+          <input id="cap-room" data-combo="rooms" placeholder="z. B. Keller – oder leer lassen" autocomplete="off">
         </label>
         <label class="field where-loc">
-          <span>Ort-Details <small>(optional)</small></span>
+          <span>Genauer Platz <small>(optional)</small></span>
           <input id="cap-loc" type="text" placeholder="z. B. Schrank 1, oben links" autocomplete="off">
         </label>
       </div>
@@ -258,24 +293,24 @@
             </label>
           </details>
           <button class="btn primary block" id="man-save">Speichern</button>
-          <p class="hint">Raum und Ort-Details kommen aus dem Feld ganz oben.</p>
+          <p class="hint">Ort, Raum und genauer Platz kommen aus den Feldern ganz oben.</p>
         </div>
       </details>
     </div>
   </section>
 
-  <!-- ============ OHNE RAUM ============ -->
+  <!-- ============ OHNE ORT (bis 1.6 „Ohne Raum“) ============ -->
   <section class="view" id="view-rooms" hidden>
     <div class="head">
       <header class="topbar">
         <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
-        <h1>Ohne Raum</h1>
+        <h1>Ohne Ort</h1>
         <span class="count" id="rs-count"></span>
       </header>
     </div>
     <div class="scroll">
       <div id="rs-main">
-        <p class="hint rs-intro">Antippen zum Auswählen, dann unten den Raum eintragen.</p>
+        <p class="hint rs-intro">Antippen zum Auswählen, dann unten Ort und Raum wählen.</p>
         <div class="row-btns rs-selbtns">
           <button class="btn pill" id="rs-all"><svg class="ic" aria-hidden="true"><use href="#i-done"/></svg>Alle auswählen</button>
           <button class="btn pill ghost" id="rs-none">Keine</button>
@@ -284,15 +319,16 @@
       </div>
       <div class="empty" id="rs-empty" hidden>
         <span class="empty-badge"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg></span>
-        <p>Alles hat einen Raum.</p>
+        <p>Alles hat einen Ort.</p>
         <button class="btn" data-nav="back">Zurück</button>
       </div>
     </div>
     <div class="assign-bar" id="rs-bar">
       <div class="assign-inner">
+        <div class="assign-places" id="rs-places"></div>
         <div class="assign-fields">
-          <label class="field"><span>Raum</span><input id="rs-room" data-combo="rooms" placeholder="z. B. Keller" autocomplete="off"></label>
-          <label class="field"><span>Ort-Details <small>(optional)</small></span><input id="rs-loc" type="text" placeholder="z. B. Regal 2" autocomplete="off"></label>
+          <label class="field"><span>Raum <small>(optional)</small></span><input id="rs-room" data-combo="rooms" placeholder="z. B. Keller" autocomplete="off"></label>
+          <label class="field"><span>Genauer Platz <small>(optional)</small></span><input id="rs-loc" type="text" placeholder="z. B. Regal 2" autocomplete="off"></label>
         </div>
         <button class="btn primary block" id="rs-assign" disabled>Zuweisen</button>
       </div>
@@ -310,6 +346,7 @@
     </div>
     <div class="scroll">
       <div class="room-hero">
+        <p class="room-crumb" id="room-crumb" hidden></p>
         <h2 class="room-title" id="room-title"></h2>
         <p class="room-sub" id="room-sub"></p>
         <button class="btn primary block room-shoot" id="room-shoot"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg>Hier fotografieren</button>
@@ -346,10 +383,11 @@
         </div>
         <label class="field"><span>Name</span><input id="it-name" type="text" autocomplete="off"></label>
         <label class="field"><span>Kategorie</span><input id="it-cat" data-combo="categories" autocomplete="off" placeholder="z. B. Werkzeug"></label>
+        <div class="field place-field"><span id="it-place-lbl">Ort</span><div class="it-place" id="it-place" aria-labelledby="it-place-lbl"></div></div>
         <label class="field"><span>Raum</span><input id="it-room" data-combo="rooms" autocomplete="off" placeholder="z. B. Keller"></label>
         <details class="more" id="it-more">
           <summary>Mehr Angaben<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
-          <label class="field"><span>Ort-Details</span><input id="it-loc" type="text" autocomplete="off" placeholder="z. B. Regal 2"></label>
+          <label class="field"><span>Genauer Platz</span><input id="it-loc" type="text" autocomplete="off" placeholder="z. B. Regal 2"></label>
           <label class="field"><span>Bestand</span><input id="it-qty" type="text" autocomplete="off" placeholder="z. B. 3 oder genug"></label>
           <label class="field stack"><span>Notiz</span><textarea id="it-note" rows="3" placeholder="Freitext"></textarea></label>
         </details>
@@ -392,7 +430,7 @@
 
       <h2 class="sec">Sicherung</h2>
       <div class="card">
-        <p class="hint lead">Sichert alles: Einträge, Kategorien, Räume, Archiv und Fotos in einer Datei. Der API-Key wird aus Sicherheitsgründen nicht mitgesichert.</p>
+        <p class="hint lead">Sichert alles: Einträge, Kategorien, Orte, Räume, Archiv und Fotos in einer Datei. Der API-Key wird aus Sicherheitsgründen nicht mitgesichert.</p>
         <label class="check"><input type="checkbox" id="exp-photos" checked> <span>Fotos mitsichern</span></label>
         <button class="btn primary block" id="exp-build">Sicherung erstellen</button>
         <p class="hint" id="exp-out"></p>
@@ -448,10 +486,16 @@
         <div class="row-btns add-row"><input id="cat-new" type="text" placeholder="Neue Kategorie"><button class="btn" id="cat-add">Anlegen</button></div>
       </div>
 
+      <h2 class="sec">Orte</h2>
+      <div class="card list-card">
+        <div id="place-mgr" class="mgr"></div>
+        <div class="row-btns add-row"><input id="place-new" type="text" placeholder="Neuer Ort, z. B. Auto" aria-label="Neuer Ort"><button class="btn" id="place-add">Anlegen</button></div>
+      </div>
+
       <h2 class="sec">Räume</h2>
       <div class="card list-card">
         <div id="room-mgr" class="mgr"></div>
-        <div class="row-btns add-row"><input id="room-new" type="text" placeholder="Neuer Raum"><button class="btn" id="room-add">Anlegen</button></div>
+        <div class="row-btns add-row"><input id="room-new" type="text" placeholder="Neuer Raum" aria-label="Neuer Raum"><select id="room-new-place" aria-label="Ort des neuen Raums" hidden></select><button class="btn" id="room-add">Anlegen</button></div>
       </div>
 
       <h2 class="sec">Fotos &amp; Speicher</h2>
@@ -517,22 +561,36 @@
       </div>
       <p class="onb-eyebrow">Heim-Inventar</p>
       <h2>Alles, was du besitzt – schnell gefunden.</h2>
-      <p class="onb-lead">Fotografiere Stück für Stück, was du aufbewahrst. Die App merkt sich, was es ist und in welchem Raum es liegt.</p>
+      <p class="onb-lead">Fotografiere Stück für Stück, was du aufbewahrst. Die App merkt sich, was es ist und wo es liegt – zu Hause, im Auto oder im Betrieb.</p>
       <p class="onb-private"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>Deine Daten bleiben auf diesem iPhone.</p>
     </section>
-    <section class="onb-page onb-2">
-      <p class="onb-eyebrow">Schritt 1 von 2</p>
-      <h2>Welche Räume hast du?</h2>
-      <p class="onb-lead">Tippe an, was es bei dir gibt. Weitere Räume entstehen später ganz von selbst.</p>
-      <div class="onb-chips" id="onb-chips"></div>
+    <section class="onb-page onb-places">
+      <p class="onb-eyebrow">Schritt 1 von 3</p>
+      <h2>Wo hast du Sachen?</h2>
+      <p class="onb-lead">Zu Hause, im Auto, im Betrieb … Tippe an, was für dich passt – jeder Ort bekommt später seine eigenen Räume.</p>
+      <div class="onb-chips" id="onb-places"></div>
       <div class="onb-add">
-        <input id="onb-room" type="text" placeholder="Eigener Raum, z. B. Werkstatt" autocomplete="off" enterkeyhint="done" aria-label="Eigener Raum">
-        <button class="btn" id="onb-room-add" type="button"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Dazu</button>
+        <input id="onb-place" type="text" placeholder="Eigener Ort, z. B. Haus 2" autocomplete="off" enterkeyhint="done" aria-label="Eigener Ort">
+        <button class="btn" id="onb-place-add" type="button"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Dazu</button>
       </div>
-      <p class="onb-picked" id="onb-picked"></p>
+      <p class="onb-picked" id="onb-places-picked"></p>
+    </section>
+    <section class="onb-page onb-2">
+      <p class="onb-eyebrow">Schritt 2 von 3</p>
+      <h2 id="onb-rooms-title">Welche Räume hast du?</h2>
+      <div class="onb-rtabs" id="onb-rtabs" role="group" aria-label="Ort" hidden></div>
+      <p class="onb-lead" id="onb-rooms-lead">Tippe an, was es bei dir gibt. Weitere Räume entstehen später ganz von selbst.</p>
+      <div id="onb-rooms-box">
+        <div class="onb-chips" id="onb-chips"></div>
+        <div class="onb-add">
+          <input id="onb-room" type="text" placeholder="Eigener Raum, z. B. Werkstatt" autocomplete="off" enterkeyhint="done" aria-label="Eigener Raum">
+          <button class="btn" id="onb-room-add" type="button"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Dazu</button>
+        </div>
+        <p class="onb-picked" id="onb-picked"></p>
+      </div>
     </section>
     <section class="onb-page onb-3">
-      <p class="onb-eyebrow">Schritt 2 von 2 · optional</p>
+      <p class="onb-eyebrow">Schritt 3 von 3 · optional</p>
       <h2>KI-Erkennung</h2>
       <p class="onb-lead">Mit einem kostenlosen Schlüssel von Google benennt die App deine Fotos von selbst – „Akkuschrauber“, „Pfanne“, „Wintermantel“.</p>
       <label class="field onb-keyfield">
@@ -548,7 +606,7 @@
     </section>
   </div>
   <div class="onb-foot">
-    <div class="onb-dots" id="onb-dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
+    <div class="onb-dots" id="onb-dots" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i></div>
     <button class="btn primary block" id="onb-next"><span>Weiter</span></button>
     <button class="btn ghost block" id="onb-later" hidden>Später – erst mal ohne KI</button>
   </div>
@@ -645,12 +703,15 @@
 
 // Startet die App nicht (z. B. fehlende Datei), darf der Nutzer nicht vor einer
 // leeren Liste stehen und denken, seine Daten seien weg.
-setTimeout(function () {
+// __inventarMigrating: app.js stellt gerade die Daten auf Orte um (kann bei vielen Einträgen
+// länger dauern und zeigt das selbst an) – dann nicht Alarm schlagen, sondern später nachsehen.
+setTimeout(function watchdog() {
   // __inventarFailed: app.js hat selbst schon eine genauere Meldung gezeigt.
   if (window.__inventarReady || window.__inventarFailed) return;
+  if (window.__inventarMigrating) { setTimeout(watchdog, 6000); return; }
   // Vielleicht ein Mischstand nach einem Update – dann rettet sich die App selbst.
   window.__inventarRescue('Zeitüberschreitung').then(function (rescuing) {
-    if (window.__inventarReady || window.__inventarFailed) return;
+    if (window.__inventarReady || window.__inventarFailed || window.__inventarMigrating) return;
     document.getElementById('boot-error').hidden = false;
     document.getElementById('app').hidden = true;
     document.getElementById('splash').hidden = true;
@@ -660,7 +721,7 @@ setTimeout(function () {
     var files = ['./js/app.js', './js/db.js', './js/img.js', './js/gemini.js',
                  './js/combo.js', './js/backup.js', './js/queue.js', './js/ui.js', './js/home.js',
                  './js/gestures.js', './js/motion.js', './js/sheet.js', './js/onboarding.js',
-                 './js/glass.js', './js/intro.js', './css/app.css', './manifest.webmanifest'];
+                 './js/glass.js', './js/intro.js', './js/places.js', './css/app.css', './manifest.webmanifest'];
     var missing = [];
     Promise.all(files.map(function (f) {
       return fetch(f, { cache: 'no-store' })
