@@ -2,7 +2,7 @@
 // umbrochen werden muss. Bei „Bewegung reduzieren“ springt alles sofort.
 //
 // Arten: push (von rechts herein), pop (nach rechts hinaus), sheet-up (von unten),
-// sheet-down (nach unten weg), ripple (Tabwechsel, 1.10.2), fade, none.
+// sheet-down (nach unten weg), fade-out (Tabwechsel), ripple (seit 1.10.3 ungenutzt), fade, none.
 //
 // ripple – „Wassertropfen“ (1.10.2): Ein Glas-Tröpfchen steigt vom Tab zur Wasseroberfläche
 // (42 % der Höhe), taucht ein – die alte Ansicht gibt minimal nach, ein heller Glaspunkt
@@ -325,9 +325,9 @@ export function run(kind, from, to, keep = () => false, { origin = null } = {}) 
   } else if (kind === 'ripple') {
     drop(from, to, origin, anims);
   } else if (kind === 'fade-out') {
-    // Bewegung reduzieren: die alte Ansicht blendet oben liegend aus – 150 ms, ohne Kreis.
+    // Tabwechsel: die alte Ansicht blendet oben liegend aus, die neue ist darunter sofort bedienbar.
     from.style.zIndex = '2';
-    a(from, [{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'ease-out', fill: 'both' });
+    a(from, [{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 150 : 180, easing: 'ease-out', fill: 'both' });
   } else {
     to.style.zIndex = '2';
     a(to, [{ opacity: 0 }, { opacity: 1 }], { ...opt, easing: 'ease-out' });
