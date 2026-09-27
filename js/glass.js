@@ -47,8 +47,17 @@ let lensAnim = null;
 
 const slot = (tab) => $(`#nav button[data-nav="${tab}"]`);
 
+// Lage der Tab-Knöpfe merken (1.10.2): offsetLeft/-Width erzwingen sonst bei jedem Tabwechsel
+// ein Layout, mitten im Wechsel. Sie ändern sich nur mit der Fensterbreite.
+const geom = new Map();
+window.addEventListener('resize', () => geom.clear());
 function lensGeom(btn) {
-  return { x: btn.offsetLeft + 3, w: Math.max(0, btn.offsetWidth - 6) };
+  let g = geom.get(btn);
+  if (!g) {
+    g = { x: btn.offsetLeft + 3, w: Math.max(0, btn.offsetWidth - 6) };
+    if (g.w > 0) geom.set(btn, g);
+  }
+  return g;
 }
 
 /** Linse zum Tab `tab` bewegen (bei „add“ taucht sie im Kamera-Tropfen unter). */
@@ -58,7 +67,7 @@ export function setTab(tab, { instant = false } = {}) {
   const btn = slot(tab);
   lensAnim?.cancel();
   lensAnim = null;
-  if (!btn || tab === 'add' || !btn.offsetWidth) {
+  if (!btn || tab === 'add' || !lensGeom(btn).w) {
     const was = lensX;
     lensX = null;
     lens.style.opacity = '0';
