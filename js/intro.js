@@ -247,4 +247,3 @@ export function stop() {
   finish();
 }
 
-export const isFinished = () => finished;

@@ -2,7 +2,7 @@
 // Duplikat-Hinweis), Unterwegs/Verliehen als Text, Datumsangaben für Garantie & Co.
 
 // Für den Vergleich: klein, ohne Akzente, ß → ss, nur Buchstaben/Ziffern und einzelne Leerzeichen.
-export function normName(s) {
+function normName(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, ' ').trim();
 }
@@ -13,7 +13,7 @@ const words = (n) => n.split(' ').filter(w => w.length >= 3);
  * („Akkuschrauber“ in „Akkuschrauber Bosch PSR 18“) · 1: Teilwort passt
  * („Schrauber“ in „Akkuschrauber“, mind. 5 Zeichen) · 0: nichts.
  */
-export function similarity(a, b) {
+function similarity(a, b) {
   const x = normName(a), y = normName(b);
   if (!x || !y) return 0;
   if (x === y) return 3;
@@ -43,7 +43,7 @@ export function findSimilar(items, names, min = 1) {
 
 /* ---------------- Unterwegs / verliehen ---------------- */
 
-export const OUT_TYPES = ['unterwegs', 'verliehen'];
+const OUT_TYPES = ['unterwegs', 'verliehen'];
 const DAY = 86400000;
 const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 /** Ganze Kalendertage von `t` bis heute. */

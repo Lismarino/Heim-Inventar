@@ -336,7 +336,7 @@ export async function applyBackup(data, mode, onProgress) {
     const type = typeof d.type === 'string' && DOC_TYPES.test(d.type) ? d.type : null;
     if (!type) continue;
     let buf;
-    try { buf = bytesOf(d); } catch (_) { void _; throw new Error('Ein Anhang in der Datei ist beschädigt.'); }
+    try { buf = bytesOf(d); } catch (_) { void _; throw new Error('Ein Beleg oder Dokument in der Datei ist beschädigt.'); }
     if (!buf.byteLength || buf.byteLength > DOC_MAX) continue;
     const meta = cleanDocMeta(d);
     meta.itemId = isId(d.itemId) && haveItems.has(d.itemId) ? d.itemId : null;

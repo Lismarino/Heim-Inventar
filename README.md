@@ -5,6 +5,8 @@ ausschließlich lokal auf dem Gerät (IndexedDB) – kein Server, kein Konto, ke
 Nach außen geht nur, was du selbst an Google Gemini schickst: das Foto beim Erkennen,
 und die Liste als Text, wenn du die KI-Suche benutzt.
 
+Was sich von Version zu Version geändert hat: **[CHANGELOG.md](CHANGELOG.md)**.
+
 ---
 
 ## 1. Auf dem iPhone installieren
@@ -86,7 +88,7 @@ noch woanders im Einsatz ist.
 
 ## 3. Bedienung
 
-Unten liegen fünf gleich breite Plätze: **Zuhause · Alles · Kamera · Räume · Einstellungen** –
+Unten liegen fünf gleich breite Plätze: **Start · Alles · Kamera · Räume · Einstellungen** –
 der runde Kamera-Knopf zum Hinzufügen sitzt genau in der Mitte.
 
 **Orte (seit 1.7.0).** Über den Räumen gibt es eine Ebene **Ort** – etwa **Zuhause**, **Auto**,
@@ -99,7 +101,7 @@ Symbol aus dem Namen vor („Auto“ → Auto, „Betrieb“/„Firma“/„Arbe
 Haus) – ändern lässt es sich jederzeit. Gibt es nur einen Ort, nennt die App ihn nicht überall
 dazu; ab zwei Orten steht er vor dem Raum („Auto · Kofferraum“).
 
-**Zuhause** ist die Startseite: Begrüßung und „127 Dinge an 3 Orten“ (mit nur einem Ort:
+**Start** (bis 1.9 „Zuhause“ – der Ort heißt weiter so) ist die Startseite: Begrüßung und „127 Dinge an 3 Orten“ (mit nur einem Ort:
 „… in 8 Räumen“), darunter – ab zwei Orten – der **Orts-Umschalter** „Alle · Zuhause · Auto · +“.
 Gibt es erst einen Ort, steht dort stattdessen ein leiser Knopf **Ort hinzufügen (z. B. Auto)**. Der Umschalter zeigt
 zunächst alle Orte; ein Tipp auf einen Ort beschränkt die Seite darauf („12 Dinge in 3 Räumen“)
@@ -110,9 +112,9 @@ funktioniert dort wie gewohnt). Die Karte **Zu erledigen** erscheint nur, wenn e
 „N unbenannt“ (zeigt in **Alles** nur diese; der kleine Chip oben hebt den Filter wieder auf),
 „N werden erkannt“ und „N warten auf API-Key“ (führt zum Key in den Einstellungen) – außer „ohne
 Ort“ jeweils für den gewählten Ort. Dann **Zuletzt hinzugefügt** als Streifen zum Wischen und
-die **Räume** als große Kacheln mit dem neuesten Foto des Raums: beim gewählten Ort die ersten
-sechs, bei „Alle“ nach Ort gruppiert (Überschrift mit Symbol und **›** – antippen wählt den Ort) mit je bis
-zu vier; gibt es mehr, führt **Alle** in den Tab **Räume**. Liegt etwas direkt an einem Ort ohne
+die **Räume** als große Kacheln mit dem neuesten Foto des Raums: höchstens sechs – beim gewählten
+Ort nur dessen Räume, bei „Alle“ die ersten insgesamt; **Alle** führt in den Tab **Räume**, wo auch
+das Anlegen, Umbenennen und Löschen wohnt. Liegt etwas direkt an einem Ort ohne
 Raum, steht vorneweg eine Kachel in der Farbe des Orts. Ist noch nichts erfasst, steht dort ein
 großer Kamera-Knopf. Zuhause aktualisiert sich von selbst, sobald die KI etwas erkannt hat.
 
@@ -268,10 +270,10 @@ filtert sie sich passend mit — Groß- und Kleinschreibung sowie Umlaute sind d
 damit klar ist, dass gleich ein neuer Eintrag entsteht. Auswählen per Tipp, am Rechner
 auch mit Pfeiltasten und Eingabetaste. Die KI
 schlägt bevorzugt eine bereits vorhandene Kategorie vor und erfindet nur dann eine neue,
-wenn nichts passt. Unter Einstellungen lassen sich alle drei umbenennen und löschen (Räume nach
-Ort gruppiert, neue Räume mit Wahl des Orts; bei Orten führt ein Tipp auf das Symbol zu Symbol &
-Farbe); benennst du auf einen bereits vorhandenen Namen um, werden sie zusammengeführt – bei
-Räumen nur innerhalb desselben Orts.
+wenn nichts passt. Kategorien lassen sich unter Einstellungen umbenennen und löschen; Orte und
+Räume im Tab **Räume** (⋯ oder langes Drücken: Umbenennen, Symbol & Farbe, Verschieben, Löschen).
+Benennst du auf einen bereits vorhandenen Namen um, werden sie zusammengeführt – bei Räumen nur
+innerhalb desselben Orts.
 
 **Bestand** ist ein freies Feld: „3“, „genug“, „halb voll“ – wie du magst.
 Die Schnellauswahl darunter füllt es nur aus.
@@ -299,54 +301,31 @@ aller nicht archivierten Einträge – keine Fotos. Ohne API-Key bleibt der Knop
 die normale Textsuche funktioniert weiter. Zurückgegebene Nummern werden gegen den
 tatsächlichen Bestand geprüft, damit nichts Erfundenes in der Trefferliste landet.
 
+**Unterwegs / verliehen** – im Aktionsblatt (lang drücken) oder im Eintrag; die Zeile zeigt dann
+„Bei Tom seit 4 Tagen“, **Wieder da** hebt es auf. **Checkliste je Ort** – im Eintrag unter
+„Mehr Angaben“ **Gehört immer hierher** einschalten, dann im Ort (⋯ → Checkliste) abhaken.
+**Habe ich das schon?** – Kamera-Knopf neben dem Suchfeld: Foto, die KI benennt es, die App sucht
+im Bestand (das Foto wird nicht gespeichert). **Mehrfachauswahl** über „Auswählen“ in „Alles“ oder
+in einem Raum. **Bestand + / −** direkt in der Zeile, wenn der Bestand eine Zahl ist.
+
+**Belege** – im Eintrag unter „Mehr Angaben“: Seriennummer, Kaufdatum, Garantie bis und Belege
+(Fotos oder PDFs bis 10 MB). Läuft eine Garantie oder eine Dokument-Frist in den nächsten 30 Tagen
+ab, steht das auf **Start** unter „Bald fällig“.
+
+**Dokumente** (Aktenschrank) – Karte auf **Start** unter der Suche. Ordner (verschachtelt; auf
+Wunsch schlägt die App welche vor), **Scannen** (mehrere Seiten → PDF), Fotos oder PDF aus der
+Dateien-App, dazu Titel, Datum, Stichworte, Frist und optional ein Eintrag. Gelöschte Dokumente
+liegen im **Papierkorb**. Die KI-Suche kennt von Dokumenten nur Titel, Ordner, Stichworte und Datum.
+
+**Töne** – leise, kurze Klänge bei Tab-Wechsel, Foto, Speichern, Wegwischen, Rückgängig,
+Checkliste, Aktionsblatt, Fehlern, fertiger Sicherung und KI-Erkennung. Sie werden im Gerät erzeugt
+(keine Audiodateien), folgen auf dem iPhone dem Stummschalter und lassen laufende Musik weiterspielen.
+Abschalten oder leiser stellen: Einstellungen → Töne.
+
 **Archiv** – gelöschte Einträge landen zuerst dort und bleiben wiederherstellbar.
 Erst **Endgültig löschen** entfernt Eintrag und Foto unwiderruflich.
-Zu erreichen über Einstellungen → Archiv öffnen.
-
-**Neu in 1.8.0**
-
-- **Unterwegs / verliehen** – im Aktionsblatt (lang drücken) oder im Eintrag: „Verliehen an Tom“
-  oder „Unterwegs“. Die Zeile zeigt dann „Bei Tom seit 4 Tagen“, **Wieder da** hebt das auf.
-  Zuhause zeigt unter „Zu erledigen“, wie viele Dinge gerade weg sind; die KI-Suche weiß es auch.
-- **Checkliste je Ort** – im Eintrag unter „Mehr Angaben“ **Gehört immer hierher** einschalten.
-  Im Ort (⋯ → Checkliste, im Tab „Räume“ oder in der Ortsansicht) lässt sich dann abhaken, ob
-  alles da ist; Fehlendes zeigt, wo es zuletzt war. Die Häkchen gelten nur bis zum Schließen der App.
-- **Habe ich das schon?** – Kamera-Knopf neben dem Suchfeld (oder in „Hinzufügen“): Foto
-  aufnehmen, die KI benennt es, die App sucht ähnliche Namen im Bestand („Ja: 2× Keller“).
-  Das Foto wird nicht gespeichert.
-- **Duplikat-Hinweis** – benennt die KI ein neues Foto wie einen vorhandenen Eintrag, steht im
-  neuen Eintrag „Ähnlich: …“ mit **Zusammenführen** (Bestand dort +1, neuen löschen) oder **Behalten**.
-- **Bestand + / −** direkt in der Zeile, wenn der Bestand eine Zahl ist.
-- **Mehrfachauswahl** – „Auswählen“ oben in „Alles“ oder in einem Raum/Ort (oder lang drücken →
-  „Mehrere auswählen“): Ort, Kategorie, Unterwegs oder Archiv für alle auf einmal.
-- **Sicherungs-Erinnerung** auf Zuhause, wenn die letzte Sicherung 7 Tage her ist (oder bei
-  10 Einträgen noch keine da ist). **Später** blendet sie 3 Tage aus.
-- **Belege & Unterlagen** im Eintrag unter „Mehr Angaben“: Seriennummer, Kaufdatum, Garantie bis
-  und Anhänge (Fotos oder PDFs bis 10 MB; Bilder werden verkleinert). Läuft eine Garantie in den
-  nächsten 30 Tagen ab, erinnert Zuhause daran.
-
-**Neu in 1.9.0**
-
-- **Dokumente** (digitaler Aktenschrank) – Karte **Dokumente** auf Zuhause, direkt unter der
-  Suche. Bewusst kein eigener Tab: Die fünf Plätze der Leiste sind belegt, und Zuhause ist der
-  Startbildschirm – so bleibt der Aktenschrank immer einen Tipp entfernt, ohne Räume oder
-  Einstellungen zu verdrängen. Beim ersten Öffnen schlägt die App Ordner vor (Versicherungen,
-  Verträge, Steuer, Auto, Arbeit, Gesundheit, Wohnen, Rechnungen – abwählbar). Ordner lassen sich
-  schachteln, umbenennen, verschieben und löschen (⋯ rechts; Inhalt kommt in den Papierkorb).
-- **Dokument hinzufügen** – **Scannen** (Kamera; mehrere Seiten, Drehen, „Schwarz-weiß, mehr
-  Kontrast“ → ein PDF, das die App selbst erzeugt), **Fotos** oder **PDF / Datei** aus der
-  Dateien-App. Dazu Titel (Vorschläge aus bisherigen Titeln), Ordner (der zuletzt benutzte ist
-  vorausgewählt), Datum, Stichworte, Frist („Läuft ab“ / „Kündigen bis“) und optional ein Eintrag.
-  Die Belege aus 1.8.0 gehören zum selben System: Ein Dokument kann in einem Ordner liegen, an
-  einem Eintrag hängen oder beides; reine Belege stehen unter „Belege zu Einträgen“.
-- Antippen: **Ansehen**, **Teilen / Sichern**, **Bearbeiten**, **Umbenennen**, **Verschieben**,
-  **In den Papierkorb** (mit Wiederherstellen). Die Suche oben findet Titel, Ordner und Stichworte.
-- **Bald fällig** auf Zuhause: Fristen der nächsten 30 Tage, zusammen mit ablaufenden Garantien.
-- **KI und Dokumente:** Die KI-Suche kennt von Dokumenten **nur Titel, Ordnerpfad, Stichworte und
-  Datum** – nie Dateien, Bilder oder Text daraus (erzwungen in `docsForAi` in `js/docs.js`).
-- **Automatische Sicherung in Google Drive**, Ende-zu-Ende verschlüsselt – siehe unten und
-  **[docs/GOOGLE-DRIVE.md](docs/GOOGLE-DRIVE.md)** (Einrichtung Schritt für Schritt).
-- **Sicherungsdatei mit Passwort verschlüsseln** (Haken unter Einstellungen → Sicherung).
+Zu erreichen über **Archiv ansehen** am Ende von **Alles** (nur, wenn etwas im Archiv liegt).
+Nicht zu verwechseln mit dem **Papierkorb** der Dokumente.
 
 ---
 
@@ -358,11 +337,11 @@ Zu erreichen über Einstellungen → Archiv öffnen.
 iPhone öffnet sich das Teilen-Fenster: „In Dateien sichern“, per AirDrop an ein anderes
 Gerät oder als Mail an die Familie. Am Rechner lädt die Datei herunter.
 
-Enthalten sind alle Einträge, Kategorien, Orte, Räume, das Archiv und die Fotos.
+Enthalten sind alle Einträge, Kategorien, Orte, Räume, das Archiv, die Fotos, Belege und Dokumente.
 **Der API-Key wird bewusst nicht mitgesichert** – sonst läge er in einer Datei, die du
 per Mail verschickst. Ihn trägst du auf dem neuen Gerät einmal von Hand ein.
 
-Der Haken „Fotos mitsichern“ lässt sich abschalten. Die Datei wird dann sehr klein, die
+Der Haken „Fotos und Belege mitsichern“ lässt sich abschalten. Die Datei wird dann sehr klein, die
 Vorschaubilder in der Liste bleiben trotzdem erhalten – nur die Originale fehlen.
 
 **Verschlüsselt (seit 1.9.0):** Mit dem Haken „Sicherungsdatei mit Passwort verschlüsseln“ fragt
@@ -402,47 +381,13 @@ zwei Möglichkeiten:
 Mehrfaches Einlesen derselben Datei erzeugt keine Dubletten. Geschrieben wird in einer einzigen
 Transaktion – scheitert etwas, bleibt der alte Stand vollständig erhalten.
 
-**Format.** Die Datei ist JSON (`"app": "heim-inventar"`). Seit 1.7.0 ist es **Version 2**: dazu
-kommt die Liste `places` (Orte mit Name, Symbol, Farbe, Reihenfolge), Räume tragen `placeId`,
-Einträge ebenfalls (bei einem Raum gleich dem Ort des Raums, sonst der Ort, an dem sie direkt
-liegen, oder leer für „ohne Ort“). **Ältere Sicherungen (Version 1, ohne Orte) lassen sich weiter
-einlesen:** Alle Räume kommen dann nach „Zuhause“ (vorhanden – sonst in den ersten Ort, falls es
-„Zuhause“ unter anderem Namen gibt –, erst sonst neu angelegt), Einträge in einem
-Raum mit; Einträge ohne Raum stehen danach unter „Ohne Ort“, wie vorher unter „Ohne Raum“. Eine
-Sicherung aus 1.7.0 lässt sich in älteren Fassungen **nicht** einlesen („stammt aus einer neueren
-Version“). Symbole und Farben aus der Datei werden nur aus den festen Listen der App übernommen.
-Seit 1.9.0 ist es **Version 4**: dazu kommen `folders` (Ordner mit `parentId`) und an `docs` die
-Felder `folderId`, `date`, `tags`, `due`, `dueKind`, `trashedAt`. Version 1–3 bleiben lesbar; die
-Datenbank bekommt beim ersten Start von 1.9.0 die Speicher `folders` und `sync` sowie den Index
-`by_folder` (IndexedDB-Version 4) – bestehende Anhänge bleiben unverändert und erscheinen unter
-„Belege zu Einträgen“. Eine verschlüsselte Sicherung ist eine JSON-Hülle
-(`"encrypted": true`, Salz, Iterationen, Chiffretext in base64).
-Seit 1.8.0 ist es **Version 3**: dazu kommt `docs` (Anhänge als base64, nur mit „Fotos und
-Anhänge mitsichern“) und die neuen Felder am Eintrag (`out`, `essential`, `serial`,
-`purchaseDate`, `warrantyUntil`). Version 1 und 2 bleiben lesbar. Die Datenbank bekommt beim
-ersten Start von 1.8.0 den zusätzlichen Speicher `docs` (IndexedDB-Version 3) – bestehende Daten
-bleiben unverändert.
-
-### Update auf 1.7.0 (Orte)
-
-Beim ersten Start von 1.7.0 stellt die App die Datenbank einmalig um (IndexedDB-Version 2): Es
-entsteht der Ort **Zuhause** (Symbol Haus), alle bisherigen Räume und die Dinge darin gehören
-dazu. Dinge, die bisher **ohne Raum** waren, bleiben ohne Ort – sie stehen weiter in „Zu erledigen“
-(jetzt „N ohne Ort“) und lassen sich wie gewohnt gesammelt zuordnen. Der gemerkte Raum der
-Schnellerfassung liegt danach in Zuhause. Die Umstellung läuft in einer einzigen Transaktion
-(scheitert sie, bleibt alles wie es war, und der nächste Start versucht es erneut) und ist beliebig
-oft wiederholbar, ohne etwas doppelt anzulegen. Gibt es gleichnamige Räume (etwa „Küche“ und
-„küche“), werden sie zusammengeführt; es bleibt immer der älteste (bei Gleichstand der mit mehr
-Einträgen) – auf jedem Gerät derselbe. Bei sehr vielen Einträgen dauert die Umstellung ein paar
-Sekunden; die App zeigt dann „Einen Moment – deine Daten werden auf Orte umgestellt. Bitte App
-offen lassen.“ mit Fortschritt (seit 1.7.1). Wird sie trotzdem geschlossen oder neu geladen, geht
-nichts verloren – der nächste Start beginnt die Umstellung von vorn. Einträge ohne Raum werden
-dabei gar nicht angefasst. Sicherheitshalber **vorher eine Sicherung machen**. **Zurück auf 1.6.x
-geht nicht** (die umgestellte Datenbank kann die alte Fassung nicht mehr öffnen) – nur über eine
-Sicherung, die mit 1.6.x gemacht wurde. Ist die App noch in einem anderen Safari-Tab mit der alten Version offen, wartet die
-neue mit dem Hinweis „Einen Moment … noch in einem anderen Tab geöffnet“ – den anderen Tab
-schließen, dann geht es von selbst weiter. Ein noch offener alter Tab gibt die Datenbank frei und
-kann danach nichts mehr speichern; einfach neu laden.
+**Format.** Die Datei ist JSON (`"app": "heim-inventar"`, derzeit **Version 4**): Einträge,
+Fotos (base64), Kategorien, `places` (Orte mit Symbol, Farbe, Reihenfolge), Räume mit `placeId`,
+`folders` (Ordner mit `parentId`) und `docs` (Belege und Dokumente mit Ordner, Datum, Stichworten,
+Frist, Papierkorb). Ältere Sicherungen (Version 1–3) lassen sich weiter einlesen; Symbole und
+Farben werden nur aus den festen Listen der App übernommen. Eine verschlüsselte Sicherung ist eine
+JSON-Hülle (`"encrypted": true`, Salz, Iterationen, Chiffretext in base64). Wie sich das Format
+entwickelt hat, steht in **[CHANGELOG.md](CHANGELOG.md)**.
 
 ### Wenn die Daten weg zu sein scheinen
 
@@ -479,14 +424,16 @@ sw.js                   Service Worker – App offline verfügbar (VERSION hochz
 css/app.css             Gestaltung, hell und dunkel – Farben, Radien, Schatten als Variablen oben,
                         das Glas-System (--glass-*, --lite-*) und die Start-Szene im letzten Abschnitt
 js/app.js               Ansichten, Navigation, Bedienung, Abläufe
-js/home.js              Startseite „Zuhause“ (mit Orts-Umschalter), Tab „Räume“ (nach Ort gruppiert) und
+js/home.js              Startseite (Tab „Start“, mit Orts-Umschalter), Tab „Räume“ (nach Ort gruppiert) und
                         Raum-/Orts-Ansicht (inkl. scharfer Titelbilder)
 js/places.js            Orte: Symbole, Farben, Symbol-Vorschlag aus dem Namen, Raumvorschläge je Art,
                         Chips und Plaketten (ohne Datenbank)
 js/match.js             Namen vergleichen (Habe ich das schon?, Duplikat-Hinweis), Unterwegs-Text, Datumsangaben
 js/docs.js              Belege & Dokumente: vorbereiten (Bilder verkleinern, PDFs bis 10 MB), Metadaten
-                        bereinigen, docsForAi (einzige Stelle, die Dokumente für die KI aufbereitet)
+                        bereinigen, schlankes Verzeichnis (Fristen, Titel, Ordnerpfade für Start/Suche/KI),
+                        docsForAi (einzige Stelle, die Dokumente für die KI aufbereitet)
 js/cabinet.js           Dokumente (Aktenschrank): Ordner, Übersicht, Suche, Papierkorb, Hinzufügen/Bearbeiten
+                        – wie scan, crypto, backup, gdrive und onboarding erst bei Bedarf geladen (import())
 js/scan.js              Scan aufbereiten (Drehen, Graustufen/Kontrast, verkleinern) und PDF-Writer (JPEG-Seiten)
 js/crypto.js            PBKDF2 → AES-GCM (WebCrypto), verschlüsselte Sicherungsdatei
 js/gdrive.js            Google-Drive-Sicherung: Anmeldung (Google Identity Services, erst bei Bedarf
@@ -498,9 +445,10 @@ js/glass.js             Liquid Glass: Tab-Linse (und Linse im Orts-Umschalter), 
 js/intro.js             Start-Szene „Glasregal“ (nur beim echten Start)
 js/gestures.js          Zurückwischen, Zeile wegwischen, langes Drücken, Haptik
 js/sheet.js             Aktionsblatt von unten (Kontextmenü, kleine Eingaben)
+js/sound.js             Töne: per Web Audio erzeugt (keine Dateien), leise, abschaltbar
 js/onboarding.js        Einführung beim ersten Start
-js/db.js                IndexedDB (Version 4 – Ordner, Sync-Zustand seit 1.9.0): Einträge, Fotos, Kategorien, Orte, Räume, Einstellungen;
-                        Umstellung auf Orte (migratePlaces), Verschieben an Ort + Raum, Ort löschen
+js/db.js                IndexedDB (Version 4): Einträge, Fotos, Kategorien, Orte, Räume, Dokumente, Ordner, Einstellungen;
+                        Umstellung auf Orte (migratePlaces), Verschieben an Ort + Raum, Ort löschen, „Speicher voll“-Meldung
 js/img.js               Bilder dekodieren, drehen, verkleinern, kodieren
 js/gemini.js            Aufrufe an die Gemini-API
 js/queue.js             KI-Warteschlange: erkennt erfasste Fotos im Hintergrund

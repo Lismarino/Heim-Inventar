@@ -19,7 +19,7 @@ let ctx = null;
 
 export function init(c) { ctx = c; }
 
-export function greeting(d = new Date()) {
+function greeting(d = new Date()) {
   const h = d.getHours();
   if (h >= 5 && h < 11) return 'Guten Morgen';
   if (h >= 11 && h < 18) return 'Guten Tag';
@@ -31,7 +31,7 @@ const unnamed = (it) => !String(it.name || '').trim() && it.aiState !== 'pending
 
 /** Zahlen für „Zu erledigen“ – auch für die Tests nützlich. pool: Einträge des gewählten Orts.
  *  „Ohne Ort“ zählt immer alle – solche Einträge gehören ja zu keinem Ort. */
-export function todoCounts(pool) {
+function todoCounts(pool) {
   const items = pool || live();
   return {
     noRoom: ctx.noRoomItems().length,
@@ -153,15 +153,15 @@ function pictureHTML(it, cls) {
 
 /* ---------------- Zuhause ---------------- */
 
-// Auf Zuhause stehen nur die ersten Räume, alle weiteren im Tab „Räume“.
+// Auf Zuhause stehen nur die ersten Räume (1.10.0: höchstens sechs Kacheln, ohne „Raum
+// hinzufügen“) – alle weiteren und die Verwaltung im Tab „Räume“.
 export const HOME_ROOMS = 6;
-const HOME_ROOMS_PER_PLACE = 4;   // „Alle“ mit mehreren Orten: je Ort so viele
 
 const multi = () => ctx.state.places.length > 1;
 const roomsIn = (pid) => ctx.state.rooms.filter(r => r.placeId === pid);
 const inPlace = (pid) => (it) => ctx.placeOf(it)?.id === pid;
 /** Einträge, die direkt am Ort liegen – ohne (gültigen) Raum. */
-export const directItems = (pid) => live().filter(it => !ctx.hasRoom(it) && it.placeId === pid && ctx.placeById(pid));
+const directItems = (pid) => live().filter(it => !ctx.hasRoom(it) && it.placeId === pid && ctx.placeById(pid));
 
 /** Gewählter Ort im Umschalter – '' für alle (auch wenn der gemerkte Ort nicht mehr existiert
  *  oder es nur noch einen Ort gibt – dann gibt es keinen Umschalter). */
@@ -205,26 +205,19 @@ function placeTile(p, items) {
  * Kacheln eines Orts: erst der Ort selbst (falls etwas direkt dort liegt), dann seine Räume,
  * am Ende „Raum hinzufügen“ – sofern alle Räume gezeigt werden. Liefert { html, shown, total }.
  */
-function placeTiles(p, byRoom, { limit = Infinity } = {}) {
+function placeTiles(p, byRoom) {
   const rooms = p ? roomsIn(p.id) : ctx.state.rooms;
   const tiles = [];
   const direct = p ? directItems(p.id) : [];
   if (direct.length) tiles.push(placeTile(p, direct));
-  const shown = rooms.slice(0, limit);
-  for (const r of shown) tiles.push(roomTile(r, byRoom.get(r.id) || []));
-  if (rooms.length <= limit) tiles.push(addTile(p?.id));
-  return { html: tiles.join(''), shown: shown.length, total: rooms.length };
+  for (const r of rooms) tiles.push(roomTile(r, byRoom.get(r.id) || []));
+  tiles.push(addTile(p?.id));
+  return { html: tiles.join(''), total: rooms.length };
 }
 
-// Kopf einer Orts-Gruppe. Zuhause: Überschrift plus Aktion „Nur … zeigen“ (ein Tipp auf den
-// Kopf tut dasselbe). Räume-Tab: Name mit ⋯ für die Verwaltung (auch langes Drücken auf den Kopf).
-function groupHead(p, n, where) {
+// Kopf einer Orts-Gruppe im Tab „Räume“: Name mit ⋯ für die Verwaltung (auch langes Drücken auf den Kopf).
+function groupHead(p, n) {
   const count = `<span class="sec-n">${n || ''}</span>`;
-  if (where === 'home') {
-    return `<div class="pgroup-head home" data-home-head="${esc(p.id)}">
-      ${placeBadge(p)}<h3 class="pgroup-name">${esc(p.name)}</h3>${count}
-      <button type="button" class="pgroup-go" data-home-place="${esc(p.id)}" aria-label="Nur ${esc(p.name)} zeigen">${icon('chev-r', 'go')}</button></div>`;
-  }
   const ck = ctx.checkCount(p.id);
   return `<div class="pgroup-head" data-place-head="${esc(p.id)}">
       ${placeBadge(p)}<h2 class="pgroup-name">${esc(p.name)}</h2>${count}
@@ -311,12 +304,12 @@ export function renderHome() {
   const docsDue = ctx.docsDue ? ctx.docsDue() : [];
   for (const d of docsDue.slice(0, 4)) {
     due.push(`<button class="todo-row" data-due-doc="${esc(d.id)}">
-      <span class="todo-ic clay">${icon('folder')}</span>
+      <span class="todo-ic clay">${icon('doc')}</span>
       <span class="todo-txt"><b>${esc(d.title)}</b><small>${esc(`${d.kind} ${dueDay(d.days)}`)}</small></span>
       ${icon('chev-r', 'go')}
     </button>`);
   }
-  if (docsDue.length > 4) due.push(`<button class="todo-row" id="home-due-more" data-due-more><span class="todo-ic busy">${icon('more')}</span><span class="todo-txt"><b>${docsDue.length - 4} weitere Fristen</b><small>In „Dokumente“ ansehen</small></span></button>`);
+  if (docsDue.length > 4) due.push(`<button class="todo-row" id="home-due-more" data-due-more><span class="todo-ic busy">${icon('more')}</span><span class="todo-txt"><b>${esc(plural(docsDue.length - 4, 'weitere Frist', 'weitere Fristen'))}</b><small>In „Dokumente“ ansehen</small></span></button>`);
   renderBackup(all.length);
   renderSync();
   const docsN = ctx.docsCount ? ctx.docsCount() : 0;
@@ -344,22 +337,17 @@ export function renderHome() {
   $('#home-recent-sec').hidden = !items.length;
   $('#home-recent').innerHTML = recent.map(recentTile).join('');
 
-  // Räume: gewählter Ort (oder der einzige) als ein Raster, „Alle“ mit mehreren Orten gruppiert.
-  let html = '', shown = 0, total = 0;
-  if (!pid && multi()) {
-    html = state.places.map((p) => {
-      const t = placeTiles(p, byRoom, { limit: HOME_ROOMS_PER_PLACE });
-      shown += t.shown; total += t.total;
-      return `<section class="pgroup" aria-label="${esc(p.name)}">${groupHead(p, t.total, 'home')}<div class="room-grid">${t.html}</div></section>`;
-    }).join('');
-  } else {
-    const t = placeTiles(place || (state.places.length === 1 ? state.places[0] : null), byRoom, { limit: HOME_ROOMS });
-    shown = t.shown; total = t.total;
-    html = `<div class="room-grid">${t.html}</div>`;
-  }
-  $('#home-rooms').innerHTML = html;
-  $('#home-rooms-count').textContent = total ? String(total) : '';
-  $('#home-rooms-all').hidden = shown >= total;
+  // Räume (1.10.0): nur die des gewählten Orts – bei „Alle“ (oder nur einem Ort) die ersten
+  // insgesamt, in der Reihenfolge der Orte. Höchstens sechs Kacheln, „Alle“ führt zum Tab „Räume“.
+  const direct = place ? directItems(place.id) : [];
+  const rooms = place ? roomsIn(place.id) : state.places.flatMap(p => roomsIn(p.id));
+  const tiles = [];
+  if (direct.length) tiles.push(placeTile(place, direct));
+  for (const r of rooms.slice(0, HOME_ROOMS - tiles.length)) tiles.push(roomTile(r, byRoom.get(r.id) || []));
+  $('#home-rooms').innerHTML = tiles.length ? `<div class="room-grid">${tiles.join('')}</div>` : '';
+  $('#home-rooms-sec').hidden = !tiles.length;
+  $('#home-rooms-count').textContent = rooms.length ? String(rooms.length) : '';
+  $('#home-rooms-all').hidden = false;
   watchCovers($('#view-home'));
 }
 
@@ -407,7 +395,7 @@ export function renderPlaces() {
   if (nr) parts.push(`<div class="room-grid">${noPlaceTile(nr)}</div>`);
   for (const p of state.places) {
     const t = placeTiles(p, byRoom);
-    parts.push(`<section class="pgroup" aria-label="${esc(p.name)}">${groupHead(p, t.total, 'places')}<div class="room-grid">${t.html}</div></section>`);
+    parts.push(`<section class="pgroup" aria-label="${esc(p.name)}">${groupHead(p, t.total)}<div class="room-grid">${t.html}</div></section>`);
   }
   // Räume, deren Ort fehlt (etwa aus einem älteren Tab, bevor der nächste Start sie zuordnet):
   // eigene Gruppe am Ende, mit „Einem Ort zuordnen“ – sonst wären sie hier unsichtbar.

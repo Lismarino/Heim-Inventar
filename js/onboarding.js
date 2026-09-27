@@ -8,9 +8,6 @@ import { reduced } from './motion.js';
 import { haptic } from './gestures.js';
 import { PLACE_SUGGESTIONS, DEFAULT_PLACE, suggestIcon, safeIcon, roomSuggestions } from './places.js';
 
-// Raumvorschläge für ein Zuhause (bleibt als Export für ältere Aufrufer).
-export const ROOM_SUGGESTIONS = roomSuggestions('haus');
-
 const LAST = 3;   // Index der letzten Seite (KI-Schlüssel)
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
