@@ -15,7 +15,7 @@ import { prepareDoc, isImageDoc, docSize, loadIndex, dueSoon as docsDueSoon, doc
 import * as sound from './sound.js';
 import { byOrder, placeBadge, placeIcon, placeChipsHTML, styleHTML, suggestIcon, colorFor, safeIcon, safeColor } from './places.js';
 
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.10.1';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 // Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
@@ -440,7 +440,7 @@ const prevView = () => (state.stack.length > 1 ? state.stack[state.stack.length 
  *   So pendelt Eintrag → Hinzufügen → Eintrag aus dem Streifen nicht endlos hin und her.
  * - alles andere kommt oben drauf.
  */
-function navigate(view, { instant = false, fresh = false } = {}) {
+function navigate(view, { instant = false, fresh = false, origin = null } = {}) {
   const from = state.view;
   const stack = state.stack;
   let back = false;
@@ -464,7 +464,9 @@ function navigate(view, { instant = false, fresh = false } = {}) {
   }
 
   if (state.sel) endSelect(false);   // Auswahl endet mit jedem Ansichtswechsel
-  motion.settle();
+  // Schnell hintereinander getippt: der laufende Übergang endet sofort – nur das neue Ziel
+  // zählt. Hatte er kaum begonnen, bleibt die vorige Ansicht als Grundlage (base).
+  const base = motion.settle({ revert: view !== from });
   closeLightbox();
   hideCombo();
   sheet.close();
@@ -479,7 +481,7 @@ function navigate(view, { instant = false, fresh = false } = {}) {
 
   state.view = view;
   document.body.dataset.view = view;
-  const fromEl = $('#view-' + from);
+  const fromEl = base || $('#view-' + from);
   const toEl = $('#view-' + view);
   toEl.hidden = false;
   for (const v of $$('.view')) if (v !== toEl && v !== fromEl) v.hidden = true;
@@ -506,14 +508,14 @@ function navigate(view, { instant = false, fresh = false } = {}) {
     else if (from === 'add' || !TABS.includes(view)) sc.scrollTop = 0;
   }
 
-  const kind = instant || view === from ? 'none'
+  const kind = instant || view === from || fromEl === toEl ? 'none'
     : view === 'add' ? 'sheet-up'
       : from === 'add' ? 'sheet-down'
         : back ? 'pop'
           : PUSH.includes(view) ? 'push'
-            : 'fade';
+            : 'ripple';   // Tabwechsel: Wassertropfen vom Tippunkt aus (1.10.1)
   if (kind === 'sheet-up') glass.dropFromFab();
-  motion.run(kind, fromEl, toEl, (el) => el === $('#view-' + state.view));
+  motion.run(kind, fromEl, toEl, (el) => el === $('#view-' + state.view), { origin });
 }
 
 // Zurückwischen vom linken Rand – nur in Push-Ansichten und wenn nichts darüber liegt.
@@ -2767,10 +2769,17 @@ async function requestPersist() {
 
 /* =========================== Events =========================== */
 
+// Wo getippt wurde – bei Tastatur/Schaltersteuerung (ohne Koordinaten) die Mitte des Knopfs.
+function tapPoint(e, el) {
+  if (e.detail > 0 && (e.clientX || e.clientY)) return { x: e.clientX, y: e.clientY };
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
 function wire() {
   document.addEventListener('click', (e) => {
     const nav = e.target.closest('[data-nav]');
-    if (nav) { e.preventDefault(); navigate(nav.dataset.nav); }
+    if (nav) { e.preventDefault(); navigate(nav.dataset.nav, { origin: tapPoint(e, nav) }); }
   });
 
   // Tippen verwirft ein KI-Ergebnis – es passt dann nicht mehr zur Eingabe.
