@@ -12,9 +12,11 @@ import * as onboarding from './onboarding.js';
 import { haptic, longPress, swipeRows, edgeSwipe } from './gestures.js';
 import * as glass from './glass.js';
 import * as intro from './intro.js';
+import { outText, cleanOut, findSimilar, warrantySoon, qtyNumber, cleanDate } from './match.js';
+import { prepareDoc, docURL, isImageDoc, docSize } from './docs.js';
 import { byOrder, placeBadge, placeIcon, placeChipsHTML, styleHTML, suggestIcon, colorFor, safeIcon, safeColor } from './places.js';
 
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.8.0';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 // Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
@@ -41,7 +43,11 @@ const state = {
   placeId: null,    // … oder ohne Raum: welcher Ort (was direkt dort liegt)
   rsPlace: '',      // „Ohne Ort“: gewählter Ort in der Zuweisen-Leiste
   itPlace: '',      // Eintrag: gewählter Ort
-  listFilter: null, // „Alles“: null | 'unnamed'
+  listFilter: null, // „Alles“: null | 'unnamed' | 'out' | 'warranty'
+  sel: null,        // Mehrfachauswahl: null (aus) oder Set der markierten IDs
+  checks: new Map(),  // Checkliste: Orts-ID -> Set abgehakter IDs – nur für diese Sitzung
+  docs: [],         // Detail: Anhänge des offenen Eintrags
+  homeBackup: '',   // Zuhause-Karte „Sicherung“: '' | 'building' | 'ready'
   capture: { ids: [], busy: '' },   // Schnellerfassung: in dieser Runde erfasste Einträge
   roomSel: new Set(),               // „Ohne Ort“: markierte Einträge
   scrollPos: {},                    // Ansicht -> Scroll-Position beim Verlassen
@@ -116,6 +122,8 @@ async function boot() {
       state, roomName, catName, roomById, placeById, placeOf, hasRoom, aiBusy, aiNeedsKey, noRoomItems, whereShort,
       rowHTML: (it, opts) => rowHTML(it, '', opts),
       queueNote: () => queue.status().note,
+      checkCount: (pid) => checkItems(pid).length,
+      backupState: () => state.homeBackup,
     });
     onboarding.init({
       places: () => state.places.map(p => ({ name: p.name, icon: p.icon })),
@@ -394,6 +402,7 @@ function navigate(view, { instant = false, fresh = false } = {}) {
     }
   }
 
+  if (state.sel) endSelect(false);   // Auswahl endet mit jedem Ansichtswechsel
   motion.settle();
   closeLightbox();
   hideCombo();
@@ -475,7 +484,7 @@ function closeSwipes() { for (const w of swipers) w.close(); }
 /* =========================== Liste =========================== */
 
 function haystack(it) {
-  return [it.name, catName(it.categoryId), placeOf(it)?.name, roomName(it.roomId), it.locationDetail, it.quantity, it.note]
+  return [it.name, catName(it.categoryId), placeOf(it)?.name, roomName(it.roomId), it.locationDetail, it.quantity, it.note, it.serial, outText(it)]
     .filter(Boolean).join(' ');
 }
 
@@ -490,6 +499,8 @@ function visibleItems() {
     .filter(i => !cat || i.categoryId === cat)
     .filter(i => !room || i.roomId === room)
     .filter(i => state.listFilter !== 'unnamed' || home.isUnnamed(i))
+    .filter(i => state.listFilter !== 'out' || !!cleanOut(i.out))
+    .filter(i => state.listFilter !== 'warranty' || warrantySoon(i))
     .filter(i => !q || norm(haystack(i)).includes(q))
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -503,6 +514,13 @@ function rowHTML(it, why, opts = {}) {
   const cat = opts.noCat ? '' : catName(it.categoryId);
   const p = opts.inRoom ? null : placeOf(it);
   const place = [opts.inRoom ? '' : whereOf(it, ' · '), it.locationDetail].filter(Boolean).join(' · ');
+  const out = outText(it);
+  const qn = !it.archived && !state.sel && !opts.noStep ? qtyNumber(it.quantity) : null;
+  // + / − nur bei einer Zahl; als <span role="button">, weil die Zeile selbst ein Knopf ist.
+  const qty = qn != null
+    ? `<span class="qty-step"><span class="qs" role="button" data-step="-1" aria-label="Bestand verringern">−</span><span class="qty">${qn}</span><span class="qs" role="button" data-step="1" aria-label="Bestand erhöhen">+</span></span>`
+    : it.quantity ? `<span class="qty">${esc(it.quantity)}</span>` : '';
+  const selOn = state.sel && !it.archived;
   const title = aiBusy(it)
     ? `<div class="name pending"><span class="spin"></span>${esc(it.name || 'wird erkannt …')}</div>`
     : it.name
@@ -510,11 +528,12 @@ function rowHTML(it, why, opts = {}) {
       : aiNeedsKey(it)
         ? '<div class="name unnamed">Wartet auf API-Key</div>'
         : '<div class="name unnamed">Unbenannt – antippen zum Benennen</div>';
-  return `<button class="row${aiBusy(it) ? ' is-pending' : ''}" data-id="${esc(it.id)}">
-    ${thumb}
+  return `<button type="button" class="row${aiBusy(it) ? ' is-pending' : ''}${selOn ? ' selecting' : ''}${selOn && state.sel.has(it.id) ? ' sel-on' : ''}" data-id="${esc(it.id)}"${selOn ? ` aria-pressed="${state.sel.has(it.id)}"` : ''}>
+    ${selOn ? `<span class="row-check" aria-hidden="true">${icon('check')}</span>` : ''}${thumb}
     <div class="body">
       ${title}
-      <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${place ? `<span class="place">${p ? placeIcon(p) : icon('pin')}<span>${esc(place)}</span></span>` : ''}${it.quantity ? `<span class="qty">${esc(it.quantity)}</span>` : ''}</div>
+      <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${place ? `<span class="place">${p ? placeIcon(p) : icon('pin')}<span>${esc(place)}</span></span>` : ''}${qty}</div>
+      ${out ? `<div class="out-tag">${icon('out')}<span>${esc(out)}</span></div>` : ''}${it.dupOf && !it.archived ? '<div class="dup-tag">Ähnlicher Eintrag schon vorhanden</div>' : ''}
       ${why ? `<div class="why">${esc(why)}</div>` : `<div class="when">${dtf.format(new Date(it.createdAt))}</div>`}
     </div>
   </button>`;
@@ -525,7 +544,7 @@ function renderList() {
   $('#ai-answer').hidden = true;
   $('#filters').hidden = false;
   $('#f-flag').hidden = !state.listFilter;
-  $('#f-flag-txt').textContent = state.listFilter === 'unnamed' ? 'Nur unbenannte' : '';
+  $('#f-flag-txt').textContent = { unnamed: 'Nur unbenannte', out: 'Nur unterwegs/verliehen', warranty: 'Garantie läuft bald ab' }[state.listFilter] || '';
   const nr = noRoomItems().length;
   const hint = $('#noroom-hint');
   hint.hidden = !nr;
@@ -543,6 +562,8 @@ function renderList() {
     ? `${EMPTY_ART}<p><strong>Noch nichts erfasst</strong>Tippe unten auf die Kamera und fotografiere, was du aufbewahrst – Stück für Stück.</p>`
     : state.listFilter === 'unnamed' && !$('#q').value.trim()
       ? `<span class="empty-badge">${icon('check')}</span><p>Alles hat einen Namen.</p>`
+      : state.listFilter === 'out' && !$('#q').value.trim()
+        ? `<span class="empty-badge">${icon('check')}</span><p>Alles ist wieder da.</p>`
       : `<span class="empty-badge muted">${icon('search')}</span><p>Keine Treffer für diese Suche oder Filter.</p>`;
 }
 
@@ -603,6 +624,7 @@ async function runAiSearch() {
       room: roomName(it.roomId),
       location: it.locationDetail,
       quantity: it.quantity,
+      status: outText(it),
       note: it.note,
     }));
     const res = await ai.searchInventory(state.settings, question, entries);
@@ -1214,6 +1236,7 @@ function placeMenu(pid) {
     head: placeHead(p),
     actions: [
       { id: 'shoot', label: 'Hier fotografieren', icon: 'camera' },
+      { id: 'check', label: `Checkliste${checkItems(pid).length ? ` (${checkItems(pid).length})` : ''}`, icon: 'done' },
       { id: 'room', label: 'Raum hinzufügen', icon: 'plus' },
       { id: 'rename', label: 'Umbenennen', icon: 'pencil' },
       { id: 'style', label: 'Symbol & Farbe', icon: 'pl-' + safeIcon(p.icon) },
@@ -1221,6 +1244,7 @@ function placeMenu(pid) {
     ],
     onAction: (a) => {
       if (a === 'shoot') shootHere(null, pid);
+      else if (a === 'check') checklistSheet(pid);
       else if (a === 'room') addRoomSheet(pid);
       else if (a === 'rename') {
         sheet.form({
@@ -1428,10 +1452,15 @@ function itemMenu(id) {
     actions: [
       { id: 'room', label: hasPlace(it) ? 'Ort ändern' : 'Ort zuweisen', icon: 'pin' },
       { id: 'rename', label: it.name ? 'Umbenennen' : 'Benennen', icon: 'pencil' },
+      cleanOut(it.out) ? { id: 'back', label: 'Wieder da', icon: 'undo' } : { id: 'out', label: 'Unterwegs / verliehen', icon: 'out' },
+      ...(state.view === 'list' || state.view === 'room' ? [{ id: 'select', label: 'Mehrere auswählen', icon: 'done' }] : []),
       { id: 'archive', label: 'Archivieren', icon: 'archive', danger: true },
     ],
     onAction: (a) => {
       if (a === 'room') whereSheet(it);
+      else if (a === 'out') outSheet([id], itemHead(it));
+      else if (a === 'back') { sheet.close(); setOut([id], null); }
+      else if (a === 'select') { sheet.close(); startSelect(id); }
       else if (a === 'rename') {
         sheet.form({
           head: itemHead(it), title: it.name ? 'Umbenennen' : 'Benennen', label: 'Name', value: it.name || '',
@@ -1460,7 +1489,7 @@ function itemMenu(id) {
 // übernimmt sofort, „Kein Raum“ legt den Eintrag direkt an den Ort. Ein neuer Raum geht über
 // das Feld darunter. Bewusst ohne Autofokus: Die Vorschlagsliste des Felds öffnet im Blatt
 // nach oben und läge sonst über den Orts-Chips (auf dem iPhone samt Tastatur).
-function whereSheet(it) {
+function whereSheet(it, ids) {
   const sel = {
     pid: placeOf(it)?.id || placeById(state.settings.lastPlace)?.id || state.places[0]?.id || '',
     room: hasRoom(it) ? roomName(it.roomId) : '',
@@ -1477,7 +1506,8 @@ function whereSheet(it) {
     for (const b of $$('#sheet-rooms .pchip')) b.classList.toggle('on', b.getAttribute('aria-pressed') === 'true');
   };
   sheet.panel({
-    head: itemHead(it), title: hasPlace(it) ? 'Ort ändern' : 'Ort zuweisen', submit: 'Übernehmen',
+    head: ids ? `<span class="sh-txt"><b>${esc(plural(ids.length, 'Eintrag', 'Einträge'))}</b><small>ausgewählt</small></span>` : itemHead(it),
+    title: ids || hasPlace(it) ? 'Ort ändern' : 'Ort zuweisen', submit: 'Übernehmen',
     html: `<div id="sheet-places" class="sheet-places"></div>
       <div id="sheet-rooms" class="sheet-rooms"></div>
       <label class="field"><span>Neuer Raum <small>(optional)</small></span>
@@ -1502,7 +1532,7 @@ function whereSheet(it) {
       followPlace($('#sheet-input'), sel.pid);
       drawRooms();
     },
-    onSubmit: (v) => setItemWhere(it.id, sel.pid, v || sel.room),
+    onSubmit: (v) => (ids ? moveSelected(ids, sel.pid, v || sel.room) : setItemWhere(it.id, sel.pid, v || sel.room)),
   });
   drawPlaceChips($('#sheet-places'), sel.pid, { add: false, label: 'Ort' });
   drawRooms();
@@ -1562,6 +1592,336 @@ async function archiveWithUndo(id) {
   }
 }
 
+/* =========================== 1.8.0: Unterwegs, Auswahl, Checkliste, „Habe ich das schon?“ =========================== */
+
+// Unterwegs / verliehen – für einen oder mehrere Einträge.
+function outSheet(ids, head) {
+  const sel = { type: 'verliehen' };
+  const chip = (t, label) => `<button type="button" class="pchip${t === sel.type ? ' on' : ''}" data-out-type="${t}" aria-pressed="${t === sel.type}"><span>${label}</span></button>`;
+  sheet.panel({
+    head, title: 'Unterwegs / verliehen', submit: 'Übernehmen', focus: '#sheet-input',
+    html: `<div class="pchips out-types" role="group" aria-label="Art">${chip('verliehen', 'Verliehen')}${chip('unterwegs', 'Unterwegs')}</div>
+      <label class="field"><span id="out-lbl">An wen?</span>
+        <input id="sheet-input" type="text" placeholder="z. B. Tom" autocomplete="off" enterkeyhint="done" maxlength="80">
+      </label>`,
+    onClick: (e) => {
+      const b = e.target.closest('[data-out-type]');
+      if (!b) return;
+      sel.type = b.dataset.outType;
+      for (const x of $$('#sheet [data-out-type]')) { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); }
+      $('#out-lbl').textContent = sel.type === 'verliehen' ? 'An wen?' : 'Wohin? (optional)';
+      $('#sheet-input').placeholder = sel.type === 'verliehen' ? 'z. B. Tom' : 'z. B. Urlaub, Büro';
+    },
+    onSubmit: (v) => setOut(ids, { type: sel.type, to: v, since: Date.now() }),
+  });
+}
+
+// out = null: „Wieder da“. Eine Transaktion für alle.
+async function setOut(ids, out) {
+  const clean = out ? cleanOut(out) : null;
+  try {
+    await db.patchItems(ids, { out: clean });
+    await refreshItems();
+    endSelect();
+    renderCurrent();
+    haptic();
+    const one = ids.length === 1 ? state.items.find(x => x.id === ids[0]) : null;
+    toast(!clean ? (one?.name ? `„${one.name}“ ist wieder da.` : 'Wieder da.')
+      : one ? `${one.name ? `„${one.name}“: ` : ''}${outText(one)}.` : `${plural(ids.length, 'Eintrag', 'Einträge')} ${clean.type}.`);
+  } catch (e) { toast(e.message, true); }
+  return true;
+}
+
+// --- Mehrfachauswahl (Alles, Raum, Ort) ---
+function startSelect(id) {
+  state.sel = new Set(id ? [id] : []);
+  closeSwipes();
+  document.body.classList.add('selecting');
+  renderSelBar();
+  renderCurrent();
+}
+function endSelect(render = true) {
+  if (!state.sel) return;
+  state.sel = null;
+  document.body.classList.remove('selecting');
+  renderSelBar();
+  if (render) renderCurrent();
+}
+function toggleSel(id) {
+  if (!state.sel) return;
+  if (state.sel.has(id)) state.sel.delete(id); else state.sel.add(id);
+  haptic();
+  for (const row of $$(`.row[data-id="${CSS.escape(id)}"]`)) {
+    row.classList.toggle('sel-on', state.sel.has(id));
+    row.setAttribute('aria-pressed', String(state.sel.has(id)));
+  }
+  renderSelBar();
+}
+function renderSelBar() {
+  const on = !!state.sel;
+  $('#sel-bar').hidden = !on;
+  for (const b of $$('[data-select-toggle]')) { b.textContent = on ? 'Fertig' : 'Auswählen'; b.classList.toggle('strong', on); }
+  if (!on) return;
+  const n = state.sel.size;
+  $('#sel-n').textContent = n ? `${plural(n, 'Eintrag', 'Einträge')} ausgewählt` : 'Einträge antippen zum Auswählen';
+  for (const b of $$('#sel-bar [data-sel]')) b.disabled = !n;
+}
+const selIds = () => [...(state.sel || [])].filter(id => state.items.some(x => x.id === id && !x.archived));
+
+async function moveSelected(ids, pid, name) {
+  if (!pid && !String(name || '').trim()) { toast('Bitte einen Ort wählen.', true); return false; }
+  try {
+    const where = await resolveWhere(pid, name);
+    await db.moveItems(ids, where.placeId, where.roomId);
+    await reloadAll();
+    hideCombo();
+    endSelect();
+    haptic();
+    toast(`${plural(ids.length, 'Eintrag', 'Einträge')} → ${whereText(where.placeId, where.roomId)}`);
+  } catch (e) { toast('Verschieben fehlgeschlagen: ' + e.message, true); }
+  return true;
+}
+
+function onSelAction(a) {
+  const ids = selIds();
+  if (!ids.length) return;
+  const head = `<span class="sh-txt"><b>${esc(plural(ids.length, 'Eintrag', 'Einträge'))}</b><small>ausgewählt</small></span>`;
+  if (a === 'where') whereSheet(state.items.find(x => x.id === ids[0]), ids);
+  else if (a === 'out') outSheet(ids, head);
+  else if (a === 'cat') {
+    sheet.form({
+      head, title: 'Kategorie ändern', label: 'Kategorie', combo: 'categories', placeholder: 'z. B. Werkzeug – leer: keine',
+      onSubmit: async (v) => {
+        try {
+          const cid = v ? await db.ensureNamed('categories', v) : null;
+          await db.patchItems(ids, { categoryId: cid });
+          await refreshItems();
+          endSelect();
+          haptic();
+          toast(`${plural(ids.length, 'Eintrag', 'Einträge')}: ${v || 'ohne Kategorie'}`);
+        } catch (e) { toast(e.message, true); }
+        return true;
+      },
+    });
+  } else if (a === 'archive') archiveMany(ids);
+}
+
+async function archiveMany(ids) {
+  try {
+    await db.patchItems(ids, { archived: 1, archivedAt: Date.now() });
+    await refreshItems();
+    endSelect();
+    updateStorageInfo();
+    haptic();
+    toast(`${ids.length} archiviert`, false, {
+      label: 'Rückgängig',
+      run: async () => {
+        try {
+          await db.patchItems(ids, { archived: 0, archivedAt: null });
+          await refreshItems();
+          renderCurrent();
+          updateStorageInfo();
+        } catch (e) { toast(e.message, true); }
+      },
+    });
+  } catch (e) { toast(e.message, true); }
+}
+
+// Bestand + / − direkt in der Zeile (nur ganze Zahlen).
+async function stepQty(id, delta) {
+  try {
+    const it = await db.stepQuantity(id, delta);
+    if (!it) return;
+    haptic();
+    const mine = state.items.find(x => x.id === id);
+    if (mine) mine.quantity = it.quantity;
+    for (const q of $$(`.row[data-id="${CSS.escape(id)}"] .qty-step .qty`)) q.textContent = it.quantity;
+  } catch (e) { toast(e.message, true); }
+}
+
+// --- Checkliste je Ort: „Gehört hierher immer“ ---
+// Ein Eintrag gehört zu dem Ort, an dem er markiert wurde (homePlaceId), sonst zu seinem jetzigen.
+const checkPlaceOf = (it) => placeById(it.homePlaceId)?.id || placeOf(it)?.id || '';
+const checkItems = (pid) => state.items.filter(it => !it.archived && it.essential && checkPlaceOf(it) === pid);
+
+function checklistSheet(pid) {
+  const p = placeById(pid);
+  if (!p) return;
+  if (!state.checks.has(pid)) state.checks.set(pid, new Set());
+  const done = state.checks.get(pid);
+  const draw = () => {
+    const items = checkItems(pid).sort((a, b) => String(a.name).localeCompare(String(b.name), 'de'));
+    const n = items.filter(it => done.has(it.id)).length;
+    const rows = items.map((it) => {
+      const on = done.has(it.id);
+      // Nicht abgehakt: wo er zuletzt war – unterwegs, anderer Ort, Raum, genauer Platz.
+      const where = outText(it) || [whereOf(it, ' › '), it.locationDetail].filter(Boolean).join(' · ') || 'Ohne Ort';
+      return `<button type="button" class="check-row${on ? ' on' : ''}" data-check="${esc(it.id)}" aria-pressed="${on}">
+        <span class="ck">${icon('check')}</span>
+        <span class="ck-txt"><b>${esc(it.name || 'Unbenannt')}</b>${on ? '' : `<small>${esc(where)}</small>`}</span></button>`;
+    }).join('');
+    $('#sheet-check').innerHTML = items.length
+      ? `<div class="ck-head"><p class="ck-sum">${n} von ${items.length} dabei</p><button type="button" class="btn pill ghost" data-check-reset>Alles zurücksetzen</button></div><div class="ck-list">${rows}</div>`
+      : '<p class="hint">Noch nichts auf der Checkliste. Öffne einen Eintrag und schalte unter „Mehr Angaben“ „Gehört immer hierher“ ein.</p>';
+  };
+  sheet.panel({
+    head: placeHead(p), title: 'Checkliste', submit: 'Fertig',
+    html: '<div id="sheet-check" class="checklist"></div>',
+    onClick: (e) => {
+      if (e.target.closest('[data-check-reset]')) { done.clear(); draw(); return; }
+      const b = e.target.closest('[data-check]');
+      if (!b) return;
+      const id = b.dataset.check;
+      if (done.has(id)) done.delete(id); else done.add(id);
+      haptic();
+      draw();
+    },
+    onSubmit: () => true,
+  });
+  draw();
+}
+
+// --- „Habe ich das schon?“: Foto → KI benennt → lokale Suche. Das Foto wird nicht gespeichert. ---
+async function haveCheck(file) {
+  if (!file) return;
+  if (!hasKey()) { toast('Dafür brauchst du einen API-Key in den Einstellungen.', true); return; }
+  let src = null;
+  toast('Foto wird erkannt …');
+  try {
+    src = await img.decode(file);
+    const b64 = await img.blobToBase64(await img.toBlob(src, 1024, 0.8));
+    img.release(src);
+    src = null;
+    const found = await ai.analyzePhoto(state.settings, b64, '', state.cats.map(c => c.name));
+    const names = found.map(f => f.name).filter(Boolean);
+    const hits = findSimilar(state.items, names);
+    hideToast();
+    haveSheet(names, hits);
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    img.release(src);
+  }
+}
+
+function haveSheet(names, hits) {
+  const groups = new Map();
+  for (const h of hits) {
+    const w = outText(h.item) || whereShort(h.item) || 'Ohne Ort';
+    groups.set(w, (groups.get(w) || 0) + 1);
+  }
+  const sum = hits.length ? 'Ja: ' + [...groups].map(([w, n]) => `${n}× ${w}`).join(', ') : 'Nichts gefunden';
+  sheet.panel({
+    title: 'Habe ich das schon?', submit: 'OK',
+    html: `<p class="have-names">Erkannt: ${esc(names.join(', ') || '–')}</p>
+      <p class="have-sum ${hits.length ? 'yes' : 'no'}">${icon(hits.length ? 'done' : 'search')}<span>${esc(sum)}</span></p>
+      ${hits.length ? `<div class="list have-list">${hits.slice(0, 8).map(h => rowHTML(h.item, '', { noStep: true })).join('')}</div>`
+        : '<p class="hint">In deinem Bestand steht nichts mit ähnlichem Namen.</p>'}`,
+    onClick: (e) => {
+      const row = e.target.closest('.row');
+      if (!row) return;
+      e.preventDefault();
+      sheet.close();
+      openItem(row.dataset.id);
+    },
+    onSubmit: () => true,
+  });
+}
+
+/* =========================== 1.8.0: Detail – Status, Duplikat, Belege =========================== */
+
+function renderItemExtras(it) {
+  const out = outText(it);
+  $('#it-out').hidden = !out || !!it.archived;
+  $('#it-out-text').textContent = out;
+  $('#it-out-set').hidden = !!out;
+  const other = it.dupOf && !it.archived ? state.items.find(x => x.id === it.dupOf && !x.archived) : null;
+  $('#it-dup').hidden = !other;
+  if (other) {
+    const w = whereShort(other);
+    $('#it-dup-text').textContent = `Ähnlich: ${other.name}${w ? ` (${w})` : ''} – schon vorhanden. Zusammenführen erhöht dort den Bestand um 1 und löscht diesen Eintrag.`;
+  }
+}
+
+async function mergeDup() {
+  const it = state.items.find(x => x.id === state.currentId);
+  const other = it && state.items.find(x => x.id === it.dupOf && !x.archived);
+  if (!other) return;
+  const q = qtyNumber(other.quantity);
+  const next = q != null ? String(q + 1) : !String(other.quantity || '').trim() ? '2' : other.quantity;
+  try {
+    await db.patchItem(other.id, { quantity: next });
+    await db.purgeItem(it.id);
+    await reloadAll();
+    navigate('back');
+    haptic();
+    toast(`Zusammengeführt: „${other.name}“ – Bestand ${next}.`);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function keepDup() {
+  try {
+    await db.patchItem(state.currentId, { dupOf: null, dupDismissed: true });
+    await refreshItems();
+    syncItemAi();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function renderDocs(itemId) {
+  let list = [];
+  try { list = await db.docsOf(itemId); } catch (e) { console.warn('Anhänge laden:', e); }
+  if (state.currentId !== itemId) return;
+  state.docs = list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  $('#it-docs').innerHTML = state.docs.map(d => `<div class="doc-row">
+      <button type="button" class="doc-open" data-doc="${esc(d.id)}">${icon(isImageDoc(d) ? 'photos' : 'doc')}<span class="doc-txt"><b>${esc(d.name)}</b><small>${isImageDoc(d) ? 'Bild' : 'PDF'} · ${esc(docSize(d))}</small></span></button>
+      <button type="button" class="doc-del" data-doc-del="${esc(d.id)}" aria-label="Anhang „${esc(d.name)}“ löschen">${icon('trash')}</button>
+    </div>`).join('');
+  return state.docs;
+}
+
+async function addDocs(files) {
+  const id = state.currentId;
+  if (!id) return;
+  let n = 0;
+  for (const f of files) {
+    try {
+      await db.addDoc(await prepareDoc(f, id, state.settings.imgMax));
+      n++;
+    } catch (e) { toast(e.message, true); }
+  }
+  await renderDocs(id);
+  if (n) { haptic(); toast(`${plural(n, 'Anhang', 'Anhänge')} gespeichert.`); updateStorageInfo(); }
+}
+
+function openDoc(docId) {
+  const d = state.docs.find(x => x.id === docId);
+  if (!d) return;
+  const url = docURL(d);
+  if (isImageDoc(d)) { openLightbox(url, true); return; }
+  // PDF: im neuen Tab zeigen (Safari öffnet dafür seine Vorschau); blockiert, dann laden.
+  const w = window.open(url, '_blank');
+  if (!w) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = d.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+async function deleteDoc(docId) {
+  const d = state.docs.find(x => x.id === docId);
+  if (!d || !confirm(`Anhang „${d.name}“ löschen?`)) return;
+  try {
+    await db.delDoc(docId);
+    await renderDocs(state.currentId);
+    toast('Anhang gelöscht.');
+    updateStorageInfo();
+  } catch (e) { toast(e.message, true); }
+}
+
 /* =========================== Zuhause: Aktionen =========================== */
 
 function onHomeClick(e) {
@@ -1569,7 +1929,7 @@ function onHomeClick(e) {
   if (todo) {
     const k = todo.dataset.todo;
     if (k === 'noroom') navigate('rooms');
-    else if (k === 'unnamed') { state.listFilter = 'unnamed'; clearSearch(); navigate('list'); }
+    else if (k === 'unnamed' || k === 'out' || k === 'warranty') { state.listFilter = k; clearSearch(); navigate('list'); }
     else if (k === 'busy') toast(queue.status().note || 'Die KI benennt die Fotos gerade im Hintergrund – du kannst einfach weitermachen.');
     else if (k === 'needkey') {
       navigate('settings');
@@ -1579,6 +1939,10 @@ function onHomeClick(e) {
     }
     return;
   }
+  const bk = e.target.closest('[data-backup]');
+  if (bk) { if (bk.dataset.backup === 'later') snoozeBackup(); else homeBackupGo(); return; }
+  const ck = e.target.closest('[data-checklist]');
+  if (ck) { checklistSheet(ck.dataset.checklist); return; }
   const hp = e.target.closest('[data-home-place]') || e.target.closest('[data-home-head]');
   if (hp) { setHomePlace(hp.dataset.homePlace ?? hp.dataset.homeHead); return; }
   if (e.target.closest('[data-place-add]')) { addPlaceSheet(); return; }
@@ -1662,9 +2026,17 @@ async function openItem(id) {
   showField('loc', it.locationDetail || '');
   showField('qty', it.quantity || '');
   showField('note', it.note || '');
+  showField('serial', it.serial || '');
+  showField('bought', cleanDate(it.purchaseDate));
+  showField('warranty', cleanDate(it.warrantyUntil));
+  $('#it-essential').checked = state.shown.essential = !!it.essential;
   // Selten gebrauchte Felder einklappen – außer sie sind schon befüllt.
-  $('#it-more').open = !!(it.locationDetail || it.quantity || it.note);
+  $('#it-more').open = !!(it.locationDetail || it.quantity || it.note || it.serial || it.purchaseDate || it.warrantyUntil || it.essential);
+  state.docs = [];
+  $('#it-docs').innerHTML = '';
+  renderDocs(id).then((list) => { if (list?.length && state.currentId === id) $('#it-more').open = true; });
   renderItemAi(it);
+  renderItemExtras(it);
   $('#it-meta').textContent =
     `Hinzugefügt: ${dtf.format(new Date(it.createdAt))}` +
     (it.updatedAt && it.updatedAt !== it.createdAt ? ` · Geändert: ${dtf.format(new Date(it.updatedAt))}` : '') +
@@ -1745,6 +2117,7 @@ function syncItemAi() {
   const it = state.items.find(x => x.id === state.currentId);
   if (!it) return;
   renderItemAi(it);
+  renderItemExtras(it);
   // Nur übernehmen, was die Nutzerin nicht angefasst hat. Bleibt ein fokussiertes Feld
   // leer, bleibt auch der gemerkte Wert leer – Speichern lässt das KI-Ergebnis dann stehen.
   const fill = (key, val) => {
@@ -1790,6 +2163,14 @@ async function saveItem() {
     if (fieldChanged('loc')) patch.locationDetail = $('#it-loc').value.trim();
     if (fieldChanged('qty')) patch.quantity = $('#it-qty').value.trim();
     if (fieldChanged('note')) patch.note = $('#it-note').value.trim();
+    if (fieldChanged('serial')) patch.serial = $('#it-serial').value.trim().slice(0, 120);
+    if (fieldChanged('bought')) patch.purchaseDate = cleanDate($('#it-bought').value);
+    if (fieldChanged('warranty')) patch.warrantyUntil = cleanDate($('#it-warranty').value);
+    const ess = $('#it-essential').checked;
+    if (ess !== state.shown.essential) {
+      patch.essential = ess;
+      patch.homePlaceId = ess ? (patch.placeId !== undefined ? patch.placeId : (state.itPlace || placeOf(it)?.id || null)) : null;
+    }
     if (Object.keys(patch).length) await db.patchItem(it.id, patch);
     await reloadAll();
     navigate('back');
@@ -2034,6 +2415,7 @@ async function saveBackup() {
   try {
     if (navigator.canShare?.({ files: [file] })) {
       await navigator.share({ files: [file], title: 'Heim-Inventar Sicherung' });
+      markBackedUp();
       return;
     }
   } catch (e) {
@@ -2047,6 +2429,41 @@ async function saveBackup() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 20000);
+  markBackedUp();
+}
+
+// Sicherung ist raus: Zeitpunkt merken – die Erinnerung auf Zuhause ruht dann wieder.
+async function markBackedUp() {
+  state.settings.lastBackupAt = Date.now();
+  state.homeBackup = '';
+  if (state.view === 'home') home.renderHome();
+  try { await db.setSetting('lastBackupAt', state.settings.lastBackupAt); } catch (e) { console.warn('Sicherungszeit merken:', e); }
+}
+
+// Zuhause: 1. Tipp erstellt die Sicherung. Ist die Geste danach noch frisch (Safari lässt
+// das Teilen-Fenster nur direkt aus einem Tipp zu), öffnet es gleich – sonst steht „Teilen“ da.
+async function homeBackupGo() {
+  if (state.homeBackup === 'building') return;
+  if (state.homeBackup === 'ready' && exportFile) { await saveBackup(); return; }
+  state.homeBackup = 'building';
+  home.renderHome();
+  try {
+    exportFile = await backup.buildExport({ withPhotos: true });
+    state.homeBackup = 'ready';
+  } catch (e) {
+    state.homeBackup = '';
+    toast('Sicherung fehlgeschlagen: ' + e.message, true);
+  }
+  if (state.view === 'home') home.renderHome();
+  if (state.homeBackup === 'ready' && navigator.userActivation?.isActive && navigator.canShare) await saveBackup();
+}
+
+async function snoozeBackup() {
+  const until = Date.now() + 3 * 86400000;
+  state.settings.backupSnooze = until;
+  state.homeBackup = '';
+  home.renderHome();
+  try { await db.setSetting('backupSnooze', until); } catch (e) { console.warn('Später merken:', e); }
 }
 
 async function readImportFile(file) {
@@ -2170,6 +2587,9 @@ function wire() {
   const rowClick = (e) => {
     const row = e.target.closest('.row');
     if (!row) return;
+    if (state.sel && !row.closest('#arch-list')) { toggleSel(row.dataset.id); return; }
+    const step = e.target.closest('[data-step]');
+    if (step) { stepQty(row.dataset.id, Number(step.dataset.step)); return; }
     if (e.target.matches('img.thumb')) { openPhotoOf(row.dataset.id); return; }
     openItem(row.dataset.id);
   };
@@ -2177,6 +2597,36 @@ function wire() {
   $('#arch-list').addEventListener('click', rowClick);
   $('#room-list').addEventListener('click', rowClick);
   $('#f-flag').addEventListener('click', () => { state.listFilter = null; renderList(); });
+
+  // --- 1.8.0: Auswahl, „Habe ich das schon?“, Checkliste, Detail-Extras ---
+  for (const b of $$('[data-select-toggle]')) b.addEventListener('click', () => (state.sel ? endSelect() : startSelect()));
+  $('#sel-bar').addEventListener('click', (e) => { const b = e.target.closest('[data-sel]'); if (b && !b.disabled) onSelAction(b.dataset.sel); });
+  const haveOpen = () => $('#have-input').click();
+  $('#have-btn').addEventListener('click', haveOpen);
+  $('#cap-have').addEventListener('click', haveOpen);
+  $('#have-input').addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    haveCheck(f).finally(() => { e.target.value = ''; });
+  });
+  $('#room-check').addEventListener('click', (e) => checklistSheet(e.currentTarget.dataset.place));
+  $('#it-out-set').addEventListener('click', () => {
+    const it = state.items.find(x => x.id === state.currentId);
+    if (it) outSheet([it.id], itemHead(it));
+  });
+  $('#it-back').addEventListener('click', () => setOut([state.currentId], null));
+  $('#it-dup-merge').addEventListener('click', mergeDup);
+  $('#it-dup-keep').addEventListener('click', keepDup);
+  $('#it-doc-add').addEventListener('click', () => $('#it-doc-input').click());
+  $('#it-doc-input').addEventListener('change', (e) => {
+    const files = Array.from(e.target.files || []);
+    addDocs(files).finally(() => { e.target.value = ''; });
+  });
+  $('#it-docs').addEventListener('click', (e) => {
+    const del = e.target.closest('[data-doc-del]');
+    if (del) { deleteDoc(del.dataset.docDel); return; }
+    const op = e.target.closest('[data-doc]');
+    if (op) openDoc(op.dataset.doc);
+  });
 
   // --- Zuhause, Räume & Raum ---
   $('#view-home').addEventListener('click', onHomeClick);
@@ -2195,8 +2645,8 @@ function wire() {
   // --- Gesten ---
   const archiveAct = `<span class="sa-in">${icon('archive')}<span>Archiv</span></span>`;
   for (const root of [$('#list'), $('#room-list')]) {
-    swipers.push(swipeRows(root, '.row', archiveAct, (row) => archiveWithUndo(row.dataset.id)));
-    longPress(root, '.row', (row) => itemMenu(row.dataset.id));
+    swipers.push(swipeRows(root, '.row', archiveAct, (row) => { if (!state.sel) archiveWithUndo(row.dataset.id); }));
+    longPress(root, '.row', (row) => (state.sel ? toggleSel(row.dataset.id) : itemMenu(row.dataset.id)));
   }
   longPress($('#home-recent'), '.rtile', (el) => itemMenu(el.dataset.id));
   for (const root of [$('#home-rooms'), $('#places-grid')]) {

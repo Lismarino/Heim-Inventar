@@ -7,6 +7,7 @@ import * as img from './img.js';
 import { esc, icon, plural, isThumb, placeholderHTML, toneOf, initialOf, EMPTY_ART } from './ui.js';
 import { placeBadge, placeIcon, safeColor } from './places.js';
 import { moveLens } from './glass.js';
+import { cleanOut, warrantySoon, daysSince } from './match.js';
 
 const $ = (s) => document.querySelector(s);
 const collator = new Intl.Collator('de', { sensitivity: 'base', numeric: true });
@@ -37,6 +38,8 @@ export function todoCounts(pool) {
     unnamed: items.filter(unnamed).length,
     busy: items.filter(ctx.aiBusy).length,
     needKey: items.filter(ctx.aiNeedsKey).length,
+    out: items.filter(it => !!cleanOut(it.out)).length,
+    warranty: items.filter(warrantySoon).length,
   };
 }
 export const isUnnamed = unnamed;
@@ -222,8 +225,10 @@ function groupHead(p, n, where) {
       ${placeBadge(p)}<h3 class="pgroup-name">${esc(p.name)}</h3>${count}
       <button type="button" class="pgroup-go" data-home-place="${esc(p.id)}" aria-label="Nur ${esc(p.name)} zeigen">${icon('chev-r', 'go')}</button></div>`;
   }
+  const ck = ctx.checkCount(p.id);
   return `<div class="pgroup-head" data-place-head="${esc(p.id)}">
       ${placeBadge(p)}<h2 class="pgroup-name">${esc(p.name)}</h2>${count}
+      ${ck ? `<button type="button" class="pgroup-assign pgroup-check" data-checklist="${esc(p.id)}">Checkliste</button>` : ''}
       <button type="button" class="pgroup-more" data-place-menu="${esc(p.id)}" aria-label="Ort „${esc(p.name)}“: Aktionen">${icon('more')}</button></div>`;
 }
 
@@ -299,6 +304,9 @@ export function renderHome() {
   if (c.unnamed) rows.push(todoRow('unnamed', 'pencil', 'clay', `${c.unnamed} unbenannt`, 'Antippen und selbst benennen'));
   if (c.busy) rows.push(todoRow('busy', '', 'busy', `${c.busy} ${c.busy === 1 ? 'wird' : 'werden'} erkannt`, ctx.queueNote() || 'Die KI benennt sie im Hintergrund.'));
   if (c.needKey) rows.push(todoRow('needkey', 'sparkle', 'clay', `${c.needKey} ${c.needKey === 1 ? 'wartet' : 'warten'} auf API-Key`, 'Key in den Einstellungen eintragen'));
+  if (c.out) rows.push(todoRow('out', 'out', 'clay', `${c.out} unterwegs/verliehen`, 'Antippen für die Liste'));
+  if (c.warranty) rows.push(todoRow('warranty', 'doc', 'clay', c.warranty === 1 ? 'Garantie läuft bald ab' : `${c.warranty}× Garantie läuft bald ab`, 'In den nächsten 30 Tagen'));
+  renderBackup(all.length);
   const todo = $('#home-todo');
   todo.hidden = !rows.length;
   todo.innerHTML = rows.length ? `<h2 class="todo-title">Zu erledigen</h2>${rows.join('')}` : '';
@@ -341,6 +349,24 @@ export function renderHome() {
 }
 
 /* ---------------- Räume (Tab) ---------------- */
+
+// Sicherungs-Erinnerung: ab 7 Tagen seit der letzten Sicherung – oder nie gesichert, sobald
+// 10 Einträge da sind. „Später“ (backupSnooze) blendet sie 3 Tage aus.
+function renderBackup(n) {
+  const box = $('#home-backup');
+  const s = ctx.state.settings;
+  const st = ctx.backupState();
+  const last = Number(s.lastBackupAt) || 0;
+  const days = last ? daysSince(last) : 0;
+  const due = Date.now() >= (Number(s.backupSnooze) || 0) && (last ? days >= 7 : n >= 10);
+  box.hidden = !due && !st;
+  if (box.hidden) { box.innerHTML = ''; return; }
+  const title = st === 'ready' ? 'Sicherung ist fertig' : last ? `Letzte Sicherung vor ${plural(days, 'Tag', 'Tagen')}` : 'Noch keine Sicherung';
+  const sub = st === 'ready' ? 'Jetzt teilen – z. B. in „Dateien“ oder iCloud Drive' : 'Einträge, Fotos und Belege in einer Datei';
+  const go = st === 'building' ? '<span class="spin"></span>Wird erstellt …' : st === 'ready' ? 'Teilen' : 'Jetzt sichern';
+  box.innerHTML = `<div class="bk-row"><span class="todo-ic clay">${icon('lock')}</span><span class="todo-txt"><b>${esc(title)}</b><small>${esc(sub)}</small></span></div>
+    <div class="row-btns"><button class="btn primary pill" data-backup="go"${st === 'building' ? ' disabled' : ''}>${go}</button><button class="btn ghost pill" data-backup="later">Später</button></div>`;
+}
 
 export function renderPlaces() {
   const { state } = ctx;
@@ -429,6 +455,12 @@ export function renderRoom(roomId, placeId) {
   crumb.hidden = !(place && (!room || multi()));
   crumb.innerHTML = place ? `${placeIcon(place)}<span>${esc(room ? place.name : 'Direkt hier, ohne Raum')}</span>` : '';
   $('#room-menu').setAttribute('aria-label', room ? 'Raum-Aktionen' : 'Ort-Aktionen');
+  // Checkliste des Orts: am Ort selbst immer, im Raum nur, wenn es schon eine gibt.
+  const ck = place ? ctx.checkCount(place.id) : 0;
+  const cb = $('#room-check');
+  cb.hidden = !place || (room && !ck);
+  cb.dataset.place = place ? place.id : '';
+  cb.querySelector('span').textContent = ck ? `Checkliste · ${ck}` : 'Checkliste';
   const groups = new Map();
   for (const it of items) {
     const cat = ctx.catName(it.categoryId);

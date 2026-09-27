@@ -2,12 +2,16 @@
 // Format 2 (1.7.0): zusätzlich „places“ (Orte), Räume mit placeId, Einträge mit placeId.
 // Format 1 (ohne Orte) wird weiter gelesen: alle Räume kommen dann nach „Zuhause“ (bzw. in
 // den ersten Ort, wenn es kein „Zuhause“ gibt – siehe mapPlaces).
+// Format 3 (1.8.0): zusätzlich „docs“ (Anhänge, mit den Fotos gesichert) und die neuen Felder
+// am Eintrag (unterwegs, Checkliste, Seriennummer, Kaufdatum, Garantie). Format 1 und 2 bleiben lesbar.
 import * as db from './db.js';
+import { cleanOut, cleanDate } from './match.js';
+import { DOC_TYPES, DOC_MAX } from './docs.js';
 import { blobToBase64 } from './img.js';
 import { DEFAULT_PLACE, PLACE_ICONS, PLACE_COLORS, suggestIcon, colorFor } from './places.js';
 
 const FORMAT = 'heim-inventar';
-const FORMAT_VERSION = 2;
+const FORMAT_VERSION = 3;
 
 /* ---------------- Export ---------------- */
 
@@ -21,6 +25,7 @@ export async function buildExport({ withPhotos = true, onProgress } = {}) {
     db.getAll('items'), db.getAll('categories'), db.getAll('rooms'), db.getAll('places'), db.loadSettings(),
   ]);
   const photos = withPhotos ? await db.getAll('photos') : [];
+  const docs = withPhotos ? await db.getAll('docs') : [];
   // Ort am Eintrag immer gleich dem seines Raums (maßgeblich ist der Raum).
   const placeOfRoom = new Map(rooms.map(r => [r.id, r.placeId]));
   for (const it of items) if (placeOfRoom.get(it.roomId)) it.placeId = placeOfRoom.get(it.roomId);
@@ -30,7 +35,7 @@ export async function buildExport({ withPhotos = true, onProgress } = {}) {
     version: FORMAT_VERSION,
     exportedAt: new Date().toISOString(),
     withPhotos,
-    counts: { items: items.length, photos: photos.length, categories: cats.length, rooms: rooms.length, places: places.length },
+    counts: { items: items.length, photos: photos.length, docs: docs.length, categories: cats.length, rooms: rooms.length, places: places.length },
     // Der API-Key wird bewusst NICHT mitgesichert.
     settings: { model: settings.model, imgMax: settings.imgMax },
   };
@@ -50,6 +55,12 @@ export async function buildExport({ withPhotos = true, onProgress } = {}) {
     const data = await blobToBase64(new Blob([p.buf], { type }));
     parts.push((i ? ',' : '') + JSON.stringify({ id: p.id, type, createdAt: p.createdAt || null, data }));
     if (onProgress) onProgress(i + 1, photos.length);
+  }
+  parts.push('],"docs":[');
+  for (let i = 0; i < docs.length; i++) {
+    const d = docs[i];
+    const data = await blobToBase64(new Blob([d.buf], { type: d.type }));
+    parts.push((i ? ',' : '') + JSON.stringify({ id: d.id, itemId: d.itemId, name: d.name, type: d.type, createdAt: d.createdAt || null, data }));
   }
   parts.push(']}');
 
@@ -190,7 +201,7 @@ function mapRooms(list, existing, places) {
  */
 export async function applyBackup(data, mode, onProgress) {
   const replace = mode === 'replace';
-  const stats = { items: 0, photos: 0, skipped: 0 };
+  const stats = { items: 0, photos: 0, docs: 0, skipped: 0 };
 
   // Bei „ersetzen“ zählt der bisherige Bestand nicht – er wird ja geleert.
   const [existCats, existRooms, existPlaces, photoKeys, itemKeys] = replace
@@ -252,11 +263,38 @@ export async function applyBackup(data, mode, onProgress) {
     it.createdAt = num(raw.createdAt, Date.now());
     it.updatedAt = num(raw.updatedAt, it.createdAt);
     it.archivedAt = raw.archivedAt == null ? null : num(raw.archivedAt, null);
+    // 1.8.0-Felder: nur gültige Werte übernehmen, sonst weglassen.
+    it.out = cleanOut(raw.out);
+    it.essential = raw.essential === true;
+    it.homePlaceId = it.essential && raw.homePlaceId ? (places.map.get(raw.homePlaceId) || null) : null;
+    it.serial = typeof raw.serial === 'string' ? raw.serial.slice(0, 120) : '';
+    it.purchaseDate = cleanDate(raw.purchaseDate);
+    it.warrantyUntil = cleanDate(raw.warrantyUntil);
+    it.dupOf = null;
+    it.dupDismissed = raw.dupDismissed === true;
+    for (const k of ['name', 'quantity', 'note', 'locationDetail']) it[k] = typeof raw[k] === 'string' ? raw[k] : (typeof raw[k] === 'number' ? String(raw[k]) : '');
     haveItems.add(it.id);
     items.push(it);
   }
 
-  await db.writeImport({ replace, places: places.add, categories: cats.add, rooms: rooms.add, photos, items });
+  // Anhänge: nur zu Einträgen dieses Imports, nur Bild/PDF, nicht zu groß, gültiges base64.
+  const docs = [];
+  const newIds = new Set(items.map(x => x.id));
+  const haveDocs = replace ? new Set() : new Set(await db.getAllKeys('docs'));
+  for (const d of Array.isArray(data.docs) ? data.docs : []) {
+    if (!isId(d?.id) || haveDocs.has(d.id) || !newIds.has(d.itemId)) continue;
+    const type = typeof d.type === 'string' && DOC_TYPES.test(d.type) ? d.type : null;
+    if (!type) continue;
+    let buf;
+    try { buf = base64ToBuffer(d.data); } catch (_) { void _; throw new Error('Ein Anhang in der Datei ist beschädigt.'); }
+    if (!buf.byteLength || buf.byteLength > DOC_MAX) continue;
+    const name = (typeof d.name === 'string' ? d.name : '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 120) || 'Anhang';
+    docs.push({ id: d.id, itemId: d.itemId, name, type, buf, createdAt: num(d.createdAt, Date.now()) });
+    haveDocs.add(d.id);
+  }
+
+  await db.writeImport({ replace, places: places.add, categories: cats.add, rooms: rooms.add, photos, items, docs });
+  stats.docs = docs.length;
   stats.items = items.length;
   stats.photos = photos.length;
   return stats;

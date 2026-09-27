@@ -211,15 +211,16 @@ const SEARCH_SCHEMA = {
 export async function searchInventory(settings, question, entries) {
   const list = entries.map(e => [
     e.n, e.name || '-', e.category || '-', e.place || '-', e.room || '-',
-    e.location || '-', e.quantity || '-', e.note || '-',
+    e.location || '-', e.quantity || '-', e.status || '-', e.note || '-',
   ].join(' | ')).join('\n');
 
   const prompt = `Du durchsuchst das private Haushalts-Inventar einer Person.
 
 Frage der Person: "${question}"
 
-Inventar (Nummer | Name | Kategorie | Ort | Raum | Genauer Platz | Bestand | Notiz):
+Inventar (Nummer | Name | Kategorie | Ort | Raum | Genauer Platz | Bestand | Status | Notiz):
 „Ort“ ist, wo die Sachen sind (z. B. Zuhause, Auto, Betrieb), „Raum“ der Raum oder Bereich darin (Keller, Kofferraum, Werkzeugkiste).
+„Status“ sagt, ob etwas gerade unterwegs oder verliehen ist (z. B. „Bei Tom seit 4 Tagen“) – dann liegt es gerade NICHT an seinem Ort; sag das in der Antwort.
 ${list}
 
 Aufgabe:

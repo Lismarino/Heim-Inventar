@@ -302,6 +302,28 @@ tatsächlichen Bestand geprüft, damit nichts Erfundenes in der Trefferliste lan
 Erst **Endgültig löschen** entfernt Eintrag und Foto unwiderruflich.
 Zu erreichen über Einstellungen → Archiv öffnen.
 
+**Neu in 1.8.0**
+
+- **Unterwegs / verliehen** – im Aktionsblatt (lang drücken) oder im Eintrag: „Verliehen an Tom“
+  oder „Unterwegs“. Die Zeile zeigt dann „Bei Tom seit 4 Tagen“, **Wieder da** hebt das auf.
+  Zuhause zeigt unter „Zu erledigen“, wie viele Dinge gerade weg sind; die KI-Suche weiß es auch.
+- **Checkliste je Ort** – im Eintrag unter „Mehr Angaben“ **Gehört immer hierher** einschalten.
+  Im Ort (⋯ → Checkliste, im Tab „Räume“ oder in der Ortsansicht) lässt sich dann abhaken, ob
+  alles da ist; Fehlendes zeigt, wo es zuletzt war. Die Häkchen gelten nur bis zum Schließen der App.
+- **Habe ich das schon?** – Kamera-Knopf neben dem Suchfeld (oder in „Hinzufügen“): Foto
+  aufnehmen, die KI benennt es, die App sucht ähnliche Namen im Bestand („Ja: 2× Keller“).
+  Das Foto wird nicht gespeichert.
+- **Duplikat-Hinweis** – benennt die KI ein neues Foto wie einen vorhandenen Eintrag, steht im
+  neuen Eintrag „Ähnlich: …“ mit **Zusammenführen** (Bestand dort +1, neuen löschen) oder **Behalten**.
+- **Bestand + / −** direkt in der Zeile, wenn der Bestand eine Zahl ist.
+- **Mehrfachauswahl** – „Auswählen“ oben in „Alles“ oder in einem Raum/Ort (oder lang drücken →
+  „Mehrere auswählen“): Ort, Kategorie, Unterwegs oder Archiv für alle auf einmal.
+- **Sicherungs-Erinnerung** auf Zuhause, wenn die letzte Sicherung 7 Tage her ist (oder bei
+  10 Einträgen noch keine da ist). **Später** blendet sie 3 Tage aus.
+- **Belege & Unterlagen** im Eintrag unter „Mehr Angaben“: Seriennummer, Kaufdatum, Garantie bis
+  und Anhänge (Fotos oder PDFs bis 10 MB; Bilder werden verkleinert). Läuft eine Garantie in den
+  nächsten 30 Tagen ab, erinnert Zuhause daran.
+
 ---
 
 ## 4. Sicherung, Übertragung, Datenverlust
@@ -343,6 +365,11 @@ einlesen:** Alle Räume kommen dann nach „Zuhause“ (vorhanden – sonst in d
 Raum mit; Einträge ohne Raum stehen danach unter „Ohne Ort“, wie vorher unter „Ohne Raum“. Eine
 Sicherung aus 1.7.0 lässt sich in älteren Fassungen **nicht** einlesen („stammt aus einer neueren
 Version“). Symbole und Farben aus der Datei werden nur aus den festen Listen der App übernommen.
+Seit 1.8.0 ist es **Version 3**: dazu kommt `docs` (Anhänge als base64, nur mit „Fotos und
+Anhänge mitsichern“) und die neuen Felder am Eintrag (`out`, `essential`, `serial`,
+`purchaseDate`, `warrantyUntil`). Version 1 und 2 bleiben lesbar. Die Datenbank bekommt beim
+ersten Start von 1.8.0 den zusätzlichen Speicher `docs` (IndexedDB-Version 3) – bestehende Daten
+bleiben unverändert.
 
 ### Update auf 1.7.0 (Orte)
 
@@ -385,8 +412,7 @@ Ein Datei-Update auf dem Server kann die Datenbank nicht löschen. Prüfe der Re
 
 ### Was noch fehlt
 
-- **Duplikat-Erkennung**: ähnelt ein neues Foto einem vorhandenen Eintrag, beide Bilder
-  nebeneinander zeigen und „Menge erhöhen“ oder „Neu anlegen“ anbieten.
+- **Duplikat-Erkennung per Bildvergleich**: bisher vergleicht die App nur die erkannten Namen.
 
 ---
 
@@ -405,6 +431,8 @@ js/home.js              Startseite „Zuhause“ (mit Orts-Umschalter), Tab „R
                         Raum-/Orts-Ansicht (inkl. scharfer Titelbilder)
 js/places.js            Orte: Symbole, Farben, Symbol-Vorschlag aus dem Namen, Raumvorschläge je Art,
                         Chips und Plaketten (ohne Datenbank)
+js/match.js             Namen vergleichen (Habe ich das schon?, Duplikat-Hinweis), Unterwegs-Text, Datumsangaben
+js/docs.js              Belege & Unterlagen: Anhänge vorbereiten (Bilder verkleinern, PDFs bis 10 MB), anzeigen
 js/ui.js                gemeinsame Darstellungs-Helfer (Escapen, Symbole, Platzhalter)
 js/motion.js            Übergänge zwischen den Ansichten (nur transform/opacity) und die Federn
 js/glass.js             Liquid Glass: Tab-Linse (und Linse im Orts-Umschalter), schrumpfende Leiste, Glas-Kopfzeilen, Aufquellen,
