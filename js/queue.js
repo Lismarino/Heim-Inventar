@@ -125,7 +125,9 @@ async function work(id) {
 
     // Kategorien legt applyRecognition selbst an – in derselben Transaktion und nur,
     // wenn der Eintrag dann noch existiert und auf die Erkennung wartet.
-    await db.applyRecognition(id, found.map(f => ({ name: f.name, category: f.category, confidence: f.confidence })));
+    const res = await db.applyRecognition(id, found.map(f => ({ name: f.name, category: f.category, confidence: f.confidence })));
+    // Stark ähnlicher Eintrag schon vorhanden? Nur ein Hinweis am neuen – blockiert nichts.
+    if (res?.applied) await db.flagDuplicate(id).catch((e) => console.warn('Duplikat-Prüfung:', e));
     tries.delete(id);
     quotaHits = 0;
     if (slow && ++okStreak >= SLOW_RECOVER) { slow = false; okStreak = 0; }

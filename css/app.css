@@ -1886,3 +1886,107 @@ button.pgroup-head:active{opacity:.6}
   background:var(--accent-tint);color:var(--accent-ink);font-size:14px;font-weight:650;
 }
 @media (prefers-reduced-motion: reduce){ .place-hint:active{transform:none} }
+
+/* =========================== 1.8.0 ===========================
+   Unterwegs/verliehen, Checkliste, „Habe ich das schon?“, Duplikat-Hinweis, Bestand + / −,
+   Mehrfachauswahl, Sicherungs-Erinnerung, Belege & Unterlagen. */
+.search-row{display:flex;gap:8px;align-items:center}
+.search-row .search{flex:1;min-width:0}
+.have-btn{
+  flex:none;width:44px;height:44px;border:0;border-radius:var(--r-md);display:grid;place-items:center;
+  background:var(--fill-strong);color:var(--accent-text);
+}
+.have-btn .ic{width:22px;height:22px;stroke-width:2}
+.have-btn:active{background:var(--press)}
+.have-add{margin-top:10px}
+.topbar .link.sel-toggle{min-width:0;justify-content:flex-end;padding:0 4px}
+.topbar.large .link.sel-toggle{margin-left:auto}
+
+/* Mehrfachauswahl: Häkchen vorn in der Zeile, Leiste statt Navigation */
+.row-check{
+  flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+  border:2px solid var(--fg3);color:transparent;transition:background-color .15s,border-color .15s;
+}
+.row-check .ic{width:16px;height:16px;stroke-width:3}
+.row.sel-on .row-check{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.row.sel-on{background:var(--accent-tint)}
+body.selecting #nav{visibility:hidden}
+.sel-bar{
+  position:absolute;left:max(6px,env(safe-area-inset-left,0px));right:max(6px,env(safe-area-inset-right,0px));
+  bottom:var(--nav-y);z-index:6;border-radius:28px;padding:8px 8px 6px;background-color:var(--glass-tint-strong);
+}
+.sel-n{margin:0 0 4px;text-align:center;font-size:13px;font-weight:600;color:var(--fg2)}
+.sel-acts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.sel-acts button{
+  min-height:48px;border:0;border-radius:18px;background:none;color:var(--accent-text);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;font-weight:650;
+}
+.sel-acts button .ic{width:22px;height:22px}
+.sel-acts button.danger{color:var(--clay)}
+.sel-acts button:disabled{opacity:.4}
+.sel-acts button:active{background:var(--press)}
+
+/* Bestand + / − (kleine Glas-Knöpfe) */
+.qty-step{display:inline-flex;align-items:center;gap:6px;flex:none}
+.qs{
+  width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:18px;font-weight:600;line-height:1;
+  background:var(--fill-strong);color:var(--accent-text);box-shadow:inset 0 0 0 .5px var(--line);cursor:pointer;
+}
+.qs:active{background:var(--accent-tint);transform:scale(.92)}
+.qty-step .qty{min-width:1.4em;text-align:center;font-weight:650;color:var(--fg)}
+.row .place + .qty-step::before,.tag + .qty-step::before{content:"·";margin-right:2px;color:var(--fg3)}
+
+/* Unterwegs / verliehen, Duplikat */
+.out-tag,.dup-tag{display:flex;align-items:center;gap:4px;margin-top:3px;font-size:13px;font-weight:600;color:var(--clay-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.out-tag .ic{width:15px;height:15px;flex:none}
+.out-box{margin-bottom:14px;padding:12px 14px;border-radius:var(--r-md);background:var(--clay-tint);box-shadow:inset 0 0 0 1px var(--clay-line)}
+.out-line{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-weight:650;color:var(--clay-ink)}
+.out-line .ic{width:20px;height:20px;flex:none}
+.dup-box{padding:12px 14px;border-radius:var(--r-md);background:var(--accent-tint)}
+.dup-box .row-btns{margin-top:10px}
+.dup-box .row-btns .btn{flex:1}
+.out-types{margin-bottom:12px}
+#it-out-set{margin-bottom:10px}
+
+/* Belege & Unterlagen */
+.docs-head{margin-top:18px}
+.docs{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.docs:empty{display:none}
+.doc-row{display:flex;align-items:center;gap:6px;border-radius:var(--r-md);background:var(--fill)}
+.doc-open{flex:1;min-width:0;display:flex;align-items:center;gap:10px;min-height:52px;padding:6px 12px;border:0;background:none;color:inherit;text-align:left}
+.doc-open .ic{width:24px;height:24px;flex:none;color:var(--accent-text)}
+.doc-txt{min-width:0;display:flex;flex-direction:column}
+.doc-txt b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.doc-txt small{font-size:13px;color:var(--fg2)}
+.doc-del{flex:none;width:44px;height:44px;border:0;background:none;color:var(--clay);display:grid;place-items:center}
+.doc-del .ic{width:20px;height:20px}
+.check small{color:var(--fg2);font-size:13px}
+
+/* Checkliste je Ort */
+.room-check{margin-top:10px}
+.pgroup-check + .pgroup-more{margin-left:4px}
+.ck-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.ck-sum{margin:0;font-weight:650;color:var(--fg2);font-variant-numeric:tabular-nums}
+.ck-list{display:flex;flex-direction:column;max-height:46vh;overflow:auto;margin-bottom:12px}
+.check-row{display:flex;align-items:center;gap:12px;min-height:52px;padding:6px 4px;border:0;background:none;color:inherit;text-align:left}
+.check-row + .check-row{border-top:1px solid var(--line)}
+.ck{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--fg3);display:grid;place-items:center;color:transparent}
+.ck .ic{width:16px;height:16px;stroke-width:3}
+.check-row.on .ck{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.check-row.on b{color:var(--fg2);text-decoration:line-through}
+.ck-txt{min-width:0;display:flex;flex-direction:column}
+.ck-txt small{font-size:13px;color:var(--clay-ink)}
+
+/* „Habe ich das schon?“ */
+.have-names{margin:0 0 6px;color:var(--fg2);font-size:14px}
+.have-sum{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:18px;font-weight:700}
+.have-sum .ic{width:22px;height:22px;flex:none}
+.have-sum.yes{color:var(--accent-text)}
+.have-sum.no{color:var(--fg2)}
+.have-list{max-height:40vh;overflow:auto;margin-bottom:12px;border-radius:var(--r-md);background:var(--fill)}
+
+/* Sicherungs-Erinnerung auf Zuhause */
+.backup-card .bk-row{display:flex;align-items:center;gap:12px}
+.backup-card .todo-txt{display:flex;flex-direction:column;min-width:0}
+.backup-card .todo-txt small{color:var(--fg2);font-size:14px}
+.backup-card .row-btns .btn{flex:1}

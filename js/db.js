@@ -7,10 +7,15 @@
 // - ohne Raum: placeId = der Ort, an dem der Eintrag direkt liegt (z. B. „im Auto“);
 // - placeId null (oder fehlend – Einträge aus 1.6.x ohne Raum fasst die Umstellung nicht an)
 //   und kein Raum: „Ohne Ort“ – noch zuzuordnen.
+//
+// 1.8.0 (Datenbank-Version 3): Store „docs“ (Anhänge, Index by_item). Neue, optionale Felder
+// am Eintrag: out { type, to, since } (unterwegs/verliehen), essential + homePlaceId
+// (Checkliste je Ort), serial, purchaseDate, warrantyUntil (JJJJ-MM-TT), dupOf/dupDismissed.
+import { findSimilar } from './match.js';
 import { DEFAULT_PLACE, suggestIcon, colorFor, safeIcon, safeColor, byOrder } from './places.js';
 
 const DB_NAME = 'heim-inventar';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let _db = null;
 let _opening = null;
@@ -46,6 +51,10 @@ export function openDB() {
       // Version 2: Orte. Bestehende Räume und Einträge ordnet migratePlaces() danach zu –
       // hier nur den Store anlegen, damit das Upgrade selbst nichts umschreibt.
       if (!db.objectStoreNames.contains('places')) db.createObjectStore('places', { keyPath: 'id' });
+      // Version 3 (1.8.0): Belege & Unterlagen – Anhänge je Eintrag. Rein additiv.
+      if (!db.objectStoreNames.contains('docs')) {
+        db.createObjectStore('docs', { keyPath: 'id' }).createIndex('by_item', 'itemId');
+      }
     };
     req.onsuccess = () => {
       _db = req.result;
@@ -113,7 +122,7 @@ export async function clear(name) {
 /** Rohe Satzzahlen direkt aus der Datenbank – für die Speicher-Diagnose. */
 export async function rawCounts() {
   const out = {};
-  for (const s of ['items', 'photos', 'categories', 'rooms', 'places', 'settings']) {
+  for (const s of ['items', 'photos', 'categories', 'rooms', 'places', 'docs', 'settings']) {
     try { out[s] = await count(s); } catch (_) { void _; out[s] = -1; }
   }
   return out;
@@ -797,7 +806,7 @@ export function restoreItem(id) {
   return patchItem(id, { archived: 0, archivedAt: null });
 }
 
-// Endgültig löschen – inklusive Foto, falls kein anderer Eintrag es noch nutzt.
+// Endgültig löschen – inklusive Foto, falls kein anderer Eintrag es noch nutzt, und Anhängen.
 export async function purgeItem(id) {
   const it = await get('items', id);
   if (!it) return;
@@ -807,19 +816,86 @@ export async function purgeItem(id) {
     const others = all.filter(x => x.id !== id && x.photoId === it.photoId);
     if (others.length === 0) dropPhoto = it.photoId;
   }
-  return withTx(['items', 'photos'], 'readwrite', (tx) => {
+  return withTx(['items', 'photos', 'docs'], 'readwrite', (tx) => {
     tx.objectStore('items').delete(id);
     if (dropPhoto) tx.objectStore('photos').delete(dropPhoto);
+    tx.objectStore('docs').index('by_item').openKeyCursor(IDBKeyRange.only(id)).onsuccess = (ev) => {
+      const cur = ev.target.result;
+      if (!cur) return;
+      tx.objectStore('docs').delete(cur.primaryKey);
+      cur.continue();
+    };
   });
 }
+
+/* ---------------- 1.8.0: mehrere Einträge, Bestand, Duplikate, Anhänge ---------------- */
+
+// Dieselben Felder an mehreren Einträgen ändern – EINE Transaktion (Mehrfachauswahl).
+export function patchItems(ids, patch) {
+  const want = new Set(ids);
+  return withTx(['items'], 'readwrite', (tx) => {
+    const out = { changed: 0 };
+    const now = Date.now();
+    tx.objectStore('items').openCursor().onsuccess = (ev) => {
+      const cur = ev.target.result;
+      if (!cur) return;
+      if (want.has(cur.value.id)) { cur.update({ ...cur.value, ...patch, updatedAt: now }); out.changed++; }
+      cur.continue();
+    };
+    return out;
+  });
+}
+
+// Bestand um `delta` ändern – nur wenn er eine ganze Zahl ist, nie unter 0.
+export function stepQuantity(id, delta) {
+  return patchItemWith(id, (it) => {
+    if (!/^\s*\d{1,6}\s*$/.test(String(it.quantity ?? ''))) return false;
+    it.quantity = String(Math.max(0, Number(it.quantity) + delta));
+    return true;
+  });
+}
+
+// Lesen, ändern (`fn` liefert false = nichts tun), schreiben – in EINER Transaktion.
+function patchItemWith(id, fn) {
+  return withTx(['items'], 'readwrite', (tx) => {
+    const box = { item: null };
+    const s = tx.objectStore('items');
+    s.get(id).onsuccess = (ev) => {
+      const it = ev.target.result;
+      if (!it || fn(it) === false) return;
+      it.updatedAt = Date.now();
+      s.put(it);
+      box.item = it;
+    };
+    return box;
+  }).then(box => box.item);
+}
+
+// Nach der Erkennung: Gibt es schon einen stark ähnlichen Eintrag (nicht archiviert, anderes
+// Foto)? Dann den Hinweis „dupOf“ am neuen Eintrag setzen. Nie blockierend, nie doppelt.
+export async function flagDuplicate(id) {
+  const all = await getAll('items');
+  const it = all.find(x => x.id === id);
+  if (!it || it.archived || it.dupOf || it.dupDismissed || !String(it.name || '').trim()) return null;
+  const hit = findSimilar(all.filter(x => x.id !== id && (!x.photoId || x.photoId !== it.photoId)), [it.name], 2)[0];
+  if (!hit) return null;
+  return patchItem(id, { dupOf: hit.item.id }, (x) => !x.dupOf && !x.dupDismissed && !x.archived);
+}
+
+// Anhänge (Belege, Unterlagen): { id, itemId, name, type, buf, createdAt }
+export function docsOf(itemId) {
+  return store('docs', 'readonly').then(s => reqP(s.index('by_item').getAll(IDBKeyRange.only(itemId))));
+}
+export const addDoc = (doc) => put('docs', doc);
+export const delDoc = (id) => del('docs', id);
 
 /* ---------------- Sicherung einlesen ---------------- */
 
 // Schreibt einen fertig vorbereiteten Import in EINER Transaktion.
-// `replace` leert vorher alle fünf Stores. Scheitert irgendetwas (Speicher voll,
+// `replace` leert vorher alle sechs Stores (samt Anhängen). Scheitert irgendetwas (Speicher voll,
 // ungültiger Schlüssel), rollt IndexedDB alles zurück – der alte Stand bleibt.
-export function writeImport({ replace = false, places = [], categories = [], rooms = [], photos = [], items = [] }) {
-  const names = ['items', 'photos', 'categories', 'rooms', 'places'];
+export function writeImport({ replace = false, places = [], categories = [], rooms = [], photos = [], items = [], docs = [] }) {
+  const names = ['items', 'photos', 'categories', 'rooms', 'places', 'docs'];
   return withTx(names, 'readwrite', (tx) => {
     if (replace) for (const n of names) tx.objectStore(n).clear();
     const putAll = (n, list) => { const s = tx.objectStore(n); for (const r of list) s.put(r); };
@@ -828,5 +904,6 @@ export function writeImport({ replace = false, places = [], categories = [], roo
     putAll('rooms', rooms);
     putAll('photos', photos);
     putAll('items', items);
+    putAll('docs', docs);
   });
 }
