@@ -12,6 +12,14 @@ let out = null;       // Master-Lautstärke
 let send = null;      // Eingang des kleinen Raums (Echo)
 let enabled = true;
 let volume = 0.25;
+// Die Einstellungen liegen in IndexedDB und sind beim Start noch nicht geladen – die Start-Szene
+// spielt aber schon. Deshalb merkt sich sound.js „Töne“ und Lautstärke zusätzlich hier (1.10.1).
+const PREF_KEY = 'inventar-toene';
+try {
+  const p = JSON.parse(window.localStorage.getItem(PREF_KEY) || 'null');
+  if (p && typeof p.enabled === 'boolean') enabled = p.enabled;
+  if (p && Number.isFinite(p.volume)) volume = Math.min(1, Math.max(0, p.volume));
+} catch (_) { void _; }
 const last = new Map();   // Klang -> Zeitpunkt (ms) – gegen Dauerfeuer
 
 // Mindestabstand je Klang in ms. Das Glitzern der KI kommt bei vielen Fotos sonst im Takt.
@@ -21,6 +29,7 @@ const GAP = { sparkle: 1500, tick: 40, check: 40 };
 export function configure(o = {}) {
   if (typeof o.enabled === 'boolean') enabled = o.enabled;
   if (Number.isFinite(o.volume)) volume = Math.min(1, Math.max(0, o.volume));
+  try { window.localStorage.setItem(PREF_KEY, JSON.stringify({ enabled, volume })); } catch (_) { void _; }
   try { if (out && ac) out.gain.setTargetAtTime(volume, ac.currentTime, 0.02); } catch (_) { void _; }
 }
 
@@ -149,5 +158,44 @@ export function play(name) {
     last.set(name, now);
     if (ac.state !== 'running') ac.resume().catch(() => {});
     SOUNDS[name]();
+  } catch (_) { void _; }
+}
+
+/* ---------------- Landetöne der Start-Szene (1.10.1) ---------------- */
+
+// Buch: dumpfes Holz-„Tock“ – kurzes, tief gefiltertes Rauschen plus ein fallender Körper,
+// je Buch leicht andere Tonhöhe. Einmachglas: heller Glas-„Tink“ mit unharmonischem Oberton.
+const PITCH = [1, 0.9, 1.08, 0.95, 1.13, 0.86];
+function landSound(kind, at, n) {
+  if (kind === 'jar') {
+    tone(2217, at, 0.16, { gain: 0.07, attack: 0.002 });
+    tone(3520, at, 0.09, { gain: 0.025, attack: 0.002, wet: false });
+    noise(at, 0.03, { from: 6000, to: 4000, gain: 0.05, q: 2 });
+  } else {
+    const k = PITCH[n % PITCH.length];
+    noise(at, 0.045, { from: 1100 * k, to: 380 * k, gain: 0.16, q: 1.1 });
+    tone(210 * k, at, 0.085, { type: 'triangle', gain: 0.14, to: 140 * k, attack: 0.003, wet: false });
+  }
+}
+
+/**
+ * Ein Gegenstand der Start-Szene setzt in `inMs` Millisekunden auf ('book' | 'jar', n = Nummer).
+ * Vor der ersten Berührung lässt iOS keinen Ton zu – versucht wird es trotzdem: Kontext
+ * anlegen und wecken; bleibt er 'suspended', wird still übersprungen. Nie ein Fehler, nie
+ * ein Warten: der Aufruf kehrt sofort zurück.
+ */
+export function land(kind, inMs = 0, n = 0) {
+  if (!enabled) return;
+  try {
+    if (!ac && !setup()) return;
+    const due = performance.now() + inMs;
+    const go = () => {
+      const left = due - performance.now();
+      if (ac.state !== 'running' || left < -25) return;   // zu spät – dann lieber keinen Ton
+      landSound(kind, Math.max(0, left) / 1000, n);
+    };
+    if (ac.state === 'running') { go(); return; }
+    const r = ac.resume();
+    if (r && typeof r.then === 'function') r.then(() => { try { go(); } catch (_) { void _; } }, () => {});
   } catch (_) { void _; }
 }

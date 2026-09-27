@@ -2,12 +2,14 @@
 // Das leere gläserne Regalbrett ist zugleich das iOS-Startbild (icons/splash/, erzeugt mit
 // tools/splash.js aus genau diesem Markup) – der Übergang ist deshalb nahtlos. Hier fallen
 // dann Bücher und ein Einmachglas federnd ins Regal, der Schriftzug „Inventar“ taucht auf
-// (er steht bewusst nicht im Startbild), ein Glanz wischt darüber, und die Szene öffnet sich
-// in die App, die dahinter schon fertig gezeichnet ist.
+// (er steht bewusst nicht im Startbild), und die Szene öffnet sich in die App, die dahinter
+// schon fertig gezeichnet ist. (Der Glanzstreifen über dem Regal ist seit 1.10.1 fort.)
+// Jeder landende Gegenstand macht leise „tock“ (Buch) bzw. „tink“ (Glas) – über sound.js,
+// sofern Töne an sind und iOS den Ton vor der ersten Berührung überhaupt zulässt.
 //
 // - Blockiert den Start nicht: app.js startet parallel und ruft done(), sobald es bereit ist.
 //   Ist die App schneller, läuft die Szene zu Ende (frühestens nach ~0,8 s öffnet sie);
-//   ist sie langsamer, schimmert das Regal ruhig weiter, bis es so weit ist.
+//   ist sie langsamer, steht das Regal ruhig da, bis es so weit ist.
 // - Nur beim echten Kaltstart. Wurde die Seite nach dem Wechsel in den Hintergrund neu
 //   geladen (oder aus dem Verlauf wiederhergestellt), nur kurz überblenden.
 // - „Bewegung reduzieren“: nur kurzes Überblenden.
@@ -19,6 +21,7 @@
 // Animiert werden nur transform und opacity.
 import { reduced, num } from './motion.js';
 import { lock } from './ui.js';
+import { land } from './sound.js';
 
 const BG_KEY = 'inventar-hintergrund';   // gesetzt, sobald die App einmal im Hintergrund war
 const OPEN_AFTER = 760;                  // ms: so lange darf die Szene mindestens dauern
@@ -30,7 +33,6 @@ let clockDone = false;   // Mindestdauer der Szene erreicht
 let opening = false;
 let finished = false;
 let anims = [];
-let idle = null;
 let resolveDone = null;
 const whenDone = new Promise((r) => { resolveDone = r; });
 
@@ -104,21 +106,24 @@ const ORDER = [2, 0, 3, 4, 1, 5];   // nicht stur von links: erst das große, da
 function play() {
   const q = (s) => el.querySelector(s);
   const items = [...el.querySelectorAll('.i-item')];
+  const hits = [];
   items.forEach((it, i) => {
     const k = ORDER.indexOf(i);
-    anims.push(it.animate(dropFrames(ITEMS[i] || ITEMS[0]), { duration: FALL + SETTLE, delay: 30 + k * 58, easing: 'linear', fill: 'both' }));
+    const delay = 30 + k * 58;
+    const an = it.animate(dropFrames(ITEMS[i] || ITEMS[0]), { duration: FALL + SETTLE, delay, easing: 'linear', fill: 'both' });
+    anims.push(an);
+    hits.push({ an, at: delay + FALL, kind: it.classList.contains('i-jar') ? 'jar' : 'book', n: k });
   });
-  // Glanz wischt über Regal und Bücher.
-  const sweep = [
-    { transform: 'translateX(-70px) skewX(-20deg)', opacity: 0 },
-    { transform: 'translateX(20px) skewX(-20deg)', opacity: 1, offset: 0.25 },
-    { transform: 'translateX(260px) skewX(-20deg)', opacity: 1, offset: 0.8 },
-    { transform: 'translateX(330px) skewX(-20deg)', opacity: 0 },
-  ];
-  const glint = q('.i-glint');
-  const shine = q('.i-shine');
-  if (glint) anims.push(glint.animate(sweep, { duration: 560, delay: 480, easing: 'cubic-bezier(.4,.1,.3,1)', fill: 'both' }));
-  if (shine) anims.push(shine.animate(sweep, { duration: 600, delay: 420, easing: 'cubic-bezier(.4,.1,.3,1)', fill: 'both' }));
+  // Landetöne im Takt der Animation: sobald sie läuft, weiß man, wie weit jeder Aufsetzpunkt
+  // noch entfernt ist. Die Animation wartet nie auf den Ton.
+  hits[0]?.an.ready.then(() => {
+    if (finished || opening) return;
+    const now = Number(hits[0].an.currentTime) || 0;   // alle begannen im selben Moment
+    for (const h of hits) {
+      const left = h.at - now;
+      if (left > -20) land(h.kind, Math.max(0, left), h.n);
+    }
+  }, () => {});
   // Der Schriftzug steht nicht im Startbild (dort gäbe es nur eine Ersatzschrift) – er taucht
   // auf, während die Bücher landen, in der runden Systemschrift des Geräts.
   const name = q('.i-name');
@@ -129,21 +134,7 @@ function play() {
   clock.finished.then(() => {
     clockDone = true;
     if (ready) open();
-    else if (!finished) waitShimmer(glint);
   }, () => {});
-}
-
-// Die App braucht länger: das Regal schimmert ruhig weiter, ohne Hänger.
-function waitShimmer(glint) {
-  if (!glint || idle) return;
-  idle = glint.animate([
-    { transform: 'translateX(-70px) skewX(-20deg)', opacity: 0 },
-    { transform: 'translateX(20px) skewX(-20deg)', opacity: 0.7, offset: 0.18 },
-    { transform: 'translateX(260px) skewX(-20deg)', opacity: 0.7, offset: 0.52 },
-    { transform: 'translateX(330px) skewX(-20deg)', opacity: 0, offset: 0.62 },
-    { transform: 'translateX(330px) skewX(-20deg)', opacity: 0 },
-  ], { duration: 1500, iterations: Infinity, easing: 'ease-in-out' });
-  anims.push(idle);
 }
 
 /* ---------------- Öffnen ---------------- */
@@ -191,7 +182,6 @@ function finish() {
   }
   for (const x of anims) { try { x.cancel(); } catch (_) { void _; } }
   anims = [];
-  idle = null;
   resolveDone();
 }
 
@@ -227,7 +217,7 @@ function onVisibility() {
   try { sessionStorage.setItem(BG_KEY, String(Date.now())); } catch (_) { void _; }
   if (finished) return;
   if (ready) { finish(); return; }
-  for (const x of anims) { try { if (x !== idle) x.finish(); } catch (_) { void _; } }
+  for (const x of anims) { try { x.finish(); } catch (_) { void _; } }
   mode = 'fade';
 }
 
