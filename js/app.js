@@ -16,7 +16,7 @@ import { outText, cleanOut, findSimilar, warrantySoon, qtyNumber, cleanDate } fr
 import { prepareDoc, docURL, isImageDoc, docSize } from './docs.js';
 import { byOrder, placeBadge, placeIcon, placeChipsHTML, styleHTML, suggestIcon, colorFor, safeIcon, safeColor } from './places.js';
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 // Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
