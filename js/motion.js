@@ -2,21 +2,22 @@
 // umbrochen werden muss. Bei „Bewegung reduzieren“ springt alles sofort.
 //
 // Arten: push (von rechts herein), pop (nach rechts hinaus), sheet-up (von unten),
-// sheet-down (nach unten weg), ripple (Tabwechsel, 1.10.1), fade, none.
+// sheet-down (nach unten weg), ripple (Tabwechsel, 1.10.2), fade, none.
 //
-// ripple – „Wassertropfen auf stillem Wasser“: Vom Tippunkt aus öffnet sich ein wachsender
-// Kreis, in dem die neue Ansicht erscheint; ein, zwei feine Lichtringe laufen aus. Technisch
-// liegt dabei die ALTE Ansicht oben (ohne Zeigerereignisse) und bekommt ein wachsendes
-// kreisrundes Loch (clip-path-Polygon mit Aussparung). So ist die neue Ansicht darunter vom
-// ersten Moment an vollständig bedienbar – kein Tipp geht im Übergang verloren.
+// ripple – „Wassertropfen“ (1.10.2): Ein Glas-Tröpfchen steigt vom Tab zur Wasseroberfläche
+// (42 % der Höhe), taucht ein – die alte Ansicht gibt minimal nach, ein heller Glaspunkt
+// ploppt auf –, dann öffnet sich von dort ein Kreis (clip-path: circle) mit der NEUEN Ansicht,
+// die dabei von 1,03 auf 1 zurückfließt. Eine 2-px-Lichtkante läuft exakt auf dem Kreisrand,
+// zwei Wellen folgen. Die alte Ansicht bleibt bis zum Schluss voll deckend darunter.
+// Kein Layout wird abgefragt (Maße aus innerWidth/innerHeight und dem Tippunkt); solange der
+// Tropfen läuft, ersetzt eine solide Tönung das Glas der Leisten (body.drop-run).
 //
 // Dazu die Federn für das Liquid-Glass-Gefühl (1.6.0): keine Bibliothek, sondern eine
 // gedämpfte Feder, aus der entweder Keyframes für die Web Animations API berechnet
 // werden (läuft überall) oder ein CSS-Easing linear(…) für Übergänge in CSS.
 
 const EASE = 'cubic-bezier(.32,.72,0,1)';   // wie die Federkurve von UIKit
-const DUR = { push: 440, pop: 380, 'sheet-up': 460, 'sheet-down': 340, fade: 200, ripple: 420 };
-const RIPPLE_EASE = 'cubic-bezier(.25,.6,.3,1)';   // weich auslaufend, ohne Überschwingen
+const DUR = { push: 440, pop: 380, 'sheet-up': 460, 'sheet-down': 340, fade: 200, ripple: 600 };
 const PARALLAX = -0.28;                        // die Ansicht darunter wandert ein Stück mit
 
 let active = null;   // { cleanup(revert) }
@@ -105,53 +106,177 @@ export function springEasing(opts, points = 40) {
 
 /* ---------------- Wassertropfen (Tabwechsel) ---------------- */
 
-// Rechteck mit kreisrunder Aussparung als clip-path-Polygon (evenodd). Gleich viele Punkte
-// für jeden Radius – so interpoliert der Browser Punkt für Punkt, der Kreis wächst sauber.
-const SEG = 72;
-function holePoly(w, h, x, y, r) {
-  const p = (a, b) => `${num(a)}px ${num(b)}px`;
-  const pts = [p(-40, -40), p(w + 40, -40), p(w + 40, h + 40), p(-40, h + 40), p(-40, -40), p(x, y - r)];
-  for (let i = 1; i <= SEG; i++) {
-    const t = -Math.PI / 2 - i * 2 * Math.PI / SEG;   // gegen den Uhrzeigersinn
-    pts.push(p(x + r * Math.cos(t), y + r * Math.sin(t)));
-  }
-  pts.push(p(-40, -40));
-  return `polygon(evenodd, ${pts.join(', ')})`;
+// Kubische Bézierkurve wie in CSS: liefert p(t) für 0…1 (Newton, dann Bisektion).
+function bezier(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = (s) => ((ax * s + bx) * s + cx) * s;
+  const Y = (s) => ((ay * s + by) * s + cy) * s;
+  const dX = (s) => (3 * ax * s + 2 * bx) * s + cx;
+  return (t) => {
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    let s = t;
+    for (let i = 0; i < 6; i++) {
+      const e = X(s) - t;
+      const d = dX(s);
+      if (Math.abs(e) < 1e-5) return Y(s);
+      if (Math.abs(d) < 1e-6) break;
+      s -= e / d;
+    }
+    let lo = 0, hi = 1;
+    s = t;
+    for (let i = 0; i < 30; i++) { if (X(s) < t) lo = s; else hi = s; s = (lo + hi) / 2; }
+    return Y(s);
+  };
 }
 
-// Die auslaufenden Ringe: klein gezeichnet und hochskaliert wäre unscharf, riesig gezeichnet
-// kostet auf dem iPhone viel Speicher – daher höchstens 520 px, die dann verblassen.
-// Die Ringe laufen unabhängig vom Übergang aus (der ist nach 420 ms fertig) und räumen sich
-// selbst weg; bei sehr schnellem Tippen bleiben höchstens zwei Ringpaare gleichzeitig.
-function rings(host, x, y, R) {
-  if (!host) return;
-  const old = host.querySelectorAll(':scope > .ripple-rings');
-  for (let i = 0; i < old.length - 1; i++) old[i].remove();
-  const list = [];
-  const box = document.createElement('div');
-  box.className = 'ripple-rings';
-  box.setAttribute('aria-hidden', 'true');
-  const d = Math.round(Math.min(520, R * 1.3));
-  const parts = [[0, 560, 0.34], [110, 640, 0.2]];
-  for (const [delay, dur, peak] of parts) {
-    const r = document.createElement('i');
-    r.style.cssText = `width:${d}px;height:${d}px;left:${num(x - d / 2)}px;top:${num(y - d / 2)}px`;
-    box.appendChild(r);
-    list.push(r.animate([
-      { transform: 'scale(.06)', opacity: 0 },
-      { transform: 'scale(.3)', opacity: peak, offset: 0.2 },
-      { transform: 'scale(1)', opacity: 0 },
-    ], { duration: dur, delay, easing: 'cubic-bezier(.2,.6,.35,1)', fill: 'both' }));
+// Zeitplan des Tropfens (ms ab Tipp). Das Tröpfchen steigt vom Tab zur Wasseroberfläche,
+// taucht ein (alte Ansicht gibt minimal nach, heller Glaspunkt), dann öffnet sich der Kreis.
+const DROP = { rise: 90, dip: 110, open: 130, grow: 470, waves: [80, 160] };
+const DROP_END = DROP.open + DROP.grow;                  // 600 ms: neue Ansicht ganz offen
+const OPEN = bezier(0.3, 0, 0.15, 1);                    // Kreis: sanft an, lang auslaufend
+const DROP_Y = 0.42;                                     // Aufschlagpunkt: 42 % der Höhe
+const STEPS = 24;                                        // Keyframes für Kreis, Kante, Wellen
+const fx = { box: null, edge: null, timer: 0, later: [], gen: 0 };   // Effekte des letzten Tropfens
+
+function clearFx() {
+  fx.gen++;   // noch ausstehende Effekte des vorigen Tropfens verfallen
+  clearTimeout(fx.timer);
+  fx.timer = 0;
+  for (const t of fx.later) clearTimeout(t);
+  fx.later = [];
+  fx.box?.remove();
+  for (const e of fx.edge || []) e.remove();
+  fx.box = null;
+  fx.edge = null;
+  document.body.classList.remove('drop-run');
+}
+
+// Ende der Ansichten-Animation: Kante und Tönung weg, die Wellen dürfen noch auslaufen.
+function endViewFx() {
+  for (const e of fx.edge || []) e.remove();
+  fx.edge = null;
+  document.body.classList.remove('drop-run');
+}
+
+function layer(host, cls, css = '') {
+  const el = document.createElement('div');
+  el.className = cls;
+  el.setAttribute('aria-hidden', 'true');
+  if (css) el.style.cssText = css;
+  host.appendChild(el);
+  return el;
+}
+
+/**
+ * Wassertropfen: die NEUE Ansicht liegt oben und wird von einem wachsenden Kreis
+ * (clip-path: circle) freigegeben; die alte bleibt darunter voll deckend. Eine 2-px-Lichtkante
+ * läuft exakt auf der Kreiskante mit (gleiche Keyframes), zwei Wellen folgen versetzt.
+ * Keine Layout-Abfragen: Maße aus innerWidth/innerHeight und dem Tippunkt.
+ */
+function drop(from, to, origin, anims) {
+  const host = to.parentElement || document.body;
+  const W = window.innerWidth || 390;
+  const H = window.innerHeight || 844;
+  const X = Math.min(W, Math.max(0, origin ? origin.x : W / 2));
+  const Y = Math.round(H * DROP_Y);
+  const R = Math.hypot(Math.max(X, W - X), Math.max(Y, H - Y)) + 4;
+  const at = `${num(X)}px ${num(Y)}px`;
+  const a = (el, frames, o) => { const x = el.animate(frames, { fill: 'both', ...o }); anims.push(x); return x; };
+
+  clearFx();
+  const gen = fx.gen;
+  from.style.zIndex = '1';
+  to.style.zIndex = '3';
+
+  // Kreis, Skalierung und Lichtkante aus denselben Stützstellen – so liegt die Kante exakt
+  // auf dem Rand, auch während die neue Ansicht von 1,03 auf 1 zurückfließt.
+  const pts = [];
+  for (let i = 0; i <= STEPS; i++) {
+    const p = OPEN(i / STEPS);
+    pts.push({ offset: i / STEPS, r: R * p, s: 1.03 - 0.03 * p });
   }
-  host.appendChild(box);
-  Promise.all(list.map(x => x.finished)).catch(() => null).then(() => box.remove());
+  const view = pts.map(q => ({ offset: q.offset, clipPath: `circle(${num(q.r)}px at ${at})`, transform: `scale(${num(q.s)})`, transformOrigin: at }));
+  const openOpt = { delay: DROP.open, duration: DROP.grow, easing: 'linear' };
+  const main = a(to, view, openOpt);
+  // Die alte Ansicht gibt beim Eintauchen kaum merklich nach.
+  a(from, [
+    { transform: 'none', transformOrigin: at },
+    { transform: 'none', transformOrigin: at, offset: DROP.rise / DROP_END },
+    { transform: 'scale(.992)', transformOrigin: at, offset: (DROP.rise + DROP.dip) / DROP_END, easing: 'cubic-bezier(.3,0,.2,1)' },
+    { transform: 'scale(.996)', transformOrigin: at },
+  ], { duration: DROP_END, easing: 'linear' });
+
+  // Die Effekte entstehen erst NACH dem ersten Bild – der Tipp soll sofort etwas zeigen, ohne
+  // dass neue Ebenen gezeichnet werden müssen. Sie laufen auf derselben Uhr wie der Kreis
+  // (startTime), liegen also exakt auf ihm, egal wann sie angelegt werden.
+  const f = (el, frames, o) => {
+    const x = el.animate(frames, { fill: 'both', ...o });
+    try { if (main.startTime != null) x.startTime = main.startTime; } catch (_) { void _; }
+    return x;
+  };
+  const later = (fn, ms) => {
+    const go = () => { if (fx.gen === gen) fn(); };
+    if (ms) fx.later.push(setTimeout(go, ms));
+    else requestAnimationFrame(() => requestAnimationFrame(go));
+  };
+
+  // Über allem (unter der Leiste): Tröpfchen und Glaspunkt – gleich ab dem zweiten Bild.
+  later(() => {
+    document.body.classList.add('drop-run');   // Glas → solide Tönung, solange es läuft (CSS)
+    const box = layer(host, 'drop-fx');
+    fx.box = box;
+    const sy = origin && origin.y > Y + 40 ? origin.y : null;
+    if (sy != null) {
+      const bead = layer(box, 'drop-bead', `left:${num(X - 6)}px;top:${num(Y - 6)}px`);
+      f(bead, [
+        { transform: `translate(${num((origin.x - X))}px, ${num(sy - Y)}px) scale(.6)`, opacity: 0 },
+        { transform: `translate(${num((origin.x - X) * 0.75)}px, ${num((sy - Y) * 0.72)}px) scale(.9, 1.25)`, opacity: 1, offset: 0.25 },
+        { transform: 'translate(0px, 0px) scale(1.1, .8)', opacity: 1, offset: 0.9 },
+        { transform: 'translate(0px, 0px) scale(1.6, .4)', opacity: 0 },
+      ], { duration: DROP.rise + 16, easing: 'cubic-bezier(.4,0,.7,.6)' });
+    }
+    const dot = layer(box, 'drop-dot', `left:${num(X - 11)}px;top:${num(Y - 11)}px`);
+    f(dot, [
+      { transform: 'scale(0)', opacity: 1 },
+      { transform: 'scale(1.18)', opacity: 1, offset: 0.3, easing: 'cubic-bezier(.3,0,.3,1)' },
+      { transform: 'scale(.95)', opacity: 1, offset: 0.5 },
+      { transform: 'scale(1)', opacity: 0.9, offset: 0.62 },
+      { transform: 'scale(1.9)', opacity: 0 },
+    ], { delay: DROP.rise - 10, duration: 320, easing: 'linear' });
+  }, 0);
+
+  // Kurz bevor sich der Kreis öffnet: Lichtkante und Wellen.
+  later(() => {
+    // Kante: eine helle und außen eine zarte dunkle Linie – je eine solide Fläche unter der
+    // neuen Ansicht, deren Kreis 2 bzw. 4 px größer ist. Sichtbar bleibt nur der Ring.
+    const edge = [layer(host, 'drop-edge dark', 'z-index:2'), layer(host, 'drop-edge', 'z-index:2')];
+    fx.edge = edge;
+    edge.forEach((el, k) => {
+      const w = k ? 2 : 4;
+      f(el, pts.map(q => ({ offset: q.offset, clipPath: `circle(${num(q.r + w)}px at ${at})`, transform: `scale(${num(q.s)})`, transformOrigin: at })), openOpt);
+    });
+    // Die Wellen: klein gezeichnet (Speicher auf dem iPhone), weich hochskaliert. Die erste liegt
+    // genau auf der Kreiskante (ein heller Meniskus nach innen), zwei weitere folgen versetzt.
+    const D = 480;
+    const box = fx.box || (fx.box = layer(host, 'drop-fx'));
+    for (const [lag, peak, cls] of [[0, 0.75, 'drop-wave rim'], [DROP.waves[0], 0.35, 'drop-wave'], [DROP.waves[1], 0.35, 'drop-wave']]) {
+      const ring = layer(box, cls, `width:${D}px;height:${D}px;left:${num(X - D / 2)}px;top:${num(Y - D / 2)}px`);
+      f(ring, pts.map(q => ({ offset: q.offset, transform: `scale(${num(Math.max(0.001, 2 * q.r * q.s / D))})`, opacity: num(peak * Math.min(1, q.offset * 6) * (1 - q.offset)) })),
+        { delay: DROP.open + lag, duration: DROP.grow, easing: 'linear' });
+    }
+  }, DROP.open - 45);
+
+  const end = DROP_END + DROP.waves[DROP.waves.length - 1] + 20;
+  fx.timer = setTimeout(clearFx, end);
 }
 
 function reset(el) {
   el.style.zIndex = '';
   el.style.transform = '';
   el.style.pointerEvents = '';
-  el.classList.remove('moving', 'sheet');
+  el.classList.remove('moving', 'as-sheet');
 }
 
 /**
@@ -165,7 +290,7 @@ export function run(kind, from, to, keep = () => false, { origin = null } = {}) 
   };
   // Bewegung reduzieren: der Tabwechsel blendet kurz über, alles andere springt.
   if (kind === 'ripple' && reduced() && from && to && from !== to && typeof from.animate === 'function') kind = 'fade-out';
-  else if (kind === 'ripple' && typeof CSS !== 'undefined' && !CSS.supports?.('clip-path', 'polygon(evenodd, 0 0, 1px 0, 0 1px)')) kind = 'fade';
+  else if (kind === 'ripple' && typeof CSS !== 'undefined' && !CSS.supports?.('clip-path', 'circle(1px at 0px 0px)')) kind = 'fade';
   if (!from || !to || from === to || kind === 'none' || (reduced() && kind !== 'fade-out') || typeof to.animate !== 'function') {
     finish();
     return Promise.resolve();
@@ -188,33 +313,17 @@ export function run(kind, from, to, keep = () => false, { origin = null } = {}) 
   } else if (kind === 'sheet-up') {
     // Hinzufügen quillt aus dem Kamera-Tropfen (glass.js) und steigt mit einer Feder auf.
     to.style.zIndex = '2';
-    to.classList.add('moving', 'sheet');
+    to.classList.add('moving', 'as-sheet');
     const s = spring({ stiffness: 250, damping: 29 });
     a(to, springFrames(s, (p) => ({ transform: `translateY(${num((1 - p) * 100)}%)` })), { duration: s.duration, easing: 'linear', fill: 'both' });
     a(from, [{ transform: 'none', opacity: 1 }, { transform: 'scale(.94)', opacity: 0.55 }]);
   } else if (kind === 'sheet-down') {
     from.style.zIndex = '2';
-    from.classList.add('moving', 'sheet');
+    from.classList.add('moving', 'as-sheet');
     a(from, [{ transform: 'none' }, { transform: 'translateY(100%)' }], { ...opt, easing: 'cubic-bezier(.4,0,.8,.6)' });
     a(to, [{ transform: 'scale(.94)', opacity: 0.55 }, { transform: 'none', opacity: 1 }]);
   } else if (kind === 'ripple') {
-    // Die alte Ansicht liegt oben, ihr Loch wächst vom Tippunkt aus; darunter setzt sich die
-    // neue Ansicht wie eine beruhigte Wasseroberfläche (minimal von 0,985 auf 1).
-    const rc = from.getBoundingClientRect();
-    const w = rc.width || window.innerWidth;
-    const h = rc.height || window.innerHeight;
-    const x = Math.min(w, Math.max(0, origin ? origin.x - rc.left : w / 2));
-    const y = Math.min(h, Math.max(0, origin ? origin.y - rc.top : h));
-    const R = Math.hypot(Math.max(x, w - x), Math.max(y, h - y)) + 2;
-    from.style.zIndex = '2';
-    const o = { duration: DUR.ripple, easing: RIPPLE_EASE, fill: 'both' };
-    a(from, [
-      { clipPath: holePoly(w, h, x, y, 0), opacity: 1 },
-      { clipPath: holePoly(w, h, x, y, R * 0.45), opacity: 0.6, offset: 0.3 },
-      { clipPath: holePoly(w, h, x, y, R), opacity: 0 },
-    ], o);
-    a(to, [{ transform: 'scale(.985)', transformOrigin: `${num(x)}px ${num(y)}px` }, { transform: 'none', transformOrigin: `${num(x)}px ${num(y)}px` }], o);
-    rings(from.parentElement, x + rc.left - (from.parentElement?.getBoundingClientRect().left || 0), y + rc.top - (from.parentElement?.getBoundingClientRect().top || 0), R);
+    drop(from, to, origin, anims);
   } else if (kind === 'fade-out') {
     // Bewegung reduzieren: die alte Ansicht blendet oben liegend aus – 150 ms, ohne Kreis.
     from.style.zIndex = '2';
@@ -226,22 +335,51 @@ export function run(kind, from, to, keep = () => false, { origin = null } = {}) 
 
   const t0 = performance.now();
   return new Promise((resolve) => {
+    let onDown = null;
     const me = {
-      // revert: der Übergang wird abgebrochen, weil schon der nächste kommt. Hat sich das Loch
-      // erst wenig geöffnet, bleibt die alte Ansicht die Grundlage (sie überwiegt ja noch).
-      cleanup: (revert = false) => {
-        const back = revert && (kind === 'ripple' || kind === 'fade-out') && performance.now() - t0 < DUR.ripple * 0.35;
+      // revert: der Übergang wird abgebrochen, weil schon der nächste kommt. Hat sich der Kreis
+      // noch kaum geöffnet, bleibt die alte Ansicht die Grundlage (sie überwiegt ja noch).
+      cleanup: (revert = false, natural = false) => {
+        const early = kind === 'ripple' ? DROP.open + DROP.grow * 0.15 : DUR.ripple * 0.35;
+        const back = revert && (kind === 'ripple' || kind === 'fade-out') && performance.now() - t0 < early;
         if (back) to.hidden = true;
         else finish();
         for (const x of anims) { try { x.cancel(); } catch (_) { void _; } }
+        if (onDown) document.removeEventListener('pointerdown', onDown, true);
+        if (kind === 'ripple') { if (natural) endViewFx(); else clearFx(); }   // abgebrochen: keine Reste
         reset(from); reset(to);
         resolve();
         return back ? from : null;
       },
     };
     active = me;
+    if (kind === 'ripple') {
+      // Die neue Ansicht ist sofort bedienbar: Tipps im offenen Kreis treffen sie direkt; wer
+      // daneben (auf die noch sichtbare alte Fläche) tippt, beendet den Tropfen auf der Stelle –
+      // der Tipp landet dann in der neuen, voll aufgedeckten Ansicht. Die Leiste regelt sich selbst.
+      onDown = (e) => {
+        const t = e.target;
+        if (active !== me || (t && t.closest && (t.closest('#nav') || to.contains(t)))) return;
+        active = null;
+        me.cleanup();
+        // Der Klick zu diesem Tipp zielt womöglich noch auf die Fläche neben dem Kreis (Maus,
+        // manche Touch-Pfade): dann an das Element der neuen Ansicht unter dem Finger weiterreichen.
+        const pass = (c) => {
+          document.removeEventListener('click', pass, true);
+          if (!c.isTrusted || to.contains(c.target)) return;
+          const el = document.elementFromPoint(c.clientX, c.clientY);
+          if (!el || !to.contains(el)) return;
+          c.stopPropagation();
+          c.preventDefault();
+          el.click();
+        };
+        document.addEventListener('click', pass, true);
+        setTimeout(() => document.removeEventListener('click', pass, true), 1000);
+      };
+      document.addEventListener('pointerdown', onDown, true);
+    }
     Promise.all(anims.map(x => x.finished)).then(() => {
-      if (active === me) { active = null; me.cleanup(); }
+      if (active === me) { active = null; me.cleanup(false, true); }
     }, () => { /* abgebrochen: settle() hat schon aufgeräumt */ });
   });
 }

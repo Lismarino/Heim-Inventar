@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
-<meta name="app-version" content="1.10.1">
+<meta name="app-version" content="1.10.2">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -363,8 +363,10 @@
       <header class="topbar">
         <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
         <h1 id="room-bar-title" class="bar-title"></h1>
-        <button class="link sel-toggle" id="room-select" data-select-toggle>Auswählen</button>
-        <button class="link icon" id="room-menu" aria-label="Raum-Aktionen"><svg class="ic" aria-hidden="true"><use href="#i-more"/></svg></button>
+        <div class="tb-right">
+          <button class="link sel-toggle" id="room-select" data-select-toggle>Auswählen</button>
+          <button class="link icon" id="room-menu" aria-label="Raum-Aktionen"><svg class="ic" aria-hidden="true"><use href="#i-more"/></svg></button>
+        </div>
       </header>
     </div>
     <div class="scroll">

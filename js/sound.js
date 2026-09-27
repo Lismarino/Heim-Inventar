@@ -180,14 +180,13 @@ function landSound(kind, at, n) {
 
 /**
  * Ein Gegenstand der Start-Szene setzt in `inMs` Millisekunden auf ('book' | 'jar', n = Nummer).
- * Vor der ersten Berührung lässt iOS keinen Ton zu – versucht wird es trotzdem: Kontext
- * anlegen und wecken; bleibt er 'suspended', wird still übersprungen. Nie ein Fehler, nie
- * ein Warten: der Aufruf kehrt sofort zurück.
+ * Vor der ersten Berührung entsteht kein AudioContext (1.10.2) – Browser warnen sonst in der
+ * Konsole, und iOS spielt ohnehin nichts. Dann wird still übersprungen; hat man schon
+ * getippt (z. B. mitten in die Szene), klingt es. Nie ein Fehler, nie ein Warten.
  */
 export function land(kind, inMs = 0, n = 0) {
-  if (!enabled) return;
+  if (!enabled || !ac) return;
   try {
-    if (!ac && !setup()) return;
     const due = performance.now() + inMs;
     const go = () => {
       const left = due - performance.now();

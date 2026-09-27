@@ -3,6 +3,19 @@
 Versionschronik von Heim-Inventar – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
 
+## 1.10.2
+
+- **Tabwechsel als Wassertropfen, neu gemacht:** Ein kleines Glas-Tröpfchen steigt vom Tab auf,
+  taucht in die Mitte der Ansicht ein und öffnet dort einen Kreis mit der neuen Ansicht – mit
+  feiner Lichtkante und zwei nachlaufenden Wellen. Ruhiger und etwas länger als zuvor, trotzdem
+  sofort bedienbar: ein Tipp während des Übergangs beendet ihn und landet in der neuen Ansicht.
+- **Flüssiger:** Hinzufügen gleitet ohne Sprung am Ende herein; lange Listen in **Alles** zeichnen
+  rechtzeitig nach (kein kurzes Listenende mehr beim schnellen Scrollen); Tabwechsel ohne
+  erzwungene Neuberechnung des Layouts.
+- **Raum:** „Auswählen“ und ⋯ stehen wieder nebeneinander oben rechts.
+- **PDF-Belege** öffnen auf dem iPhone zuverlässig (der Aktenschrank wird nach dem Start vorgeladen).
+- Vor der ersten Berührung legt die App keinen Audio-Kontext mehr an (keine Browser-Warnung).
+
 ## 1.10.0
 
 - **Aufgeräumt.** Der erste Tab heißt **Start** (der Ort „Zuhause“ bleibt). Auf Start stehen

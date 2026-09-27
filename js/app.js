@@ -15,7 +15,7 @@ import { prepareDoc, isImageDoc, docSize, loadIndex, dueSoon as docsDueSoon, doc
 import * as sound from './sound.js';
 import { byOrder, placeBadge, placeIcon, placeChipsHTML, styleHTML, suggestIcon, colorFor, safeIcon, safeColor } from './places.js';
 
-const APP_VERSION = '1.10.1';
+const APP_VERSION = '1.10.2';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 // Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
@@ -204,6 +204,16 @@ async function boot() {
   updateStorageInfo();
   // Google-Drive-Sicherung (nur wenn eingerichtet): lädt das Google-Skript erst jetzt nach.
   if (gdWanted()) gdrive().catch((e) => console.warn('Google-Sicherung:', e));
+  preloadCabinet();
+}
+
+// Den Aktenschrank nach dem Start in einer ruhigen Minute vorladen (1.10.2): Beim Öffnen eines
+// PDF-Belegs muss window.open synchron in der Geste bleiben – iOS sperrt das Fenster sonst als Popup.
+function preloadCabinet() {
+  const idle = window.requestIdleCallback
+    ? (fn) => window.requestIdleCallback(fn, { timeout: 5000 })
+    : (fn) => setTimeout(fn, 200);
+  setTimeout(() => idle(() => { cabinet().catch(() => {}); }), 2500);
 }
 
 // Umstellung auf Orte beim ersten Start von 1.7.x. Bei großen Beständen dauert sie ein paar
@@ -513,7 +523,7 @@ function navigate(view, { instant = false, fresh = false, origin = null } = {}) 
       : from === 'add' ? 'sheet-down'
         : back ? 'pop'
           : PUSH.includes(view) ? 'push'
-            : 'ripple';   // Tabwechsel: Wassertropfen vom Tippunkt aus (1.10.1)
+            : 'ripple';   // Tabwechsel: Wassertropfen vom Tippunkt aus (1.10.2)
   if (kind === 'sheet-up') glass.dropFromFab();
   motion.run(kind, fromEl, toEl, (el) => el === $('#view-' + state.view), { origin });
 }
@@ -611,8 +621,19 @@ const ROWS_FIRST = 50;
 const ROWS_STEP = 60;
 const ROW_EST = 64;   // eher knapp geschätzte Zeilenhöhe – lieber ein paar Zeilen zu viel sofort
 const rowJobs = new WeakMap();   // Liste -> { rows, at, toHTML, more }
-let moreObserver = null;
-function onMore(entries) {
+// Ein Wächter je Scroll-Bereich: ohne eigenen root schneidet der Scroll-Container den
+// Vorlauf (rootMargin) ab – dann kam der nächste Schub erst, wenn das Listenende schon im Bild war.
+const moreObservers = new Map();   // Scroll-Container (oder null = Fenster) -> IntersectionObserver
+function observerFor(box) {
+  const root = box.closest('.scroll') || null;
+  let o = moreObservers.get(root);
+  if (!o) {
+    o = new IntersectionObserver(onMore, { root, rootMargin: '0px 0px 1600px 0px' });
+    moreObservers.set(root, o);
+  }
+  return o;
+}
+function onMore(entries, moreObserver) {
   for (const e of entries) {
     if (!e.isIntersecting) continue;
     const box = e.target.previousElementSibling;
@@ -641,9 +662,9 @@ function drawRows(box, rows, toHTML, keepY = 0) {
     box.insertAdjacentHTML('beforeend', rows.slice(first).map(toHTML).join(''));
     return;
   }
-  moreObserver ||= new IntersectionObserver(onMore, { rootMargin: '0px 0px 1600px 0px' });
-  moreObserver.unobserve(more);
-  if (first < rows.length) moreObserver.observe(more);
+  const o = observerFor(box);
+  o.unobserve(more);
+  if (first < rows.length) o.observe(more);
 }
 
 // „Alles“ nur neu aufbauen, wenn sich etwas geändert hat, das in den Zeilen steht –
@@ -2049,7 +2070,10 @@ async function addDocs(files) {
 
 function openDoc(docId) {
   const d = state.docs.find(x => x.id === docId);
-  if (d) cabinet().then((c) => c.show(d)).catch((e) => toast(e.message, true));
+  if (!d) return;
+  // Schon geladen (vorgeladen nach dem Start): synchron – Safari lässt window.open nur direkt in der Geste zu.
+  if (cabM) { try { cabM.show(d); } catch (e) { toast(e.message, true); } return; }
+  cabinet().then((c) => c.show(d)).catch((e) => toast(e.message, true));
 }
 
 async function deleteDoc(docId) {

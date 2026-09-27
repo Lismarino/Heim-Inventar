@@ -805,13 +805,29 @@ html{overscroll-behavior:none}
 .view{background:var(--bg)}
 .view[hidden]{display:flex !important;visibility:hidden;pointer-events:none}
 .view.moving{box-shadow:var(--edge-shadow)}
-.view.sheet{border-radius:var(--r-lg) var(--r-lg) 0 0;overflow:hidden;box-shadow:0 -10px 40px -10px rgba(20,12,4,.35)}
-/* Tabwechsel „Wassertropfen“ (1.10.1): auslaufende Lichtringe über den Ansichten, unter der
-   Leiste. Doppelte Kante – hell innen, zart dunkel außen –, damit sie auf hellem wie dunklem
-   Grund zu ahnen ist. Nur transform/opacity werden animiert (js/motion.js). */
-.ripple-rings{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
-.ripple-rings i{position:absolute;border-radius:50%;opacity:0;will-change:transform,opacity;
-  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.85),0 0 0 1px rgba(120,86,52,.22),inset 0 0 18px rgba(255,255,255,.28)}
+.view.as-sheet{border-radius:var(--r-lg) var(--r-lg) 0 0;box-shadow:0 -10px 40px -10px rgba(20,12,4,.35)}
+/* Tabwechsel „Wassertropfen“ (1.10.2, js/motion.js). Die Lichtkante: zwei solide Flächen
+   unter der neuen Ansicht, deren Kreis 3 bzw. 2 px größer ist – sichtbar bleibt nur der Ring
+   auf dem Kreisrand. Tröpfchen, Glaspunkt und Wellen liegen über den Ansichten, unter der
+   Leiste; animiert werden nur transform/opacity (Wellen, Punkt) bzw. clip-path (Kreis). */
+.drop-edge{position:absolute;inset:0;pointer-events:none;background:#fff}
+.drop-edge.dark{background:rgba(96,66,38,.3)}
+.drop-run #app{background:var(--bg)}
+.drop-fx{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+.drop-fx > *{position:absolute;border-radius:50%;will-change:transform,opacity}
+.drop-bead{width:12px;height:12px;
+  background:radial-gradient(circle at 35% 30%,#fff 0,rgba(255,255,255,.85) 30%,rgba(214,232,222,.55) 70%,rgba(255,255,255,.2) 100%);
+  box-shadow:0 0 0 1px rgba(90,70,45,.45),0 2px 5px rgba(40,25,10,.3),0 0 8px 2px rgba(255,255,255,.7)}
+.drop-dot{width:22px;height:22px;
+  background:radial-gradient(circle at 36% 30%,#fff 0,rgba(255,255,255,.9) 28%,rgba(255,255,255,.35) 64%,rgba(255,255,255,.08) 100%);
+  box-shadow:0 0 0 1px rgba(90,70,45,.4),0 0 16px 5px rgba(255,255,255,.75),0 3px 8px rgba(40,25,10,.25),inset 0 -2px 4px rgba(90,70,45,.18)}
+.drop-wave.rim{box-shadow:inset 0 0 0 2px rgba(255,255,255,.95),inset 0 0 22px 5px rgba(255,255,255,.6),0 0 0 1px rgba(110,78,46,.3)}
+.drop-wave{opacity:0;
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.95),0 0 0 1.2px rgba(110,78,46,.4),inset 0 0 16px rgba(255,255,255,.45)}
+/* Solange der Tropfen läuft: Glas der Leisten durch eine solide Tönung ersetzen – eine
+   Unschärfe über sich bewegendem Inhalt ist auf dem iPhone das Teuerste überhaupt. */
+.drop-run #nav,.refract .drop-run #nav,.drop-run .head-glass,.drop-run .veil{
+  -webkit-backdrop-filter:none;backdrop-filter:none;background-color:var(--glass-tint-strong)}
 
 /* ---------- Start-Szene „Glas-Regal“ (Aussehen unten im Liquid-Glass-Abschnitt) ---------- */
 .update-bar{z-index:95}
@@ -1360,6 +1376,8 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 .topbar:not(.large) > :first-child{justify-self:start}
 .topbar:not(.large) > :last-child{justify-self:end}
 .topbar:not(.large) h1{min-width:0}
+/* Rechts zwei Knöpfe (Raum: „Auswählen“ und ⋯) – nebeneinander in einer Zelle, sonst rutscht ⋯ in eine zweite Zeile. */
+.topbar .tb-right{display:flex;align-items:center;gap:4px;min-width:0}
 .topbar:not(.large) .count{min-width:0}
 .topbar.large .count{background:var(--lite);box-shadow:var(--lite-rim)}
 
