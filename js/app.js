@@ -13,10 +13,13 @@ import { haptic, longPress, swipeRows, edgeSwipe } from './gestures.js';
 import * as glass from './glass.js';
 import * as intro from './intro.js';
 import { outText, cleanOut, findSimilar, warrantySoon, qtyNumber, cleanDate } from './match.js';
-import { prepareDoc, docURL, isImageDoc, docSize } from './docs.js';
+import { prepareDoc, isImageDoc, docSize } from './docs.js';
+import * as cabinet from './cabinet.js';
+import * as gdrive from './gdrive.js';
+import { isEncryptedBackup, sealBackup, openBackup, WrongPassword } from './crypto.js';
 import { byOrder, placeBadge, placeIcon, placeChipsHTML, styleHTML, suggestIcon, colorFor, safeIcon, safeColor } from './places.js';
 
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.9.0';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 // Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
@@ -29,7 +32,8 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 // „places“ ist der Tab „Räume“ – „rooms“ ist (historisch) die Ansicht „Ohne Ort“
 // (bis 1.6 „Ohne Raum“), „room“ zeigt einen Raum oder, ohne Raum, einen Ort selbst.
 const TABS = ['home', 'list', 'places', 'settings'];
-const PUSH = ['item', 'rooms', 'room', 'archive'];
+// 1.9.0: „docs“ (Dokumente, von Zuhause) und „docadd“ (Dokument hinzufügen/bearbeiten).
+const PUSH = ['item', 'rooms', 'room', 'archive', 'docs', 'docadd'];
 
 const state = {
   settings: {},
@@ -124,6 +128,16 @@ async function boot() {
       queueNote: () => queue.status().note,
       checkCount: (pid) => checkItems(pid).length,
       backupState: () => state.homeBackup,
+      docsDue: () => cabinet.dueSoon(),
+      docsCount: () => cabinet.count(),
+      syncText: () => gdrive.statusText(),
+      syncState: () => gdrive.status(),
+    });
+    cabinet.init({
+      state, navigate, toast, haptic, openLightbox, openItem,
+      itemById: (id) => state.items.find(i => i.id === id) || null,
+      items: () => state.items,
+      onChange: () => { if (state.view === 'home') home.renderHome(); if (state.view === 'item' && state.currentId) renderDocs(state.currentId); },
     });
     onboarding.init({
       places: () => state.places.map(p => ({ name: p.name, icon: p.icon })),
@@ -152,6 +166,12 @@ async function boot() {
   registerSW();
   requestPersist();
   updateStorageInfo();
+  // Google-Drive-Sicherung (nur wenn eingerichtet): lädt das Google-Skript erst jetzt nach.
+  gdrive.init({
+    settings: () => state.settings,
+    setSetting: (k, v) => { state.settings[k] = v; return db.setSetting(k, v); },
+    onStatus: onSyncStatus,
+  }).catch((e) => console.warn('Google-Sicherung:', e));
 }
 
 // Umstellung auf Orte beim ersten Start von 1.7.x. Bei großen Beständen dauert sie ein paar
@@ -279,11 +299,15 @@ async function reloadAll() {
   if (settings.homePlace && !placeById(settings.homePlace)) settings.homePlace = '';
   if (state.rsPlace && !placeById(state.rsPlace)) state.rsPlace = '';
   refreshPickers();
+  // Dokumente (für Fristen auf Zuhause); scheitert das, startet die App trotzdem.
+  await cabinet.load().catch((e) => console.warn('Dokumente laden:', e));
 }
 
 // Vorschläge: Kategorien; Räume nur aus dem Ort des Felds (data-place), ohne Ort alle.
 function comboSource(kind, input) {
   if (kind === 'categories') return state.cats.map(c => c.name);
+  if (kind === 'doctitles') return cabinet.titles();
+  if (kind === 'items') return [...new Map(state.items.filter(i => !i.archived && i.name).map(i => [low(i.name), i.name])).values()];
   const pid = input?.dataset.place || '';
   const rooms = pid && placeById(pid) ? roomsIn(pid) : state.rooms;
   return [...new Map(rooms.map(r => [low(r.name), r.name])).values()];
@@ -326,6 +350,8 @@ function renderView(view) {
   else if (view === 'add') renderCapture();
   else if (view === 'rooms') renderRooms();
   else if (view === 'archive') renderArchive();
+  else if (view === 'docs') cabinet.render();
+  else if (view === 'docadd') cabinet.renderAdd();
   else if (view === 'room' && !home.renderRoom(state.roomId, state.placeId) && state.view === 'room') navigate('back');
 }
 
@@ -581,10 +607,14 @@ function renderAiResult() {
   $('#ai-answer').hidden = false;
   $('#ai-answer-q').textContent = a.question;
   $('#ai-answer-text').textContent = a.answer || 'Keine Antwort erhalten.';
-  $('#list').innerHTML = matches.map(m => rowHTML(m.item, m.why)).join('');
-  $('#list-count').textContent = matches.length || '';
+  const docs = (a.docs || []).filter(m => m.doc);
+  $('#list').innerHTML = matches.map(m => rowHTML(m.item, m.why)).join('')
+    + docs.map(m => `<button type="button" class="row drow" data-doc-hit="${esc(m.doc.id)}"><span class="d-ic">${icon('doc')}</span>`
+      + `<span class="body"><span class="name">${esc(m.doc.name)}</span><span class="meta">${esc(cabinet.folderPath(m.doc.folderId) || 'Dokumente')}</span>`
+      + `${m.why ? `<span class="why">${esc(m.why)}</span>` : ''}</span></button>`).join('');
+  $('#list-count').textContent = (matches.length + docs.length) || '';
   const empty = $('#list-empty');
-  empty.hidden = matches.length > 0;
+  empty.hidden = matches.length + docs.length > 0;
   empty.classList.remove('first');
   empty.innerHTML = `<span class="empty-badge muted">${icon('sparkle')}</span><p>Dazu passt nichts aus deinem Bestand.</p>`;
 }
@@ -610,7 +640,9 @@ async function runAiSearch() {
     return;
   }
   const pool = state.items.filter(i => !i.archived);
-  if (!pool.length) { toast('Es ist noch nichts erfasst.', true); return; }
+  // Dokumente: NUR Titel, Ordnerpfad, Stichworte, Datum (cabinet.aiDocs → docsForAi) – nie Inhalte.
+  const docs = cabinet.aiDocs();
+  if (!pool.length && !docs.list.length) { toast('Es ist noch nichts erfasst.', true); return; }
 
   const btn = $('#ai-search');
   btn.disabled = true;
@@ -627,16 +659,19 @@ async function runAiSearch() {
       status: outText(it),
       note: it.note,
     }));
-    const res = await ai.searchInventory(state.settings, question, entries);
+    const docEntries = docs.entries.map(d => ({ ...d, n: pool.length + d.n }));
+    const res = await ai.searchInventory(state.settings, question, entries, docEntries);
     // Nur Nummern übernehmen, die es wirklich gibt – gegen erfundene Treffer.
     const seen = new Set();
     const matches = [];
+    const docHits = [];
     for (const m of res.matches) {
-      if (m.n < 1 || m.n > pool.length || seen.has(m.n)) continue;
+      if (m.n < 1 || m.n > pool.length + docs.list.length || seen.has(m.n)) continue;
       seen.add(m.n);
-      matches.push({ item: pool[m.n - 1], why: m.why });
+      if (m.n <= pool.length) matches.push({ item: pool[m.n - 1], why: m.why });
+      else docHits.push({ doc: docs.list[m.n - pool.length - 1], why: m.why });
     }
-    state.aiSearch = { question, answer: res.answer, matches };
+    state.aiSearch = { question, answer: res.answer, matches, docs: docHits };
     renderList();
     updateAskButton();
   } catch (e) {
@@ -1890,32 +1925,28 @@ async function addDocs(files) {
     } catch (e) { toast(e.message, true); }
   }
   await renderDocs(id);
+  await cabinet.load().catch(() => {});
   if (n) { haptic(); toast(`${plural(n, 'Anhang', 'Anhänge')} gespeichert.`); updateStorageInfo(); }
 }
 
 function openDoc(docId) {
   const d = state.docs.find(x => x.id === docId);
-  if (!d) return;
-  const url = docURL(d);
-  if (isImageDoc(d)) { openLightbox(url, true); return; }
-  // PDF: im neuen Tab zeigen (Safari öffnet dafür seine Vorschau); blockiert, dann laden.
-  const w = window.open(url, '_blank');
-  if (!w) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = d.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  if (d) cabinet.show(d);
 }
 
 async function deleteDoc(docId) {
   const d = state.docs.find(x => x.id === docId);
-  if (!d || !confirm(`Anhang „${d.name}“ löschen?`)) return;
+  if (!d) return;
+  // Liegt der Beleg auch in einem Ordner (Dokumente), nur die Verknüpfung lösen.
+  if (d.folderId) {
+    if (!confirm(`„${d.name}“ vom Eintrag lösen? Das Dokument bleibt im Ordner „${cabinet.folderPath(d.folderId)}“.`)) return;
+    try { await db.patchDoc(docId, { itemId: null }); await renderDocs(state.currentId); await cabinet.load(); toast('Verknüpfung gelöst.'); } catch (e) { toast(e.message, true); }
+    return;
+  }
+  if (!confirm(`Anhang „${d.name}“ löschen?`)) return;
   try {
     await db.delDoc(docId);
+    await cabinet.load();
     await renderDocs(state.currentId);
     toast('Anhang gelöscht.');
     updateStorageInfo();
@@ -1925,6 +1956,10 @@ async function deleteDoc(docId) {
 /* =========================== Zuhause: Aktionen =========================== */
 
 function onHomeClick(e) {
+  if (e.target.closest('#home-docs') || e.target.closest('[data-due-more]')) { cabinet.open(); return; }
+  if (e.target.closest('#home-sync')) { onSyncTap(); return; }
+  const dd = e.target.closest('[data-due-doc]');
+  if (dd) { cabinet.docSheet(dd.dataset.dueDoc); return; }
   const todo = e.target.closest('[data-todo]');
   if (todo) {
     const k = todo.dataset.todo;
@@ -2186,6 +2221,9 @@ function fillSettingsForm() {
   $('#set-key').value = state.settings.apiKey || '';
   selectModel(state.settings.model || db.DEFAULT_MODEL);
   $('#set-imgmax').value = String(state.settings.imgMax || 1600);
+  $('#exp-encrypt').checked = !!state.settings.expEncrypt;
+  $('#gd-client').value = state.settings.gdClientId || '';
+  renderGdSettings();
 }
 
 // Setzt die Auswahl und ergänzt den Eintrag, falls er in der Liste fehlt.
@@ -2380,7 +2418,17 @@ let importData = null;
 
 const mb = (bytes) => (bytes / 1048576).toFixed(bytes < 1048576 ? 2 : 1) + ' MB';
 
-async function buildBackup() {
+// Mit Haken „verschlüsseln“: erst das Passwort (zweimal), dann erstellen.
+function buildBackupClick() {
+  if (!$('#exp-encrypt').checked) { buildBackup(); return; }
+  passwordSheet({
+    title: 'Sicherungsdatei verschlüsseln', repeat: true, remember: false, submit: 'Verschlüsseln & erstellen',
+    note: 'Ohne dieses Passwort lässt sich die Datei nie wieder öffnen – auch nicht von uns. Gut aufbewahren!',
+    onPassword: (pw) => { buildBackup(pw); },
+  });
+}
+
+async function buildBackup(password = '') {
   const out = $('#exp-out');
   const btn = $('#exp-build');
   $('#exp-save').hidden = true;
@@ -2394,10 +2442,16 @@ async function buildBackup() {
       withPhotos,
       onProgress: (i, n) => { out.innerHTML = `<span class="spin"></span>Foto ${i} von ${n} …`; },
     });
+    if (password) {
+      out.innerHTML = '<span class="spin"></span>Wird verschlüsselt …';
+      exportFile.blob = await sealBackup(exportFile.blob, password);
+      exportFile.filename = exportFile.filename.replace(/\.json$/, '-verschluesselt.json');
+    }
     const c = exportFile.counts;
     out.className = 'hint ok';
     out.textContent = `Fertig: ${plural(c.items, 'Eintrag', 'Einträge')}, ${c.photos} Fotos, `
-      + `${c.categories} Kategorien, ${plural(c.places, 'Ort', 'Orte')}, ${c.rooms} Räume – ${mb(exportFile.blob.size)}.`;
+      + `${c.categories} Kategorien, ${plural(c.places, 'Ort', 'Orte')}, ${c.rooms} Räume, ${plural(c.docs || 0, 'Dokument', 'Dokumente')} – ${mb(exportFile.blob.size)}`
+      + (password ? ', verschlüsselt.' : '.');
     $('#exp-save').hidden = false;
   } catch (e) {
     out.className = 'hint err';
@@ -2445,6 +2499,8 @@ async function markBackedUp() {
 async function homeBackupGo() {
   if (state.homeBackup === 'building') return;
   if (state.homeBackup === 'ready' && exportFile) { await saveBackup(); return; }
+  // Verschlüsselt gewünscht: das Passwort gehört in die Einstellungen, nicht auf Zuhause.
+  if (state.settings.expEncrypt) { navigate('settings'); $('#exp-build').scrollIntoView({ block: 'center' }); buildBackupClick(); return; }
   state.homeBackup = 'building';
   home.renderHome();
   try {
@@ -2481,23 +2537,50 @@ async function readImportFile(file) {
       throw new Error('Die Datei konnte nicht gelesen werden: ' + e.message);
     }
     importData = backup.parseBackup(text);
-    const c = importData.counts || {};
-    const when = importData.exportedAt ? dtf.format(new Date(importData.exportedAt)) : 'unbekannt';
-    out.className = 'hint';
-    const places = Array.isArray(importData.places) ? importData.places.length : 0;
-    out.textContent = `Sicherung vom ${when}: ${c.items ?? importData.items.length} Einträge, `
-      + `${(importData.photos || []).length} Fotos, ${(importData.categories || []).length} Kategorien, `
-      + (places ? `${plural(places, 'Ort', 'Orte')}, ` : '')
-      + `${(importData.rooms || []).length} Räume`
-      + (!places && (importData.rooms || []).length ? ' (aus der Zeit vor den Orten – sie kommen nach „Zuhause“)' : '')
-      + '. Wie soll eingelesen werden?';
-    $('#imp-choice').hidden = false;
+    if (isEncryptedBackup(importData)) {
+      const wrap = importData;
+      importData = null;
+      out.textContent = 'Die Sicherung ist verschlüsselt.';
+      passwordSheet({
+        title: 'Sicherung entschlüsseln', repeat: false, remember: false, submit: 'Öffnen',
+        onPassword: async (pw) => {
+          out.innerHTML = '<span class="spin"></span>Wird entschlüsselt …';
+          try {
+            importData = backup.parseBackup(await openBackup(wrap, pw));
+            showImportInfo();
+          } catch (e) {
+            importData = null;
+            $('#imp-input').value = '';
+            out.className = 'hint err';
+            out.textContent = e instanceof WrongPassword ? 'Das Passwort stimmt nicht. Es wurde nichts verändert.' : e.message;
+          }
+        },
+      });
+      return;
+    }
+    showImportInfo();
   } catch (e) {
     importData = null;
     $('#imp-input').value = '';
     out.className = 'hint err';
     out.textContent = e.message;
   }
+}
+
+function showImportInfo() {
+  const out = $('#imp-out');
+  const c = importData.counts || {};
+  const when = importData.exportedAt ? dtf.format(new Date(importData.exportedAt)) : 'unbekannt';
+  out.className = 'hint';
+  const places = Array.isArray(importData.places) ? importData.places.length : 0;
+  out.textContent = `Sicherung vom ${when}: ${c.items ?? importData.items.length} Einträge, `
+    + `${(importData.photos || []).length} Fotos, ${(importData.categories || []).length} Kategorien, `
+    + (places ? `${plural(places, 'Ort', 'Orte')}, ` : '')
+    + `${(importData.rooms || []).length} Räume`
+    + (!places && (importData.rooms || []).length ? ' (aus der Zeit vor den Orten – sie kommen nach „Zuhause“)' : '')
+    + (Array.isArray(importData.docs) && importData.docs.length ? `, ${plural(importData.docs.length, 'Dokument', 'Dokumente')}` : '')
+    + '. Wie soll eingelesen werden?';
+  $('#imp-choice').hidden = false;
 }
 
 async function runImport(mode) {
@@ -2520,7 +2603,7 @@ async function runImport(mode) {
     updateStorageInfo();
     queue.kick();   // mitgebrachte, noch nicht erkannte Fotos jetzt abarbeiten
     out.className = 'hint ok';
-    out.textContent = `${plural(stats.items, 'Eintrag', 'Einträge')} und ${stats.photos} Fotos eingelesen`
+    out.textContent = `${plural(stats.items, 'Eintrag', 'Einträge')}, ${stats.photos} Fotos und ${plural(stats.docs || 0, 'Dokument', 'Dokumente')} eingelesen`
       + (stats.skipped ? `, ${stats.skipped} waren schon vorhanden.` : '.');
   } catch (e) {
     out.className = 'hint err';
@@ -2587,6 +2670,7 @@ function wire() {
   const rowClick = (e) => {
     const row = e.target.closest('.row');
     if (!row) return;
+    if (row.dataset.docHit) { cabinet.docSheet(row.dataset.docHit); return; }
     if (state.sel && !row.closest('#arch-list')) { toggleSel(row.dataset.id); return; }
     const step = e.target.closest('[data-step]');
     if (step) { stepQty(row.dataset.id, Number(step.dataset.step)); return; }
@@ -2783,7 +2867,12 @@ function wire() {
     await db.setSetting('imgMax', state.settings.imgMax);
   });
   // --- Sicherung ---
-  $('#exp-build').addEventListener('click', buildBackup);
+  $('#exp-build').addEventListener('click', buildBackupClick);
+  $('#exp-encrypt').addEventListener('change', (e) => {
+    $('#exp-save').hidden = true; $('#exp-out').textContent = ''; exportFile = null;
+    state.settings.expEncrypt = e.target.checked;
+    db.setSetting('expEncrypt', e.target.checked).catch(() => {});
+  });
   $('#exp-save').addEventListener('click', saveBackup);
   $('#exp-photos').addEventListener('change', () => { $('#exp-save').hidden = true; $('#exp-out').textContent = ''; exportFile = null; });
   $('#imp-pick').addEventListener('click', () => $('#imp-input').click());
@@ -2836,9 +2925,168 @@ function wire() {
   mgrHandler($('#place-mgr'));
   mgrHandler($('#room-mgr'));
 
+  // --- 1.9.0: Dokumente ---
+  $('#docs-back').addEventListener('click', () => cabinet.up());
+  $('#docs-q').addEventListener('input', () => cabinet.render());
+  $('#docs-list').addEventListener('click', (e) => cabinet.onClick(e));
+  $('#docs-list').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-folder-menu]')) { e.preventDefault(); cabinet.onClick(e); } });
+  $('#docs-folder-add').addEventListener('click', () => cabinet.newFolder());
+  for (const b of [$('#docs-add'), $('#docs-new')]) b.addEventListener('click', () => cabinet.openAdd());
+  $('#da-scan').addEventListener('click', () => $('#da-scan-input').click());
+  $('#da-photos').addEventListener('click', () => $('#da-photos-input').click());
+  $('#da-file').addEventListener('click', () => $('#da-file-input').click());
+  $('#da-scan-input').addEventListener('change', (e) => { cabinet.addPages(e.target.files || [], true); e.target.value = ''; });
+  $('#da-photos-input').addEventListener('change', (e) => { cabinet.addPages(e.target.files || [], false); e.target.value = ''; });
+  $('#da-file-input').addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    if (f && /pdf/i.test(f.type || f.name)) cabinet.setFile(f); else if (f) cabinet.addPages([f], false);
+    e.target.value = '';
+  });
+  $('#da-pages-card').addEventListener('click', (e) => cabinet.onAddClick(e));
+  $('#da-filecard').addEventListener('click', (e) => cabinet.onAddClick(e));
+  $('#da-enhance').addEventListener('change', () => cabinet.renderAdd());
+  $('#da-due-kind').addEventListener('change', (e) => { $('#da-due-row').hidden = !e.target.value; });
+  $('#da-save').addEventListener('click', () => cabinet.save());
+
+  // --- 1.9.0: Google Drive ---
+  $('#gd-client').addEventListener('change', (e) => {
+    const v = e.target.value.trim();
+    state.settings.gdClientId = v;
+    db.setSetting('gdClientId', v).catch(() => {});
+    if (v && !/\.apps\.googleusercontent\.com$/.test(v)) toast('Die Client-ID endet normalerweise auf „.apps.googleusercontent.com“.', true);
+    if (v) gdrive.loadGsi().catch(() => {});
+    renderGdSettings();
+  });
+  $('#gd-setup').addEventListener('click', gdSetupClick);
+  $('#gd-sync').addEventListener('click', () => onSyncTap(true));
+  $('#gd-restore').addEventListener('click', gdRestoreClick);
+  $('#gd-off').addEventListener('click', async () => {
+    if (!confirm('Google-Sicherung ausschalten? Die Sicherung in Google Drive bleibt liegen; das gemerkte Passwort wird auf diesem Gerät vergessen.')) return;
+    await gdrive.disconnect();
+    renderGdSettings();
+    toast('Google-Sicherung ist aus.');
+  });
+
   $('#cat-add').addEventListener('click', () => addNamed('categories', $('#cat-new')));
   $('#place-add').addEventListener('click', () => addNamed('places', $('#place-new')));
   $('#room-add').addEventListener('click', () => addNamed('rooms', $('#room-new')));
+}
+
+/* =========================== 1.9.0: Passwort, Google Drive =========================== */
+
+/**
+ * Passwort-Blatt. repeat: zweimal eingeben (beim Festlegen); remember: Haken „auf diesem Gerät
+ * merken“. onPassword(pw, remember) läuft DIREKT im Tipp auf „Übernehmen“ an – wichtig für
+ * das Google-Anmeldefenster auf dem iPhone.
+ */
+function passwordSheet({ title, repeat = false, remember = false, submit = 'Weiter', note = '', onPassword }) {
+  const html = `${note ? `<p class="hint lead warn">${esc(note)}</p>` : ''}
+    <label class="field"><span>Passwort</span><input id="sheet-pw1" type="password" autocomplete="${repeat ? 'new-password' : 'current-password'}" autocapitalize="off" spellcheck="false"></label>
+    ${repeat ? '<label class="field"><span>Wiederholen</span><input id="sheet-pw2" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false"></label>' : ''}
+    ${remember ? '<label class="check"><input type="checkbox" id="sheet-remember" checked> <span>Auf diesem Gerät merken <small>(nur als nicht auslesbarer Schlüssel)</small></span></label>' : ''}
+    <p class="hint err" id="sheet-pw-err"></p>`;
+  sheet.panel({
+    head: `<span class="sh-pic ph ph-none">${icon('lock')}</span><span class="sh-txt"><b>${esc(title)}</b></span>`,
+    title, html, submit, focus: '#sheet-pw1',
+    onSubmit: (_v, form) => {
+      const pw = form.querySelector('#sheet-pw1').value;
+      const err = form.querySelector('#sheet-pw-err');
+      if (repeat && pw.length < 8) { err.textContent = 'Bitte mindestens 8 Zeichen.'; return false; }
+      if (!pw) { err.textContent = 'Bitte das Passwort eingeben.'; return false; }
+      if (repeat && pw !== form.querySelector('#sheet-pw2').value) { err.textContent = 'Die beiden Eingaben stimmen nicht überein.'; return false; }
+      onPassword(pw, !!form.querySelector('#sheet-remember')?.checked);
+    },
+  });
+}
+
+function gdOut(text, cls = '') {
+  const out = $('#gd-out');
+  out.className = 'hint' + (cls ? ' ' + cls : '');
+  if (cls === 'busy') out.innerHTML = `<span class="spin"></span>${esc(text)}`; else out.textContent = text;
+}
+
+function gdSetupClick() {
+  const cid = $('#gd-client').value.trim();
+  state.settings.gdClientId = cid;
+  db.setSetting('gdClientId', cid).catch(() => {});
+  if (!cid) { toast('Bitte zuerst die OAuth-Client-ID eintragen (Anleitung darunter).', true); $('#gd-client').focus(); return; }
+  gdrive.loadGsi().catch(() => {});
+  passwordSheet({
+    title: 'Passwort für die Google-Sicherung', repeat: true, remember: true, submit: 'Mit Google verbinden',
+    note: 'Mit diesem Passwort wird alles verschlüsselt, bevor es das Gerät verlässt. Passwort vergessen = Sicherung unbrauchbar. Gibt es schon eine Sicherung, nimm dasselbe Passwort wie dort.',
+    onPassword: (pw, remember) => {
+      const conn = gdrive.connect();   // noch im Tipp: Anmeldefenster
+      gdOut('Verbinde mit Google …', 'busy');
+      conn.then(() => gdrive.setup(pw, remember))
+        .then((r) => { gdOut(r ? `Eingerichtet und gesichert (${plural(r.uploaded, 'Datei', 'Dateien')} hochgeladen).` : 'Eingerichtet.', 'ok'); toast('Google-Sicherung ist eingerichtet.'); })
+        .catch((e) => { gdOut(e instanceof WrongPassword ? 'Das Passwort passt nicht zur vorhandenen Sicherung in Google Drive. Nichts wurde verändert.' : e.message, 'err'); })
+        .finally(renderGdSettings);
+    },
+  });
+}
+
+function gdRestoreClick() {
+  const cid = $('#gd-client').value.trim();
+  if (!cid) { toast('Bitte zuerst die OAuth-Client-ID eintragen.', true); return; }
+  if (cid !== state.settings.gdClientId) { state.settings.gdClientId = cid; db.setSetting('gdClientId', cid).catch(() => {}); }
+  if (!confirm('Aus Google Drive wiederherstellen? Alles auf diesem Gerät wird durch die Sicherung ersetzt.')) return;
+  gdrive.loadGsi().catch(() => {});
+  passwordSheet({
+    title: 'Wiederherstellen', repeat: false, remember: true, submit: 'Wiederherstellen',
+    onPassword: (pw, remember) => {
+      const conn = gdrive.connect();
+      gdOut('Verbinde mit Google …', 'busy');
+      conn.then(() => gdrive.restore(pw, remember, (t) => gdOut(t, 'busy')))
+        .then(async (st) => {
+          await reloadAll();
+          renderManagers();
+          renderCurrent();
+          updateStorageInfo();
+          queue.kick();
+          gdOut(`Wiederhergestellt: ${plural(st.items, 'Eintrag', 'Einträge')}, ${st.photos} Fotos, ${plural(st.docs, 'Dokument', 'Dokumente')}`
+            + (st.missing ? ` – ${st.missing} Dateien fehlten.` : '.'), 'ok');
+        })
+        .catch((e) => gdOut((e instanceof WrongPassword ? 'Das Passwort stimmt nicht.' : e.message) + ' Es wurde nichts verändert.', 'err'))
+        .finally(renderGdSettings);
+    },
+  });
+}
+
+// Tipp auf die Statuszeile (Zuhause) oder „Jetzt sichern“: je nach Lage anmelden, Passwort, sichern.
+function onSyncTap(manual = false) {
+  const x = gdrive.status();
+  if (!x.enabled) { navigate('settings'); $('#gd-client').scrollIntoView({ block: 'center' }); return; }
+  if (x.state === 'needPassword') {
+    passwordSheet({
+      title: 'Google-Sicherung fortsetzen', remember: true, submit: 'Fortsetzen',
+      onPassword: (pw, remember) => {
+        const conn = gdrive.connect();
+        conn.then(() => gdrive.unlock(pw, remember)).then(() => toast('Gesichert.'))
+          .catch((e) => toast(e instanceof WrongPassword ? 'Das Passwort stimmt nicht.' : e.message, true));
+      },
+    });
+    return;
+  }
+  if (x.state === 'error' && !manual) { navigate('settings'); $('#gd-status').scrollIntoView({ block: 'center' }); return; }
+  // Anmeldung nötig oder abgelaufen: das Fenster muss jetzt, im Tipp, aufgehen.
+  const run = x.state === 'needAuth' ? gdrive.connect().then(() => gdrive.syncNow()) : gdrive.syncNow();
+  run.then((r) => { if (manual && r) toast(r.uploaded ? `Gesichert – ${plural(r.uploaded, 'neue Datei', 'neue Dateien')}.` : 'Gesichert – nichts Neues.'); })
+    .catch((e) => toast(e.message, true));
+}
+
+function onSyncStatus() {
+  home.renderSync();
+  renderGdSettings();
+}
+
+function renderGdSettings() {
+  const x = gdrive.status();
+  const el = $('#gd-status');
+  if (!el) return;
+  el.textContent = x.enabled ? gdrive.statusText() : (state.settings.gdClientId ? 'Noch nicht eingerichtet.' : 'Aus.');
+  el.className = 'gd-status' + (x.state === 'error' || x.state === 'needAuth' || x.state === 'needPassword' ? ' warn' : x.state === 'ok' ? ' ok' : '');
+  $('#gd-on').hidden = !x.enabled;
+  $('#gd-setup').hidden = x.enabled;
 }
 
 async function addNamed(kind, input) {

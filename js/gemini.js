@@ -208,11 +208,22 @@ const SEARCH_SCHEMA = {
  * Die Einträge gehen durchnummeriert als Text mit; zurück kommen nur Nummern,
  * das spart Token gegenüber UUIDs und macht Halluzinationen leicht erkennbar.
  */
-export async function searchInventory(settings, question, entries) {
+export async function searchInventory(settings, question, entries, documents = []) {
   const list = entries.map(e => [
     e.n, e.name || '-', e.category || '-', e.place || '-', e.room || '-',
     e.location || '-', e.quantity || '-', e.status || '-', e.note || '-',
   ].join(' | ')).join('\n');
+  // Dokumente (1.9.0): NUR Titel, Ordnerpfad, Stichworte, Datum (siehe docsForAi in docs.js) –
+  // nie Inhalte. Nummern laufen hinter denen des Inventars weiter. Felder werden hier noch
+  // einmal ausdrücklich einzeln herausgegriffen, damit nichts anderes mitrutschen kann.
+  const docList = documents.map(d => [
+    d.n, String(d.title || '-'), String(d.folder || '-'), String(d.tags || '-'), String(d.date || '-'),
+  ].join(' | ')).join('\n');
+  const docPart = docList ? `
+
+Dokumente im digitalen Aktenschrank (Nummer | Titel | Ordner | Stichworte | Datum) – nur die Beschreibung, den Inhalt kennst du nicht:
+${docList}
+Passt ein Dokument zur Frage (z. B. „wo ist meine Kfz-Versicherung?“), nenne es mit seiner Nummer wie einen Gegenstand und sag, in welchem Ordner es liegt.` : '';
 
   const prompt = `Du durchsuchst das private Haushalts-Inventar einer Person.
 
@@ -221,7 +232,7 @@ Frage der Person: "${question}"
 Inventar (Nummer | Name | Kategorie | Ort | Raum | Genauer Platz | Bestand | Status | Notiz):
 „Ort“ ist, wo die Sachen sind (z. B. Zuhause, Auto, Betrieb), „Raum“ der Raum oder Bereich darin (Keller, Kofferraum, Werkzeugkiste).
 „Status“ sagt, ob etwas gerade unterwegs oder verliehen ist (z. B. „Bei Tom seit 4 Tagen“) – dann liegt es gerade NICHT an seinem Ort; sag das in der Antwort.
-${list}
+${list}${docPart}
 
 Aufgabe:
 - Finde die Gegenstände, die für die Frage taugen – auch wenn die Wörter nicht übereinstimmen. Wer „etwas zum Kleben“ sucht, meint auch Sekundenkleber, Klebeband, Heißklebepistole oder Montagekleber. Wer „befestigen“ sagt, meint auch Schrauben, Dübel, Kabelbinder oder Klettband.

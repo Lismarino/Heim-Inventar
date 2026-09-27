@@ -4,14 +4,18 @@
 // den ersten Ort, wenn es kein „Zuhause“ gibt – siehe mapPlaces).
 // Format 3 (1.8.0): zusätzlich „docs“ (Anhänge, mit den Fotos gesichert) und die neuen Felder
 // am Eintrag (unterwegs, Checkliste, Seriennummer, Kaufdatum, Garantie). Format 1 und 2 bleiben lesbar.
+// Format 4 (1.9.0): Dokumente – zusätzlich „folders“ (Ordner mit parentId), Dokumente mit
+// Ordner, Datum, Stichworten, Frist, Papierkorb. Format 1–3 bleiben lesbar (Anhänge aus Format 3
+// gehören wie bisher nur zu Einträgen dieses Imports). Fotos und Dokumente dürfen statt „data“
+// (base64) auch „buf“ (ArrayBuffer) tragen – so liest die Google-Drive-Wiederherstellung ein.
 import * as db from './db.js';
 import { cleanOut, cleanDate } from './match.js';
-import { DOC_TYPES, DOC_MAX } from './docs.js';
+import { DOC_TYPES, DOC_MAX, docMeta, cleanDocMeta } from './docs.js';
 import { blobToBase64 } from './img.js';
 import { DEFAULT_PLACE, PLACE_ICONS, PLACE_COLORS, suggestIcon, colorFor } from './places.js';
 
 const FORMAT = 'heim-inventar';
-const FORMAT_VERSION = 3;
+export const FORMAT_VERSION = 4;
 
 /* ---------------- Export ---------------- */
 
@@ -21,8 +25,8 @@ const FORMAT_VERSION = 3;
  * einen dreistelligen Megabyte-String im Speicher erzeugen.
  */
 export async function buildExport({ withPhotos = true, onProgress } = {}) {
-  const [items, cats, rooms, places, settings] = await Promise.all([
-    db.getAll('items'), db.getAll('categories'), db.getAll('rooms'), db.getAll('places'), db.loadSettings(),
+  const [items, cats, rooms, places, folders, settings] = await Promise.all([
+    db.getAll('items'), db.getAll('categories'), db.getAll('rooms'), db.getAll('places'), db.getAll('folders'), db.loadSettings(),
   ]);
   const photos = withPhotos ? await db.getAll('photos') : [];
   const docs = withPhotos ? await db.getAll('docs') : [];
@@ -35,7 +39,7 @@ export async function buildExport({ withPhotos = true, onProgress } = {}) {
     version: FORMAT_VERSION,
     exportedAt: new Date().toISOString(),
     withPhotos,
-    counts: { items: items.length, photos: photos.length, docs: docs.length, categories: cats.length, rooms: rooms.length, places: places.length },
+    counts: { items: items.length, photos: photos.length, docs: docs.length, folders: folders.length, categories: cats.length, rooms: rooms.length, places: places.length },
     // Der API-Key wird bewusst NICHT mitgesichert.
     settings: { model: settings.model, imgMax: settings.imgMax },
   };
@@ -46,6 +50,7 @@ export async function buildExport({ withPhotos = true, onProgress } = {}) {
   parts.push('"places":' + JSON.stringify(places) + ',');
   parts.push('"categories":' + JSON.stringify(cats) + ',');
   parts.push('"rooms":' + JSON.stringify(rooms) + ',');
+  parts.push('"folders":' + JSON.stringify(folders) + ',');
   parts.push('"items":' + JSON.stringify(items) + ',');
   parts.push('"photos":[');
 
@@ -60,7 +65,7 @@ export async function buildExport({ withPhotos = true, onProgress } = {}) {
   for (let i = 0; i < docs.length; i++) {
     const d = docs[i];
     const data = await blobToBase64(new Blob([d.buf], { type: d.type }));
-    parts.push((i ? ',' : '') + JSON.stringify({ id: d.id, itemId: d.itemId, name: d.name, type: d.type, createdAt: d.createdAt || null, data }));
+    parts.push((i ? ',' : '') + JSON.stringify({ ...docMeta(d), data }));
   }
   parts.push(']}');
 
@@ -81,6 +86,11 @@ export function parseBackup(text) {
     throw new Error('Die Datei konnte nicht verarbeitet werden (zu groß?). Es wurde nichts verändert.');
   }
   if (!data || data.app !== FORMAT) throw new Error('Das ist keine Sicherung von Heim-Inventar.');
+  // 1.9.0: verschlüsselte Hülle – erst mit Passwort öffnen (crypto.openBackup), dann erneut hierher.
+  if (data.encrypted === true) {
+    if (typeof data.salt !== 'string' || typeof data.data !== 'string') throw new Error('Die verschlüsselte Sicherung ist beschädigt.');
+    return data;
+  }
   if (Number(data.version) > FORMAT_VERSION) throw new Error('Die Datei stammt aus einer neueren Version der App.');
   if (!Array.isArray(data.items)) throw new Error('In der Datei fehlt die Liste der Einträge.');
   return data;
@@ -103,6 +113,41 @@ const num = (v, fallback) => {
 const safeThumb = (v) => (typeof v === 'string' && v.startsWith('data:image/') ? v : '');
 // Dem Browser Luft lassen, damit die Fortschrittsanzeige sichtbar aktualisiert.
 const tick = () => new Promise((r) => setTimeout(r, 0));
+// Datei-Inhalt: ArrayBuffer (Google Drive) oder base64 (Sicherungsdatei).
+const bytesOf = (rec) => (rec?.buf instanceof ArrayBuffer ? rec.buf : ArrayBuffer.isView(rec?.buf) ? rec.buf.slice().buffer : base64ToBuffer(rec?.data));
+
+// Ordner nach (Oberordner, Name) abgleichen – Eltern zuerst, Kreise und Waisen landen oben.
+function mapFolders(list, existing) {
+  const map = new Map();
+  const add = [];
+  const byKey = new Map(existing.map(f => [(f.parentId || '') + '|' + key(f.name), f.id]));
+  const usedIds = new Set(existing.map(f => f.id));
+  const src = (Array.isArray(list) ? list : []).filter(f => isId(f?.id) && String(f?.name || '').trim());
+  const ids = new Set(src.map(f => f.id));
+  let order = existing.reduce((m, f) => Math.max(m, Number(f.order) || 0), -1);
+  const done = new Set();
+  let rounds = 0;
+  while (done.size < src.length && rounds++ < 50) {
+    for (const rec of src) {
+      if (done.has(rec.id)) continue;
+      const hasParent = isId(rec.parentId) && ids.has(rec.parentId) && rec.parentId !== rec.id;
+      if (hasParent && !map.has(rec.parentId) && rounds < 50) continue;   // Elternteil zuerst
+      const parentId = hasParent ? (map.get(rec.parentId) || null) : null;
+      const name = String(rec.name).trim().slice(0, 80);
+      const k = (parentId || '') + '|' + key(name);
+      let id = byKey.get(k);
+      if (!id) {
+        id = !usedIds.has(rec.id) ? rec.id : db.uid();
+        add.push({ id, name, parentId, createdAt: num(rec.createdAt, Date.now()), order: ++order });
+        usedIds.add(id);
+        byKey.set(k, id);
+      }
+      map.set(rec.id, id);
+      done.add(rec.id);
+    }
+  }
+  return { map, add };
+}
 
 // Kategorien/Räume nach NAMEN abgleichen, nicht nach ID – auf einem anderen
 // Gerät hat dieselbe Kategorie eine andere ID. Schreibt nichts, sondern liefert
@@ -204,13 +249,14 @@ export async function applyBackup(data, mode, onProgress) {
   const stats = { items: 0, photos: 0, docs: 0, skipped: 0 };
 
   // Bei „ersetzen“ zählt der bisherige Bestand nicht – er wird ja geleert.
-  const [existCats, existRooms, existPlaces, photoKeys, itemKeys] = replace
-    ? [[], [], [], [], []]
-    : await Promise.all([db.getAll('categories'), db.getAll('rooms'), db.getAll('places'), db.getAllKeys('photos'), db.getAllKeys('items')]);
+  const [existCats, existRooms, existPlaces, photoKeys, itemKeys, existFolders] = replace
+    ? [[], [], [], [], [], []]
+    : await Promise.all([db.getAll('categories'), db.getAll('rooms'), db.getAll('places'), db.getAllKeys('photos'), db.getAllKeys('items'), db.getAll('folders')]);
 
   const cats = mapNamed(data.categories, existCats);
   const places = mapPlaces(data.places, existPlaces);
   const rooms = mapRooms(data.rooms, existRooms, places);
+  const folders = mapFolders(data.folders, existFolders);
 
   // Fotos vorab dekodieren – kaputtes base64 fällt hier auf, bevor etwas geschrieben ist.
   const havePhotos = new Set(photoKeys);
@@ -221,7 +267,7 @@ export async function applyBackup(data, mode, onProgress) {
     if (isId(p?.id) && !havePhotos.has(p.id)) {
       let buf;
       try {
-        buf = base64ToBuffer(p.data);
+        buf = bytesOf(p);
       } catch (_) {
         void _;
         throw new Error(`Foto ${i + 1} in der Datei ist beschädigt.`);
@@ -277,23 +323,29 @@ export async function applyBackup(data, mode, onProgress) {
     items.push(it);
   }
 
-  // Anhänge: nur zu Einträgen dieses Imports, nur Bild/PDF, nicht zu groß, gültiges base64.
+  // Dokumente/Anhänge: nur Bild/PDF, nicht zu groß, gültige Daten. Format ≤ 3: nur zu Einträgen
+  // dieses Imports (wie bisher). Format 4: Eintrag (neu oder schon da) und/oder Ordner; passt
+  // keins von beiden mehr, landet das Dokument lose in „Dokumente“ – verloren geht nichts.
   const docs = [];
   const newIds = new Set(items.map(x => x.id));
+  const v4 = Number(data.version) >= 4;
   const haveDocs = replace ? new Set() : new Set(await db.getAllKeys('docs'));
   for (const d of Array.isArray(data.docs) ? data.docs : []) {
-    if (!isId(d?.id) || haveDocs.has(d.id) || !newIds.has(d.itemId)) continue;
+    if (!isId(d?.id) || haveDocs.has(d.id)) continue;
+    if (!v4 && !newIds.has(d.itemId)) continue;
     const type = typeof d.type === 'string' && DOC_TYPES.test(d.type) ? d.type : null;
     if (!type) continue;
     let buf;
-    try { buf = base64ToBuffer(d.data); } catch (_) { void _; throw new Error('Ein Anhang in der Datei ist beschädigt.'); }
+    try { buf = bytesOf(d); } catch (_) { void _; throw new Error('Ein Anhang in der Datei ist beschädigt.'); }
     if (!buf.byteLength || buf.byteLength > DOC_MAX) continue;
-    const name = (typeof d.name === 'string' ? d.name : '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 120) || 'Anhang';
-    docs.push({ id: d.id, itemId: d.itemId, name, type, buf, createdAt: num(d.createdAt, Date.now()) });
+    const meta = cleanDocMeta(d);
+    meta.itemId = isId(d.itemId) && haveItems.has(d.itemId) ? d.itemId : null;
+    meta.folderId = isId(d.folderId) ? (folders.map.get(d.folderId) || null) : null;
+    docs.push({ ...meta, id: d.id, type, buf });
     haveDocs.add(d.id);
   }
 
-  await db.writeImport({ replace, places: places.add, categories: cats.add, rooms: rooms.add, photos, items, docs });
+  await db.writeImport({ replace, places: places.add, categories: cats.add, rooms: rooms.add, photos, items, docs, folders: folders.add });
   stats.docs = docs.length;
   stats.items = items.length;
   stats.photos = photos.length;
