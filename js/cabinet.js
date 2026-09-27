@@ -10,7 +10,7 @@ import * as sheet from './sheet.js';
 import { esc, icon, plural } from './ui.js';
 import { norm } from './combo.js';
 import { fmtDate, daysUntil, cleanDate } from './match.js';
-import { prepareDoc, docURL, isImageDoc, docSize, DOC_MAX, FOLDER_SUGGESTIONS, DUE_KINDS, cleanTags, titleFromName, shareName, docsForAi } from './docs.js';
+import { prepareDoc, docURL, isImageDoc, docSize, DOC_MAX, FOLDER_SUGGESTIONS, DUE_KINDS, cleanTags, titleFromName, shareName, ix, loadIndex, liveDocs, folderById, folderPath } from './docs.js';
 import { renderPage, makePdf } from './scan.js';
 
 const $ = (s) => document.querySelector(s);
@@ -21,10 +21,7 @@ const collator = new Intl.Collator('de', { sensitivity: 'base', numeric: true })
 // { state, navigate(view), toast(msg, err, action), haptic(), openLightbox(url, own), openItem(id), itemById(id), items(), onChange() }
 let ctx = null;
 const cab = {
-  folders: [],
-  docs: [],        // Metadaten (ohne Datei)
   at: null,        // offener Ordner: null (oben), Ordner-ID, ITEM_DOCS oder TRASH
-  loaded: false,
   // Hinzufügen/Bearbeiten
   edit: null,      // ID beim Bearbeiten, sonst null
   pages: [],       // [{ file, url, rotate }]
@@ -36,28 +33,16 @@ const cab = {
 
 export function init(c) { ctx = c; }
 
-export async function load() {
-  const [folders, docs] = await Promise.all([db.getAll('folders'), db.docMetas()]);
-  cab.folders = folders;
-  cab.docs = docs;
-  cab.loaded = true;
-}
+// Metadaten (Ordner, Dokumente ohne Datei) und die schlanken Abfragen für Zuhause, Suche und
+// KI liegen seit 1.10.0 in docs.js (ix) – dieses Modul lädt die App erst beim Öffnen.
+const load = loadIndex;
 
 /* ---------------- Helfer ---------------- */
 
-const folderById = (id) => cab.folders.find(f => f.id === id) || null;
-const children = (pid) => cab.folders.filter(f => (f.parentId || null) === (pid || null))
+const children = (pid) => ix.folders.filter(f => (f.parentId || null) === (pid || null))
   .sort((a, b) => collator.compare(a.name, b.name));
-const live = () => cab.docs.filter(d => !d.trashedAt);
+const live = liveDocs;
 
-/** „Versicherungen › Auto“ – für Anzeige, Suche und KI. */
-export function folderPath(id, sep = ' › ') {
-  const out = [];
-  let f = folderById(id);
-  let guard = 0;
-  while (f && guard++ < 30) { out.unshift(f.name); f = folderById(f.parentId); }
-  return out.join(sep);
-}
 // Alle Ordner als Liste mit Einrückung (für Auswahllisten), Eltern vor Kindern.
 function folderTree(skip = null) {
   const out = [];
@@ -74,26 +59,13 @@ function folderTree(skip = null) {
 const descendants = (id) => {
   const set = new Set([id]);
   let grew = true;
-  while (grew) { grew = false; for (const f of cab.folders) if (!set.has(f.id) && set.has(f.parentId)) { set.add(f.id); grew = true; } }
+  while (grew) { grew = false; for (const f of ix.folders) if (!set.has(f.id) && set.has(f.parentId)) { set.add(f.id); grew = true; } }
   return set;
 };
 const countIn = (id) => {
   const ids = descendants(id);
   return live().filter(d => ids.has(d.folderId)).length;
 };
-
-export const count = () => live().length;
-export const titles = () => [...new Map(live().map(d => [norm(d.name), d.name])).values()];
-/** Für die KI-Suche: NUR Titel, Ordnerpfad, Stichworte, Datum (siehe docsForAi). */
-export const aiDocs = () => { const list = live(); return { list, entries: docsForAi(list, (id) => folderPath(id)) }; };
-
-/** Fristen in den nächsten 30 Tagen (für Zuhause), die nächste zuerst. */
-export function dueSoon(days = 30) {
-  return live().map(d => ({ d, n: daysUntil(d.due) }))
-    .filter(x => x.n != null && x.n >= 0 && x.n <= days)
-    .sort((a, b) => a.n - b.n)
-    .map(({ d, n }) => ({ id: d.id, title: d.name, due: d.due, kind: DUE_KINDS[d.dueKind] || 'Frist', days: n }));
-}
 
 const whenText = (n) => (n === 0 ? 'heute' : n === 1 ? 'morgen' : `in ${n} Tagen`);
 const dueLine = (d) => {
@@ -110,14 +82,12 @@ export async function open(at = null) {
   cab.at = at;
   $('#docs-q').value = '';
   ctx.navigate('docs');
-  if (!ctx.state.settings.docsSetup && !cab.folders.length) setTimeout(suggestSheet, 350);
 }
 
 function suggestSheet() {
   const html = `<p class="hint lead">Womit möchtest du anfangen? Abwählen, was du nicht brauchst – Ordner lassen sich jederzeit anlegen, umbenennen und löschen.</p>
     <div class="da-suggest">${FOLDER_SUGGESTIONS.map((n, i) => `<label class="check"><input type="checkbox" name="sg" value="${i}" checked> <span>${esc(n)}</span></label>`).join('')}</div>`;
   sheet.panel({
-    head: `<span class="sh-pic ph ph-none">${icon('folder')}</span><span class="sh-txt"><b>Dokumente einrichten</b></span>`,
     title: 'Ordner vorschlagen',
     html,
     submit: 'Ordner anlegen',
@@ -136,7 +106,7 @@ function suggestSheet() {
 }
 
 export function render() {
-  if (!cab.loaded) return;
+  if (!ix.loaded) return;
   const q = norm($('#docs-q').value);
   // Jedes Wort muss irgendwo vorkommen („versicherung kfz“ findet „Versicherungen › Kfz“).
   const words = q.split(/\s+/).filter(Boolean);
@@ -159,12 +129,12 @@ export function render() {
   if (q) {
     // Lokale Suche über Titel, Ordnerpfad, Stichworte und verknüpften Eintrag.
     const hay = (d) => [d.name, folderPath(d.folderId), (d.tags || []).join(' '), ctx.itemById(d.itemId)?.name, fmtDate(d.date)].join(' ');
-    const fl = cab.folders.filter(x => hit(folderPath(x.id))).sort((a, b) => collator.compare(folderPath(a.id), folderPath(b.id)));
+    const fl = ix.folders.filter(x => hit(folderPath(x.id))).sort((a, b) => collator.compare(folderPath(a.id), folderPath(b.id)));
     const ds = live().filter(d => hit(hay(d))).sort(byDate);
     rows = fl.map(x => folderRow(x, true)).join('') + ds.map(d => docRow(d, true)).join('');
     empty = `<span class="empty-badge muted">${icon('search')}</span><p>Keine Dokumente gefunden.</p>`;
   } else if (cab.at === TRASH) {
-    rows = cab.docs.filter(d => d.trashedAt).sort((a, b) => b.trashedAt - a.trashedAt).map(d => docRow(d, true)).join('');
+    rows = ix.docs.filter(d => d.trashedAt).sort((a, b) => b.trashedAt - a.trashedAt).map(d => docRow(d, true)).join('');
     empty = `<span class="empty-badge muted">${icon('trash')}</span><p>Der Papierkorb ist leer.</p>`;
   } else if (cab.at === ITEM_DOCS) {
     rows = live().filter(d => d.itemId && !d.folderId).sort(byDate).map(d => docRow(d)).join('');
@@ -174,13 +144,17 @@ export function render() {
     let virt = '';
     if (!cab.at) {
       const nItem = live().filter(d => d.itemId && !d.folderId).length;
-      const nTrash = cab.docs.filter(d => d.trashedAt).length;
+      const nTrash = ix.docs.filter(d => d.trashedAt).length;
       if (nItem) virt += `<button type="button" class="row drow" data-folder="${ITEM_DOCS}"><span class="d-ic sage">${icon('box')}</span><span class="body"><span class="name">Belege zu Einträgen</span><span class="meta">${plural(nItem, 'Dokument', 'Dokumente')}</span></span>${icon('chev-r', 'go')}</button>`;
       if (nTrash) virt += `<button type="button" class="row drow" data-folder="${TRASH}"><span class="d-ic muted">${icon('trash')}</span><span class="body"><span class="name">Papierkorb</span><span class="meta">${plural(nTrash, 'Dokument', 'Dokumente')}</span></span>${icon('chev-r', 'go')}</button>`;
     }
     const docs = live().filter(d => (d.folderId || null) === (cab.at || null) && (cab.at || !d.itemId)).sort(byDate).map(d => docRow(d)).join('');
     rows = subs + virt + docs;
-    empty = `<span class="empty-badge muted">${icon('folder')}</span><p>${cab.at ? 'Dieser Ordner ist leer.' : 'Noch keine Dokumente.'}</p><p class="hint">Scanne einen Brief, wähle Fotos oder ein PDF aus der Dateien-App.</p>`;
+    // Noch keine Ordner: Vorschläge anbieten (auch wenn schon Belege an Einträgen hängen).
+    if (rows && !cab.at && !ix.folders.length) rows = `<div class="docs-suggest"><span>Noch keine Ordner.</span><button type="button" class="btn pill" data-suggest>Ordner vorschlagen</button></div>` + rows;
+    // 1.10.0: Ordnervorschläge nicht mehr ungefragt – nur auf Wunsch aus dem leeren Zustand.
+    const suggest = !cab.at && !ix.folders.length ? '<button type="button" class="btn pill" data-suggest>Ordner vorschlagen</button>' : '';
+    empty = `<span class="empty-badge muted">${icon('folder')}</span><p>${cab.at ? 'Dieser Ordner ist leer.' : 'Noch keine Dokumente.'}</p><p class="hint">Scanne einen Brief, wähle Fotos oder ein PDF aus der Dateien-App.</p>${suggest}`;
   }
   $('#docs-list').innerHTML = rows;
   $('#docs-empty').hidden = !!rows;
@@ -227,6 +201,7 @@ export function up() {
 const scrollTop = () => { const sc = $('#view-docs .scroll'); if (sc) sc.scrollTop = 0; };
 
 export function onClick(e) {
+  if (e.target.closest('[data-suggest]')) { suggestSheet(); return; }
   const menu = e.target.closest('[data-folder-menu]');
   if (menu) { e.stopPropagation(); folderMenu(menu.dataset.folderMenu); return; }
   const fo = e.target.closest('[data-folder]');
@@ -245,7 +220,7 @@ export function newFolder(parentId = cab.at && cab.at !== ITEM_DOCS && cab.at !=
       const name = String(v || '').trim().slice(0, 80);
       if (!name) return false;
       if (children(parentId).some(f => norm(f.name) === norm(name))) { ctx.toast(`„${name}“ gibt es hier schon.`, true); return false; }
-      await db.put('folders', { id: db.uid(), name, parentId, createdAt: Date.now(), order: cab.folders.length });
+      await db.put('folders', { id: db.uid(), name, parentId, createdAt: Date.now(), order: ix.folders.length });
       await load();
       render();
       ctx.haptic();
@@ -428,7 +403,7 @@ function fillFolderSelect(value) {
 
 /** Neues Dokument. opts.itemId: gleich mit einem Eintrag verknüpfen. */
 export async function openAdd({ itemId = null } = {}) {
-  if (!cab.loaded) await load();
+  if (!ix.loaded) await load();
   resetAdd();
   const inFolder = folderById(cab.at)?.id;
   const last = folderById(ctx.state.settings.docLastFolder)?.id;
@@ -614,5 +589,3 @@ async function buildDoc(meta) {
   return { id: db.uid(), ...meta, name, ...base, createdAt: now, updatedAt: now, trashedAt: null };
 }
 
-export const leaveAdd = () => resetAdd();
-export const current = () => cab.at;

@@ -62,7 +62,7 @@ export const num = (v) => String(Math.round(v * 1000) / 1000);
  * Keyframes aus einer Feder (etwa 60 je Sekunde, dazwischen linear): frame(p, v) liefert
  * die Eigenschaften für Fortschritt p und Geschwindigkeit v (Strecken pro Sekunde).
  */
-export function springFrames(s, frame, fps = 60) {
+function springFrames(s, frame, fps = 60) {
   const n = Math.max(2, Math.round(s.duration / 1000 * fps));
   const out = [];
   for (let i = 0; i <= n; i++) {

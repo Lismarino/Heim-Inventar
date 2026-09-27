@@ -35,7 +35,7 @@ export function haptic() {
 /* ---------------- Klick nach einer Geste schlucken ---------------- */
 
 let swallowUntil = 0;
-export function suppressClick(ms = 400) { swallowUntil = Date.now() + ms; }
+function suppressClick(ms = 400) { swallowUntil = Date.now() + ms; }
 document.addEventListener('click', (e) => {
   // Nur echte Tipps – das Haptik-Label wird per Skript geklickt und muss durch.
   if (e.isTrusted && Date.now() < swallowUntil) { e.preventDefault(); e.stopPropagation(); swallowUntil = 0; }

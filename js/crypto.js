@@ -4,12 +4,12 @@
 // Gerät merken“), aber weder die App noch ein Skript kann ihn als Bytes auslesen.
 // Jedes verschlüsselte Stück: 12 Byte Zufalls-IV + Chiffretext (inkl. 16 Byte Prüfsumme).
 
-export const KDF_ITER = 310000;
+const KDF_ITER = 310000;
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 export const randomBytes = (n) => crypto.getRandomValues(new Uint8Array(n));
-export const toHex = (buf) => Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+const toHex = (buf) => Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
 export const randomName = () => toHex(randomBytes(16));
 
 export function toB64(buf) {

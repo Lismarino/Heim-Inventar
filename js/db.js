@@ -96,10 +96,24 @@ export function openDB() {
   return _opening;
 }
 
+// Speicher voll (1.10.0): Safari meldet das als QuotaExceededError (ältere Fassungen nur mit
+// code 22) – beim Request oder erst beim Abschluss der Transaktion. Zentral in eine klare
+// Meldung übersetzen und die App benachrichtigen ('quota'), auch wenn der Aufrufer schweigt.
+export const QUOTA_MSG = 'Speicher voll – mach eine Sicherung, verkleinere Fotos (Einstellungen) oder lösche Altes.';
+const isQuota = (e) => !!e && (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+function dbErr(e) {
+  if (!isQuota(e)) return e;
+  emit('quota');
+  const err = new Error(QUOTA_MSG);
+  err.name = 'QuotaExceededError';
+  err.cause = e;
+  return err;
+}
+
 function reqP(request) {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => reject(dbErr(request.error));
   });
 }
 
@@ -109,9 +123,9 @@ function withTx(stores, mode, fn) {
     const tx = db.transaction(stores, mode);
     let box;
     tx.oncomplete = () => { if (mode === 'readwrite') wrote(stores); resolve(box); };
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error || new Error('Transaktion abgebrochen'));
-    try { box = fn(tx); } catch (e) { try { tx.abort(); } catch (_) { void _; } reject(e); }
+    tx.onerror = () => reject(dbErr(tx.error));
+    tx.onabort = () => reject(dbErr(tx.error) || new Error('Transaktion abgebrochen'));
+    try { box = fn(tx); } catch (e) { try { tx.abort(); } catch (_) { void _; } reject(dbErr(e)); }
   }));
 }
 
@@ -129,9 +143,9 @@ export async function getAllKeys(name) {
 export async function get(name, key) {
   return reqP((await store(name, 'readonly')).get(key));
 }
+// Über withTx: erst der Abschluss der Transaktion zählt – dort meldet Safari „Speicher voll“.
 export async function put(name, value) {
-  await reqP((await store(name, 'readwrite')).put(value));
-  wrote(name);
+  await withTx(name, 'readwrite', (tx) => { tx.objectStore(name).put(value); });
   return value;
 }
 export async function del(name, key) {
@@ -816,9 +830,6 @@ export function syncItemPlaces(ids) {
     return out;
   });
 }
-
-/** Früherer Name: Raum zuweisen (Ort folgt aus dem Raum). */
-export const assignRoom = (ids, roomId, locationDetail) => moveItems(ids, null, roomId, locationDetail);
 
 /** Einen Eintrag an Ort + Raum legen (wie moveItems, liefert den neuen Stand). */
 export function setItemWhere(id, placeId, roomId) {

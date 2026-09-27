@@ -11,14 +11,14 @@ export const DEFAULT_PLACE = 'Zuhause';
 
 /** Symbole im SVG-Sprite (index.html, #i-pl-…), in der Reihenfolge der Auswahl. */
 export const PLACE_ICONS = ['haus', 'wohnung', 'ferien', 'auto', 'bus', 'firma', 'werkstatt', 'garten', 'lager'];
-export const ICON_LABEL = {
+const ICON_LABEL = {
   haus: 'Haus', wohnung: 'Wohnung', ferien: 'Ferienhaus', auto: 'Auto', bus: 'Transporter',
   firma: 'Firma', werkstatt: 'Werkstatt', garten: 'Garten', lager: 'Lager',
 };
 
 /** Farben aus der Palette der App (Klassen .pc-… in app.css, hell und dunkel). */
 export const PLACE_COLORS = ['tanne', 'salbei', 'terrakotta', 'senf', 'tinte', 'pflaume', 'holz'];
-export const COLOR_LABEL = {
+const COLOR_LABEL = {
   tanne: 'Tannengrün', salbei: 'Salbei', terrakotta: 'Terrakotta', senf: 'Senf',
   tinte: 'Tinte', pflaume: 'Pflaume', holz: 'Holz',
 };

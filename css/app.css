@@ -2038,7 +2038,7 @@ body.selecting #nav{visibility:hidden}
 .d-due.soon{color:var(--clay-ink);font-weight:600}
 .docs-foot{margin:16px 0 0}
 .docs-foot .btn{flex:1}
-.da-suggest{display:grid;grid-template-columns:1fr 1fr;column-gap:14px;margin:4px 0 10px}
+.da-suggest{display:grid;grid-template-columns:1fr;margin:4px 0 10px}
 .da-suggest .check{margin:0}
 
 /* Hinzufügen */
@@ -2078,3 +2078,37 @@ body.selecting #nav{visibility:hidden}
 @media (prefers-reduced-motion: reduce){
   .home-docs:active,.da-btn:active{transform:none}
 }
+
+/* ================= 1.10.0: aufgeräumt & schneller ================= */
+/* Lange Listen: Schub-Rendering in app.js (erst 50 Zeilen, dann je 60 vor dem Hineinscrollen).
+   Bewusst OHNE content-visibility:auto an .row – gemessen (300 Einträge, 4× gedrosselt) machte es
+   das Scrollen deutlich ruckeliger (p50 17 → 80–120 ms je Bild), weil jede hereinscrollende Zeile
+   erst dann gezeichnet wird. Die Schübe begrenzen den Aufbau schon ausreichend. */
+.rows-more{height:1px}
+/* „Alles“: flachere Zeilen – mehr als sechs passen auf ein iPhone */
+.row{padding:9px 14px;gap:12px}
+.row .thumb{width:60px;height:60px;border-radius:14px}
+.row + .row::before{left:86px}
+.row .when{font-size:12.5px;margin-top:1px}
+/* Filter-Reihe: rechts ausblenden, damit man sieht, dass es weitergeht */
+.filters.three{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent)}
+/* Archiv am Ende der Liste */
+.list-archive{display:flex;align-items:center;gap:10px;width:100%;margin:14px 0 4px;padding:12px 14px;border:0;border-radius:var(--r-lg);background:var(--fill);color:var(--fg2);font-size:15px;font-weight:550;text-align:left}
+.list-archive[hidden]{display:none}
+.list-archive span{flex:1}
+.list-archive .ic{color:var(--fg3)}
+.list-archive:active{background:var(--press)}
+/* Detail „Mehr Angaben“: neuere Teile mit demselben Innenabstand wie die Felder */
+.group .more>.check{position:relative;margin:0;padding:4px 16px;min-height:52px}
+.group .more>.docs{padding:0 16px}
+.group .more>.btn.block{width:calc(100% - 32px);margin:10px 16px 0}
+.group .more>.hint{margin:8px 16px 14px}
+/* Einstellungen */
+.help.lead-help{margin:0 0 8px}
+.help.lead-help p{margin:4px 0 8px}
+.sec-note{margin:8px 20px 0}
+.link.inline{display:inline;min-height:0;padding:0;border:0;background:none;color:var(--accent-text);font:inherit;font-weight:600}
+.range-field{display:flex;align-items:center;gap:12px;margin:4px 0 0}
+.range-field>span{flex:0 0 auto;font-size:15px;color:var(--fg2)}
+.range-field input[type=range]{flex:1;min-width:0;accent-color:var(--accent);min-height:44px;padding:0;background:none;border:0;box-shadow:none}
+.docs-suggest{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;color:var(--fg2);font-size:15px;border-bottom:1px solid var(--line)}

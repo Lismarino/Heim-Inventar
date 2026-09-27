@@ -3,6 +3,8 @@
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export const dtf = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+// Listen (1.10.0): nur das Datum – die Uhrzeit steht im Eintrag selbst.
+export const df = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' });
 
 export const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 

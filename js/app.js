@@ -2,24 +2,20 @@ import * as db from './db.js';
 import * as img from './img.js';
 import * as ai from './gemini.js';
 import { initCombos, hideCombo, norm } from './combo.js';
-import * as backup from './backup.js';
 import * as queue from './queue.js';
-import { esc, dtf, plural, icon, isThumb, placeholderHTML, toneOf, initialOf, EMPTY_ART } from './ui.js';
+import { esc, dtf, df, plural, icon, isThumb, placeholderHTML, toneOf, initialOf, EMPTY_ART } from './ui.js';
 import * as home from './home.js';
 import * as motion from './motion.js';
 import * as sheet from './sheet.js';
-import * as onboarding from './onboarding.js';
 import { haptic, longPress, swipeRows, edgeSwipe } from './gestures.js';
 import * as glass from './glass.js';
 import * as intro from './intro.js';
 import { outText, cleanOut, findSimilar, warrantySoon, qtyNumber, cleanDate } from './match.js';
-import { prepareDoc, isImageDoc, docSize } from './docs.js';
-import * as cabinet from './cabinet.js';
-import * as gdrive from './gdrive.js';
-import { isEncryptedBackup, sealBackup, openBackup, WrongPassword } from './crypto.js';
+import { prepareDoc, isImageDoc, docSize, loadIndex, dueSoon as docsDueSoon, docCount, docTitles, aiDocs, folderPath } from './docs.js';
+import * as sound from './sound.js';
 import { byOrder, placeBadge, placeIcon, placeChipsHTML, styleHTML, suggestIcon, colorFor, safeIcon, safeColor } from './places.js';
 
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
 window.__inventarVersion = APP_VERSION;
 // Start-Szene gleich loslaufen lassen – der Start unten wartet nicht auf sie.
@@ -27,6 +23,54 @@ intro.start();
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+/* ---------- Selten Gebrauchtes erst bei Bedarf laden (1.10.0) ----------
+ * Aktenschrank (mit Scan), Sicherung, Verschlüsselung, Google Drive und die Einführung kommen
+ * per import() erst, wenn man sie braucht – der Service Worker hält sie trotzdem offline bereit.
+ * Was Zuhause beim Start zeigt (Fristen, Anzahl Dokumente, Drive-Status), liest schlank aus
+ * docs.js bzw. den Einstellungen. Die Promises werden gemerkt; scheitert ein Laden (offline
+ * ohne Cache), versucht der nächste Aufruf es erneut. */
+const once = (load) => { let p = null; return () => (p ||= load().catch((e) => { p = null; throw e; })); };
+const backupMod = once(() => import('./backup.js'));
+const cryptoMod = once(() => import('./crypto.js'));
+const isWrongPw = (e) => e?.name === 'WrongPassword';
+let cabM = null;   // geladener Aktenschrank – für synchrone Aufrufe aus Ansichten, die nur er öffnet
+const cabinet = once(() => import('./cabinet.js').then((m) => {
+  m.init({
+    state, navigate, toast, haptic, openLightbox, openItem,
+    itemById: (id) => state.items.find(i => i.id === id) || null,
+    items: () => state.items,
+    onChange: () => { if (state.view === 'home') home.renderHome(); if (state.view === 'item' && state.currentId) renderDocs(state.currentId); },
+  });
+  cabM = m;
+  return m;
+}));
+let onbM = null;
+const onboarding = once(() => import('./onboarding.js').then((m) => {
+  m.init({
+    places: () => state.places.map(p => ({ name: p.name, icon: p.icon })),
+    rooms: () => state.rooms.map(r => ({ name: r.name, place: placeName(r.placeId) })),
+    apiKey: () => state.settings.apiKey,
+    done: finishOnboarding,
+  });
+  onbM = m;
+  return m;
+}));
+let gd = null;     // geladenes Google-Drive-Modul (für synchrone Status-Abfragen und Tipps)
+const gdrive = once(() => import('./gdrive.js').then(async (m) => {
+  await m.init({
+    settings: () => state.settings,
+    setSetting: (k, v) => { state.settings[k] = v; return db.setSetting(k, v); },
+    onStatus: onSyncStatus,
+  });
+  gd = m;
+  onSyncStatus();
+  return m;
+}));
+const gdWanted = () => !!(String(state.settings.gdClientId || '').trim() && state.settings.gdEnabled);
+// Solange das Modul nicht geladen ist: Status aus den Einstellungen.
+const gdStatus = () => (gd ? gd.status() : { state: gdWanted() ? 'idle' : 'off', error: '', progress: '', last: Number(state.settings.gdLastSync) || 0, enabled: gdWanted() });
+const gdStatusText = () => (gd ? gd.statusText() : '');
 
 // Tabs behalten ihre Scroll-Position; Push-Ansichten gleiten von rechts herein.
 // „places“ ist der Tab „Räume“ – „rooms“ ist (historisch) die Ansicht „Ohne Ort“
@@ -50,7 +94,7 @@ const state = {
   listFilter: null, // „Alles“: null | 'unnamed' | 'out' | 'warranty'
   sel: null,        // Mehrfachauswahl: null (aus) oder Set der markierten IDs
   checks: new Map(),  // Checkliste: Orts-ID -> Set abgehakter IDs – nur für diese Sitzung
-  docs: [],         // Detail: Anhänge des offenen Eintrags
+  docs: [],         // Detail: Belege des offenen Eintrags
   homeBackup: '',   // Zuhause-Karte „Sicherung“: '' | 'building' | 'ready'
   capture: { ids: [], busy: '' },   // Schnellerfassung: in dieser Runde erfasste Einträge
   roomSel: new Set(),               // „Ohne Ort“: markierte Einträge
@@ -122,36 +166,28 @@ async function boot() {
     glass.init();
     initCombos(comboSource);
     sheet.init();
+    sound.init();
     home.init({
       state, roomName, catName, roomById, placeById, placeOf, hasRoom, aiBusy, aiNeedsKey, noRoomItems, whereShort,
       rowHTML: (it, opts) => rowHTML(it, '', opts),
       queueNote: () => queue.status().note,
       checkCount: (pid) => checkItems(pid).length,
       backupState: () => state.homeBackup,
-      docsDue: () => cabinet.dueSoon(),
-      docsCount: () => cabinet.count(),
-      syncText: () => gdrive.statusText(),
-      syncState: () => gdrive.status(),
-    });
-    cabinet.init({
-      state, navigate, toast, haptic, openLightbox, openItem,
-      itemById: (id) => state.items.find(i => i.id === id) || null,
-      items: () => state.items,
-      onChange: () => { if (state.view === 'home') home.renderHome(); if (state.view === 'item' && state.currentId) renderDocs(state.currentId); },
-    });
-    onboarding.init({
-      places: () => state.places.map(p => ({ name: p.name, icon: p.icon })),
-      rooms: () => state.rooms.map(r => ({ name: r.name, place: placeName(r.placeId) })),
-      apiKey: () => state.settings.apiKey,
-      done: finishOnboarding,
+      docsDue: () => docsDueSoon(),
+      docsCount: () => docCount(),
+      syncText: gdStatusText,
+      syncState: gdStatus,
     });
     queue.initQueue({ settings: () => state.settings, onChange: onDataChanged });
     fillSettingsForm();
     navigate('home', { instant: true });
     $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
     // Erster Start ohne jede Spur einer Einrichtung: Begrüßung. Scheitert sie, startet die App trotzdem.
-    await onboarding.maybeShow(state.settings, { items: state.items.length, rooms: state.rooms.length, places: state.places.length })
-      .catch((e) => console.warn('Einführung:', e));
+    // Nur wer noch nie eingerichtet hat, lädt das Modul überhaupt.
+    if (!state.settings.onboarded) {
+      await onboarding().then((m) => m.maybeShow(state.settings, { items: state.items.length, rooms: state.rooms.length, places: state.places.length }))
+        .catch((e) => console.warn('Einführung:', e));
+    }
   } catch (e) {
     showBootError('Die gespeicherten Daten konnten nicht geladen werden. Lade die Seite neu; hilft das nicht, schließe andere Tabs mit der App.', e);
     return;
@@ -167,11 +203,7 @@ async function boot() {
   requestPersist();
   updateStorageInfo();
   // Google-Drive-Sicherung (nur wenn eingerichtet): lädt das Google-Skript erst jetzt nach.
-  gdrive.init({
-    settings: () => state.settings,
-    setSetting: (k, v) => { state.settings[k] = v; return db.setSetting(k, v); },
-    onStatus: onSyncStatus,
-  }).catch((e) => console.warn('Google-Sicherung:', e));
+  if (gdWanted()) gdrive().catch((e) => console.warn('Google-Sicherung:', e));
 }
 
 // Umstellung auf Orte beim ersten Start von 1.7.x. Bei großen Beständen dauert sie ein paar
@@ -249,6 +281,9 @@ function onDbEvent(type) {
     window.__inventarFailed = false;
     box.hidden = true;
     if (bootBoxOriginal !== null) { box.innerHTML = bootBoxOriginal; bootBoxOriginal = null; }
+  } else if (type === 'quota') {
+    // Speicher voll (db.js): immer sagen, auch wenn der Aufrufer den Fehler selbst schluckt.
+    toast(db.QUOTA_MSG, true);
   } else if (type === 'versionchange') {
     const bar = $('#update-bar');
     bar.querySelector('span').textContent = 'Neue Version in einem anderen Tab';
@@ -260,7 +295,7 @@ function onDbEvent(type) {
 // Die Start-Szene öffnet sich in die App, sobald sie steht (js/intro.js). Liegt darunter die
 // Einführung, bekommt danach deren Überschrift den Fokus (vorher ist sie inert).
 function hideSplash() {
-  intro.done().then(() => onboarding.focusStart());
+  intro.done().then(() => onbM?.focusStart());
 }
 
 // skipped: übersprungen (oder Escape) – dann bleibt man, wo man war (beim ersten Start
@@ -300,13 +335,13 @@ async function reloadAll() {
   if (state.rsPlace && !placeById(state.rsPlace)) state.rsPlace = '';
   refreshPickers();
   // Dokumente (für Fristen auf Zuhause); scheitert das, startet die App trotzdem.
-  await cabinet.load().catch((e) => console.warn('Dokumente laden:', e));
+  await loadIndex().catch((e) => console.warn('Dokumente laden:', e));
 }
 
 // Vorschläge: Kategorien; Räume nur aus dem Ort des Felds (data-place), ohne Ort alle.
 function comboSource(kind, input) {
   if (kind === 'categories') return state.cats.map(c => c.name);
-  if (kind === 'doctitles') return cabinet.titles();
+  if (kind === 'doctitles') return docTitles();
   if (kind === 'items') return [...new Map(state.items.filter(i => !i.archived && i.name).map(i => [low(i.name), i.name])).values()];
   const pid = input?.dataset.place || '';
   const rooms = pid && placeById(pid) ? roomsIn(pid) : state.rooms;
@@ -350,8 +385,8 @@ function renderView(view) {
   else if (view === 'add') renderCapture();
   else if (view === 'rooms') renderRooms();
   else if (view === 'archive') renderArchive();
-  else if (view === 'docs') cabinet.render();
-  else if (view === 'docadd') cabinet.renderAdd();
+  else if (view === 'docs') cabM?.render();
+  else if (view === 'docadd') cabM?.renderAdd();
   else if (view === 'room' && !home.renderRoom(state.roomId, state.placeId) && state.view === 'room') navigate('back');
 }
 
@@ -456,6 +491,7 @@ function navigate(view, { instant = false, fresh = false } = {}) {
   });
   glass.setTab(tab, { instant });
   if (view !== from) glass.resetBar();
+  if (view !== from && TABS.includes(view) && !instant) sound.play('tick');
 
   renderView(view);
   if (view === 'settings') { renderManagers(); updateStorageInfo(); }
@@ -483,7 +519,7 @@ function navigate(view, { instant = false, fresh = false } = {}) {
 // Zurückwischen vom linken Rand – nur in Push-Ansichten und wenn nichts darüber liegt.
 let swipeFrom = null;
 function beginSwipeBack() {
-  if (!PUSH.includes(state.view) || motion.busy() || !$('#lightbox').hidden || sheet.isOpen() || onboarding.isOpen()) return null;
+  if (!PUSH.includes(state.view) || motion.busy() || !$('#lightbox').hidden || sheet.isOpen() || !$('#onboarding').hidden) return null;
   const prev = prevView();
   const prevEl = $('#view-' + prev);
   if (!prevEl || prev === state.view) return null;
@@ -535,7 +571,7 @@ function visibleItems() {
 // Wo: „Auto · Kofferraum · Regal 2“ mit dem Symbol des Orts.
 function rowHTML(it, why, opts = {}) {
   const thumb = isThumb(it.thumb)
-    ? `<img class="thumb" src="${esc(it.thumb)}" alt="">`
+    ? `<img class="thumb" src="${esc(it.thumb)}" alt="" loading="lazy" decoding="async">`
     : placeholderHTML(it, 'thumb');
   const cat = opts.noCat ? '' : catName(it.categoryId);
   const p = opts.inRoom ? null : placeOf(it);
@@ -560,10 +596,63 @@ function rowHTML(it, why, opts = {}) {
       ${title}
       <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${place ? `<span class="place">${p ? placeIcon(p) : icon('pin')}<span>${esc(place)}</span></span>` : ''}${qty}</div>
       ${out ? `<div class="out-tag">${icon('out')}<span>${esc(out)}</span></div>` : ''}${it.dupOf && !it.archived ? '<div class="dup-tag">Ähnlicher Eintrag schon vorhanden</div>' : ''}
-      ${why ? `<div class="why">${esc(why)}</div>` : `<div class="when">${dtf.format(new Date(it.createdAt))}</div>`}
+      ${why ? `<div class="why">${esc(why)}</div>` : `<div class="when">${df.format(new Date(it.createdAt))}</div>`}
     </div>
   </button>`;
 }
+
+/* ---------------- Zeichnen in Schüben (1.10.0) ----------------
+ * Lange Listen: die ersten Zeilen sofort, weitere erst, wenn man in ihre Nähe scrollt – ein
+ * unsichtbarer Wächter (IntersectionObserver) unter der Liste holt jeweils den nächsten Schub.
+ * Die Gesten (Wischen, langes Drücken, Auswahl) hängen an der Liste, nicht an den Zeilen. */
+const ROWS_FIRST = 50;
+const ROWS_STEP = 60;
+const ROW_EST = 64;   // eher knapp geschätzte Zeilenhöhe – lieber ein paar Zeilen zu viel sofort
+const rowJobs = new WeakMap();   // Liste -> { rows, at, toHTML, more }
+let moreObserver = null;
+function onMore(entries) {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    const box = e.target.previousElementSibling;
+    const job = box && rowJobs.get(box);
+    if (!job || job.at >= job.rows.length) continue;
+    box.insertAdjacentHTML('beforeend', job.rows.slice(job.at, job.at + ROWS_STEP).map(job.toHTML).join(''));
+    job.at += ROWS_STEP;
+    // Steht der Wächter danach immer noch im Blick, meldet der Observer das nicht erneut – neu beobachten.
+    moreObserver.unobserve(e.target);
+    if (job.at < job.rows.length) moreObserver.observe(e.target);
+  }
+}
+/** rows in box zeichnen; mindestens so viele sofort, dass die Stelle `keepY` (Scroll-Position) gefüllt ist. */
+function drawRows(box, rows, toHTML, keepY = 0) {
+  const first = Math.max(ROWS_FIRST, Math.ceil((keepY + 1200) / ROW_EST));
+  box.innerHTML = rows.slice(0, first).map(toHTML).join('');
+  let more = box.nextElementSibling;
+  if (!more || !more.classList.contains('rows-more')) {
+    more = document.createElement('div');
+    more.className = 'rows-more';
+    more.setAttribute('aria-hidden', 'true');
+    box.after(more);
+  }
+  rowJobs.set(box, { rows, at: first, toHTML });
+  if (!('IntersectionObserver' in window)) {   // sehr alte Browser: dann eben alles auf einmal
+    box.insertAdjacentHTML('beforeend', rows.slice(first).map(toHTML).join(''));
+    return;
+  }
+  moreObserver ||= new IntersectionObserver(onMore, { rootMargin: '0px 0px 1600px 0px' });
+  moreObserver.unobserve(more);
+  if (first < rows.length) moreObserver.observe(more);
+}
+
+// „Alles“ nur neu aufbauen, wenn sich etwas geändert hat, das in den Zeilen steht –
+// sonst ist ein Tab-Wechsel zurück zu „Alles“ fast kostenlos.
+let listSig = '';
+const itemSig = (it) => [it.id, it.updatedAt, it.createdAt, it.name, it.quantity, it.aiState, it.roomId, it.placeId, it.categoryId,
+  it.locationDetail, it.dupOf, it.archived, it.thumb ? it.thumb.length : 0, outText(it)].join('\u0001');
+const listContextSig = () => [
+  state.cats.map(c => c.id + c.name).join(), state.rooms.map(r => r.id + r.name + r.placeId).join(),
+  state.places.map(p => p.id + p.name + p.icon + p.color).join(), hasKey(), state.listFilter, state.sel ? [...state.sel].join() : '-',
+].join('\u0002');
 
 function renderList() {
   if (state.aiSearch) { renderAiResult(); return; }
@@ -579,7 +668,13 @@ function renderList() {
     + icon('chev-r', 'go');
   const rows = visibleItems();
   const total = state.items.filter(i => !i.archived).length;
-  $('#list').innerHTML = rows.map(it => rowHTML(it)).join('');
+  const sig = listContextSig() + '\u0003' + rows.map(itemSig).join('\u0004');
+  if (sig !== listSig) {
+    listSig = sig;
+    const sc = $('#view-list .scroll');
+    drawRows($('#list'), rows, (it) => rowHTML(it), Math.max(sc?.scrollTop || 0, state.view === 'list' ? 0 : state.scrollPos.list || 0));
+  }
+  $('#list-archive').hidden = !state.items.some(i => i.archived) || !!state.listFilter;
   $('#list-count').textContent = total ? (rows.length === total ? `${total}` : `${rows.length}/${total}`) : '';
   const empty = $('#list-empty');
   empty.hidden = rows.length > 0;
@@ -608,9 +703,12 @@ function renderAiResult() {
   $('#ai-answer-q').textContent = a.question;
   $('#ai-answer-text').textContent = a.answer || 'Keine Antwort erhalten.';
   const docs = (a.docs || []).filter(m => m.doc);
+  listSig = '';   // die Liste zeigt jetzt etwas anderes
+  rowJobs.delete($('#list'));
+  $('#list-archive').hidden = true;
   $('#list').innerHTML = matches.map(m => rowHTML(m.item, m.why)).join('')
     + docs.map(m => `<button type="button" class="row drow" data-doc-hit="${esc(m.doc.id)}"><span class="d-ic">${icon('doc')}</span>`
-      + `<span class="body"><span class="name">${esc(m.doc.name)}</span><span class="meta">${esc(cabinet.folderPath(m.doc.folderId) || 'Dokumente')}</span>`
+      + `<span class="body"><span class="name">${esc(m.doc.name)}</span><span class="meta">${esc(folderPath(m.doc.folderId) || 'Dokumente')}</span>`
       + `${m.why ? `<span class="why">${esc(m.why)}</span>` : ''}</span></button>`).join('');
   $('#list-count').textContent = (matches.length + docs.length) || '';
   const empty = $('#list-empty');
@@ -640,8 +738,8 @@ async function runAiSearch() {
     return;
   }
   const pool = state.items.filter(i => !i.archived);
-  // Dokumente: NUR Titel, Ordnerpfad, Stichworte, Datum (cabinet.aiDocs → docsForAi) – nie Inhalte.
-  const docs = cabinet.aiDocs();
+  // Dokumente: NUR Titel, Ordnerpfad, Stichworte, Datum (aiDocs → docsForAi) – nie Inhalte.
+  const docs = aiDocs();
   if (!pool.length && !docs.list.length) { toast('Es ist noch nichts erfasst.', true); return; }
 
   const btn = $('#ai-search');
@@ -684,7 +782,7 @@ async function runAiSearch() {
 
 function renderArchive() {
   const rows = state.items.filter(i => i.archived).sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
-  $('#arch-list').innerHTML = rows.map(it => rowHTML(it)).join('');
+  drawRows($('#arch-list'), rows, (it) => rowHTML(it), state.scrollPos.archive || 0);
   $('#arch-count').textContent = rows.length || '';
   $('#arch-empty').hidden = rows.length > 0;
 }
@@ -706,6 +804,17 @@ function drawPlaceChips(box, selected, opts) {
   if (on && (on.offsetLeft < row.scrollLeft || on.offsetLeft + on.offsetWidth > row.scrollLeft + row.clientWidth)) {
     row.scrollLeft = Math.max(0, on.offsetLeft - 16);
   }
+}
+
+// Den gewählten Chip waagerecht mittig zeigen – wie scrollIntoView({ inline: 'center' }),
+// aber nur in der Chip-Reihe, damit die Seite nicht senkrecht springt.
+function centerChip(box) {
+  const row = box?.querySelector('.pchips');
+  const on = row?.querySelector('.pchip.on');
+  if (!on || !row.clientWidth) return;
+  const a = on.getBoundingClientRect();
+  const b = row.getBoundingClientRect();
+  row.scrollLeft = Math.max(0, row.scrollLeft + (a.left + a.width / 2) - (b.left + b.width / 2));
 }
 
 // Tipp auf einen Orts-Chip: gewählt – oder, noch einmal angetippt, wieder offen.
@@ -777,7 +886,7 @@ function renderCapNow(announce = false) {
   const room = $('#cap-room').value.trim();
   const now = $('#cap-now');
   now.innerHTML = !p && !room
-    ? '<span class="open">Noch offen</span> <small>ordnest du später zu</small>'
+    ? '<span class="open">Ort wählen</span> <small>(optional)</small>'
     : (p ? `${placeIcon(p)}<b>${esc(p.name)}</b>` : '') + (room ? `${p ? ' <i>›</i> ' : ''}<b>${esc(room)}</b>` : '');
   const said = capNowText();
   if (announce && said !== capNowSaid) $('#cap-now-live').textContent = `Du bist gerade in: ${said}`;
@@ -908,7 +1017,7 @@ async function captureBatch(files) {
 
   state.capture.busy = '';
   renderCurrent();
-  if (failed < files.length) haptic();   // Foto gespeichert
+  if (failed < files.length) { haptic(); sound.play('click'); }   // Foto gespeichert
   if (failed) toast(`${plural(failed, 'Foto konnte', 'Fotos konnten')} nicht gelesen werden.`, true);
   updateStorageInfo();
 }
@@ -936,6 +1045,7 @@ async function saveManual() {
     await reloadAll();
     resetManual();
     renderCapture();
+    sound.play('save');
     toast(`„${name}“ gespeichert.`);
     updateStorageInfo();
     if (!categoryId) suggestCategoryLater(it.id, name);
@@ -1607,6 +1717,7 @@ async function archiveWithUndo(id) {
     undoBatch = batch;
     const n = batch.ids.length;
     const msg = n > 1 ? `${n} archiviert` : it.name ? `„${it.name}“ archiviert.` : 'Ins Archiv verschoben.';
+    sound.play('swipe');
     toast(msg, false, {
       label: 'Rückgängig',
       batch,
@@ -1614,6 +1725,7 @@ async function archiveWithUndo(id) {
         if (undoBatch === batch) undoBatch = null;
         try {
           for (const x of batch.ids) await db.restoreItem(x);
+          sound.play('undo');
           await refreshItems();
           renderCurrent();
           updateStorageInfo();
@@ -1748,11 +1860,13 @@ async function archiveMany(ids) {
     endSelect();
     updateStorageInfo();
     haptic();
+    sound.play('swipe');
     toast(`${ids.length} archiviert`, false, {
       label: 'Rückgängig',
       run: async () => {
         try {
           await db.patchItems(ids, { archived: 0, archivedAt: null });
+          sound.play('undo');
           await refreshItems();
           renderCurrent();
           updateStorageInfo();
@@ -1809,6 +1923,8 @@ function checklistSheet(pid) {
       const id = b.dataset.check;
       if (done.has(id)) done.delete(id); else done.add(id);
       haptic();
+      // Häkchen – und wenn damit alles dabei ist, ein kleiner Akkord.
+      if (done.has(id)) sound.play(checkItems(pid).every(x => done.has(x.id)) ? 'chord' : 'check');
       draw();
     },
     onSubmit: () => true,
@@ -1904,12 +2020,12 @@ async function keepDup() {
 
 async function renderDocs(itemId) {
   let list = [];
-  try { list = await db.docsOf(itemId); } catch (e) { console.warn('Anhänge laden:', e); }
+  try { list = await db.docsOf(itemId); } catch (e) { console.warn('Belege laden:', e); }
   if (state.currentId !== itemId) return;
   state.docs = list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   $('#it-docs').innerHTML = state.docs.map(d => `<div class="doc-row">
       <button type="button" class="doc-open" data-doc="${esc(d.id)}">${icon(isImageDoc(d) ? 'photos' : 'doc')}<span class="doc-txt"><b>${esc(d.name)}</b><small>${isImageDoc(d) ? 'Bild' : 'PDF'} · ${esc(docSize(d))}</small></span></button>
-      <button type="button" class="doc-del" data-doc-del="${esc(d.id)}" aria-label="Anhang „${esc(d.name)}“ löschen">${icon('trash')}</button>
+      <button type="button" class="doc-del" data-doc-del="${esc(d.id)}" aria-label="Beleg „${esc(d.name)}“ löschen">${icon('trash')}</button>
     </div>`).join('');
   return state.docs;
 }
@@ -1925,13 +2041,13 @@ async function addDocs(files) {
     } catch (e) { toast(e.message, true); }
   }
   await renderDocs(id);
-  await cabinet.load().catch(() => {});
-  if (n) { haptic(); toast(`${plural(n, 'Anhang', 'Anhänge')} gespeichert.`); updateStorageInfo(); }
+  await loadIndex().catch(() => {});
+  if (n) { haptic(); toast(`${plural(n, 'Beleg', 'Belege')} gespeichert.`); updateStorageInfo(); }
 }
 
 function openDoc(docId) {
   const d = state.docs.find(x => x.id === docId);
-  if (d) cabinet.show(d);
+  if (d) cabinet().then((c) => c.show(d)).catch((e) => toast(e.message, true));
 }
 
 async function deleteDoc(docId) {
@@ -1939,27 +2055,31 @@ async function deleteDoc(docId) {
   if (!d) return;
   // Liegt der Beleg auch in einem Ordner (Dokumente), nur die Verknüpfung lösen.
   if (d.folderId) {
-    if (!confirm(`„${d.name}“ vom Eintrag lösen? Das Dokument bleibt im Ordner „${cabinet.folderPath(d.folderId)}“.`)) return;
-    try { await db.patchDoc(docId, { itemId: null }); await renderDocs(state.currentId); await cabinet.load(); toast('Verknüpfung gelöst.'); } catch (e) { toast(e.message, true); }
+    if (!confirm(`„${d.name}“ vom Eintrag lösen? Das Dokument bleibt im Ordner „${folderPath(d.folderId)}“.`)) return;
+    try { await db.patchDoc(docId, { itemId: null }); await renderDocs(state.currentId); await loadIndex(); toast('Verknüpfung gelöst.'); } catch (e) { toast(e.message, true); }
     return;
   }
-  if (!confirm(`Anhang „${d.name}“ löschen?`)) return;
+  if (!confirm(`Beleg „${d.name}“ löschen?`)) return;
   try {
     await db.delDoc(docId);
-    await cabinet.load();
+    await loadIndex();
     await renderDocs(state.currentId);
-    toast('Anhang gelöscht.');
+    toast('Beleg gelöscht.');
     updateStorageInfo();
   } catch (e) { toast(e.message, true); }
 }
 
 /* =========================== Zuhause: Aktionen =========================== */
 
+function openCabinet(at) {
+  cabinet().then((c) => c.open(at)).catch((e) => toast('Dokumente laden: ' + e.message, true));
+}
+
 function onHomeClick(e) {
-  if (e.target.closest('#home-docs') || e.target.closest('[data-due-more]')) { cabinet.open(); return; }
+  if (e.target.closest('#home-docs') || e.target.closest('[data-due-more]')) { openCabinet(); return; }
   if (e.target.closest('#home-sync')) { onSyncTap(); return; }
   const dd = e.target.closest('[data-due-doc]');
-  if (dd) { cabinet.docSheet(dd.dataset.dueDoc); return; }
+  if (dd) { cabinet().then((c) => c.docSheet(dd.dataset.dueDoc)).catch((e) => toast(e.message, true)); return; }
   const todo = e.target.closest('[data-todo]');
   if (todo) {
     const k = todo.dataset.todo;
@@ -1978,8 +2098,8 @@ function onHomeClick(e) {
   if (bk) { if (bk.dataset.backup === 'later') snoozeBackup(); else homeBackupGo(); return; }
   const ck = e.target.closest('[data-checklist]');
   if (ck) { checklistSheet(ck.dataset.checklist); return; }
-  const hp = e.target.closest('[data-home-place]') || e.target.closest('[data-home-head]');
-  if (hp) { setHomePlace(hp.dataset.homePlace ?? hp.dataset.homeHead); return; }
+  const hp = e.target.closest('[data-home-place]');
+  if (hp) { setHomePlace(hp.dataset.homePlace); return; }
   if (e.target.closest('[data-place-add]')) { addPlaceSheet(); return; }
   if (e.target.closest('[data-rooms-assign]')) { assignLostRoomsSheet(); return; }
   const pm = e.target.closest('[data-place-menu]');
@@ -2087,6 +2207,8 @@ async function openItem(id) {
   $('#item-nophoto').hidden = false;
   $('#item-expand').hidden = true;
   navigate('item', { fresh: true });
+  // Gewählten Ort-Chip mittig ins Bild – erst jetzt ist die Ansicht sichtbar und messbar.
+  requestAnimationFrame(() => centerChip($('#it-place')));
 
   if (it.photoId) {
     const photo = await db.get('photos', it.photoId);
@@ -2209,6 +2331,7 @@ async function saveItem() {
     if (Object.keys(patch).length) await db.patchItem(it.id, patch);
     await reloadAll();
     navigate('back');
+    sound.play('save');
     toast('Gespeichert.');
   } catch (e) {
     toast('Speichern fehlgeschlagen: ' + e.message, true);
@@ -2223,7 +2346,18 @@ function fillSettingsForm() {
   $('#set-imgmax').value = String(state.settings.imgMax || 1600);
   $('#exp-encrypt').checked = !!state.settings.expEncrypt;
   $('#gd-client').value = state.settings.gdClientId || '';
+  applySoundSettings();
   renderGdSettings();
+}
+
+// Töne (1.10.0): Standard an, Lautstärke 0,25.
+function applySoundSettings() {
+  const on = state.settings.sound !== false;
+  const vol = typeof state.settings.soundVol === 'number' ? state.settings.soundVol : 0.25;
+  $('#set-sound').checked = on;
+  $('#set-sound-vol').value = String(vol);
+  $('#set-sound-vol').disabled = !on;
+  sound.configure({ enabled: on, volume: vol });
 }
 
 // Setzt die Auswahl und ergänzt den Eintrag, falls er in der Liste fehlt.
@@ -2277,38 +2411,20 @@ async function loadModelList() {
   }
 }
 
+// Einstellungen: nur noch Kategorien – Orte und Räume verwaltet der Tab „Räume“ (1.10.0).
 function renderManagers() {
-  const usedCat = new Map(), usedRoom = new Map(), usedPlace = new Map();
+  const usedCat = new Map();
   for (const it of state.items) {
     if (it.categoryId) usedCat.set(it.categoryId, (usedCat.get(it.categoryId) || 0) + 1);
-    if (it.roomId) usedRoom.set(it.roomId, (usedRoom.get(it.roomId) || 0) + 1);
-    const p = placeOf(it);
-    if (p) usedPlace.set(p.id, (usedPlace.get(p.id) || 0) + 1);
   }
-  const row = (r, used, kind, lead = '') => `<div class="m" data-id="${esc(r.id)}" data-kind="${kind}">
-          ${lead}<input value="${esc(r.name)}" data-rename aria-label="${labelOf(kind)} umbenennen">
+  const row = (r, used, kind) => `<div class="m" data-id="${esc(r.id)}" data-kind="${kind}">
+          <input value="${esc(r.name)}" data-rename aria-label="${labelOf(kind)} umbenennen">
           <span class="cnt">${used.get(r.id) || 0}</span>
           <button data-drop aria-label="${labelOf(kind)} „${esc(r.name)}“ löschen">${icon('trash')}</button>
         </div>`;
   const none = (txt) => `<div class="none">${txt}</div>`;
   $('#cat-mgr').innerHTML = state.cats.length ? state.cats.map(r => row(r, usedCat, 'categories')).join('')
     : none('Noch nichts angelegt – entsteht automatisch beim Hinzufügen.');
-  $('#place-mgr').innerHTML = state.places.length
-    ? state.places.map(p => row(p, usedPlace, 'places',
-      `<button class="m-badge" data-style aria-label="Symbol und Farbe von „${esc(p.name)}“">${placeBadge(p)}</button>`)).join('')
-    : none('Noch kein Ort – entsteht mit dem ersten Raum („Zuhause“) oder hier.');
-  // Räume nach Ort gruppiert; Räume, deren Ort fehlt, stehen am Ende für sich.
-  const groups = state.places.map(p => [p, roomsIn(p.id)]).filter(([, rs]) => rs.length);
-  const lost = state.rooms.filter(r => !placeById(r.placeId));
-  $('#room-mgr').innerHTML = state.rooms.length
-    ? groups.map(([p, rs]) => `<p class="mgr-sub">${placeBadge(p)}<span>${esc(p.name)}</span></p>` + rs.map(r => row(r, usedRoom, 'rooms')).join('')).join('')
-      + (lost.length ? `<p class="mgr-sub"><span>Ohne Ort</span></p>` + lost.map(r => row(r, usedRoom, 'rooms')).join('') : '')
-    : none('Noch nichts angelegt – entsteht automatisch beim Hinzufügen.');
-  const sel = $('#room-new-place');
-  const keep = sel.value;
-  sel.innerHTML = state.places.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
-  sel.hidden = state.places.length < 2;
-  sel.value = state.places.some(p => p.id === keep) ? keep : (placeById(state.settings.lastPlace)?.id || state.places[0]?.id || '');
 }
 
 const fieldOf = (kind) => (kind === 'categories' ? 'categoryId' : kind === 'places' ? 'placeId' : 'roomId');
@@ -2438,13 +2554,14 @@ async function buildBackup(password = '') {
   out.innerHTML = '<span class="spin"></span>Sicherung wird erstellt …';
   try {
     const withPhotos = $('#exp-photos').checked;
+    const backup = await backupMod();
     exportFile = await backup.buildExport({
       withPhotos,
       onProgress: (i, n) => { out.innerHTML = `<span class="spin"></span>Foto ${i} von ${n} …`; },
     });
     if (password) {
       out.innerHTML = '<span class="spin"></span>Wird verschlüsselt …';
-      exportFile.blob = await sealBackup(exportFile.blob, password);
+      exportFile.blob = await (await cryptoMod()).sealBackup(exportFile.blob, password);
       exportFile.filename = exportFile.filename.replace(/\.json$/, '-verschluesselt.json');
     }
     const c = exportFile.counts;
@@ -2453,6 +2570,7 @@ async function buildBackup(password = '') {
       + `${c.categories} Kategorien, ${plural(c.places, 'Ort', 'Orte')}, ${c.rooms} Räume, ${plural(c.docs || 0, 'Dokument', 'Dokumente')} – ${mb(exportFile.blob.size)}`
       + (password ? ', verschlüsselt.' : '.');
     $('#exp-save').hidden = false;
+    sound.play('bell');
   } catch (e) {
     out.className = 'hint err';
     out.textContent = 'Sicherung fehlgeschlagen: ' + e.message;
@@ -2504,8 +2622,9 @@ async function homeBackupGo() {
   state.homeBackup = 'building';
   home.renderHome();
   try {
-    exportFile = await backup.buildExport({ withPhotos: true });
+    exportFile = await (await backupMod()).buildExport({ withPhotos: true });
     state.homeBackup = 'ready';
+    sound.play('bell');
   } catch (e) {
     state.homeBackup = '';
     toast('Sicherung fehlgeschlagen: ' + e.message, true);
@@ -2536,8 +2655,10 @@ async function readImportFile(file) {
     } catch (e) {
       throw new Error('Die Datei konnte nicht gelesen werden: ' + e.message);
     }
+    const backup = await backupMod();
     importData = backup.parseBackup(text);
-    if (isEncryptedBackup(importData)) {
+    const cr = await cryptoMod();
+    if (cr.isEncryptedBackup(importData)) {
       const wrap = importData;
       importData = null;
       out.textContent = 'Die Sicherung ist verschlüsselt.';
@@ -2546,13 +2667,13 @@ async function readImportFile(file) {
         onPassword: async (pw) => {
           out.innerHTML = '<span class="spin"></span>Wird entschlüsselt …';
           try {
-            importData = backup.parseBackup(await openBackup(wrap, pw));
+            importData = backup.parseBackup(await cr.openBackup(wrap, pw));
             showImportInfo();
           } catch (e) {
             importData = null;
             $('#imp-input').value = '';
             out.className = 'hint err';
-            out.textContent = e instanceof WrongPassword ? 'Das Passwort stimmt nicht. Es wurde nichts verändert.' : e.message;
+            out.textContent = isWrongPw(e) ? 'Das Passwort stimmt nicht. Es wurde nichts verändert.' : e.message;
           }
         },
       });
@@ -2592,7 +2713,7 @@ async function runImport(mode) {
   out.className = 'hint';
   out.innerHTML = '<span class="spin"></span>Wird eingelesen …';
   try {
-    const stats = await backup.applyBackup(importData, mode, (i, n) => {
+    const stats = await (await backupMod()).applyBackup(importData, mode, (i, n) => {
       out.innerHTML = `<span class="spin"></span>Foto ${i} von ${n} …`;
     });
     importData = null;
@@ -2603,6 +2724,7 @@ async function runImport(mode) {
     updateStorageInfo();
     queue.kick();   // mitgebrachte, noch nicht erkannte Fotos jetzt abarbeiten
     out.className = 'hint ok';
+    sound.play('bell');
     out.textContent = `${plural(stats.items, 'Eintrag', 'Einträge')}, ${stats.photos} Fotos und ${plural(stats.docs || 0, 'Dokument', 'Dokumente')} eingelesen`
       + (stats.skipped ? `, ${stats.skipped} waren schon vorhanden.` : '.');
   } catch (e) {
@@ -2670,7 +2792,7 @@ function wire() {
   const rowClick = (e) => {
     const row = e.target.closest('.row');
     if (!row) return;
-    if (row.dataset.docHit) { cabinet.docSheet(row.dataset.docHit); return; }
+    if (row.dataset.docHit) { cabinet().then((c) => c.docSheet(row.dataset.docHit)).catch((e) => toast(e.message, true)); return; }
     if (state.sel && !row.closest('#arch-list')) { toggleSel(row.dataset.id); return; }
     const step = e.target.closest('[data-step]');
     if (step) { stepQty(row.dataset.id, Number(step.dataset.step)); return; }
@@ -2724,7 +2846,7 @@ function wire() {
   roomScroll.addEventListener('scroll', () => {
     $('#view-room').classList.toggle('scrolled', roomScroll.scrollTop > 40);
   }, { passive: true });
-  $('#onb-again').addEventListener('click', () => onboarding.show());
+  $('#onb-again').addEventListener('click', () => onboarding().then((m) => m.show()).catch((e) => toast(e.message, true)));
 
   // --- Gesten ---
   const archiveAct = `<span class="sa-in">${icon('archive')}<span>Archiv</span></span>`;
@@ -2736,7 +2858,7 @@ function wire() {
   for (const root of [$('#home-rooms'), $('#places-grid')]) {
     longPress(root, '.rt[data-room]', (el) => roomMenu(el.dataset.room));
     longPress(root, '.rt[data-place-open]', (el) => placeMenu(el.dataset.placeOpen));
-    longPress(root, '.pgroup-head[data-place-head], .pgroup-head[data-home-head]', (el) => placeMenu(el.dataset.placeHead || el.dataset.homeHead));
+    longPress(root, '.pgroup-head[data-place-head]', (el) => placeMenu(el.dataset.placeHead));
   }
   edgeSwipe($('#edge'), beginSwipeBack, commitSwipeBack);
 
@@ -2862,9 +2984,23 @@ function wire() {
     await db.setSetting('model', e.target.value);
     queue.kick({ reset: true });
   });
+  // --- 1.10.0: Töne ---
+  const soundPrefs = () => { sound.configure({ enabled: $('#set-sound').checked, volume: Number($('#set-sound-vol').value) }); $('#set-sound-vol').disabled = !$('#set-sound').checked; };
+  $('#set-sound').addEventListener('change', async (e) => {
+    state.settings.sound = e.target.checked;
+    soundPrefs();
+    if (e.target.checked) { sound.unlock(); sound.play('save'); }   // kurzer Beispielton
+    await db.setSetting('sound', e.target.checked).catch((err) => console.warn('Töne merken:', err));
+  });
+  $('#set-sound-vol').addEventListener('change', async (e) => {
+    state.settings.soundVol = Number(e.target.value);
+    soundPrefs();
+    sound.play('check');
+    await db.setSetting('soundVol', state.settings.soundVol).catch((err) => console.warn('Lautstärke merken:', err));
+  });
   $('#set-imgmax').addEventListener('change', async (e) => {
     state.settings.imgMax = Number(e.target.value);
-    await db.setSetting('imgMax', state.settings.imgMax);
+    await db.setSetting('imgMax', state.settings.imgMax).catch((err) => toast(err.message, true));
   });
   // --- Sicherung ---
   $('#exp-build').addEventListener('click', buildBackupClick);
@@ -2913,8 +3049,6 @@ function wire() {
       renameNamed(m.dataset.kind, m.dataset.id, inp.value);
     });
     root.addEventListener('click', (e) => {
-      const st = e.target.closest('[data-style]');
-      if (st) { placeStyleSheet(st.closest('.m').dataset.id); return; }
       const btn = e.target.closest('[data-drop]');
       if (!btn) return;
       const m = btn.closest('.m');
@@ -2922,31 +3056,31 @@ function wire() {
     });
   };
   mgrHandler($('#cat-mgr'));
-  mgrHandler($('#place-mgr'));
-  mgrHandler($('#room-mgr'));
 
   // --- 1.9.0: Dokumente ---
-  $('#docs-back').addEventListener('click', () => cabinet.up());
-  $('#docs-q').addEventListener('input', () => cabinet.render());
-  $('#docs-list').addEventListener('click', (e) => cabinet.onClick(e));
-  $('#docs-list').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-folder-menu]')) { e.preventDefault(); cabinet.onClick(e); } });
-  $('#docs-folder-add').addEventListener('click', () => cabinet.newFolder());
-  for (const b of [$('#docs-add'), $('#docs-new')]) b.addEventListener('click', () => cabinet.openAdd());
+  // Diese Ansichten öffnet nur der Aktenschrank selbst – er ist dann schon geladen (cabM).
+  $('#docs-back').addEventListener('click', () => cabM?.up());
+  $('#docs-q').addEventListener('input', () => cabM?.render());
+  $('#docs-list').addEventListener('click', (e) => cabM?.onClick(e));
+  $('#docs-empty').addEventListener('click', (e) => cabM?.onClick(e));
+  $('#docs-list').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-folder-menu]')) { e.preventDefault(); cabM?.onClick(e); } });
+  $('#docs-folder-add').addEventListener('click', () => cabM?.newFolder());
+  for (const b of [$('#docs-add'), $('#docs-new')]) b.addEventListener('click', () => cabinet().then((c) => c.openAdd()));
   $('#da-scan').addEventListener('click', () => $('#da-scan-input').click());
   $('#da-photos').addEventListener('click', () => $('#da-photos-input').click());
   $('#da-file').addEventListener('click', () => $('#da-file-input').click());
-  $('#da-scan-input').addEventListener('change', (e) => { cabinet.addPages(e.target.files || [], true); e.target.value = ''; });
-  $('#da-photos-input').addEventListener('change', (e) => { cabinet.addPages(e.target.files || [], false); e.target.value = ''; });
+  $('#da-scan-input').addEventListener('change', (e) => { cabM?.addPages(e.target.files || [], true); e.target.value = ''; });
+  $('#da-photos-input').addEventListener('change', (e) => { cabM?.addPages(e.target.files || [], false); e.target.value = ''; });
   $('#da-file-input').addEventListener('change', (e) => {
     const f = e.target.files?.[0];
-    if (f && /pdf/i.test(f.type || f.name)) cabinet.setFile(f); else if (f) cabinet.addPages([f], false);
+    if (f && /pdf/i.test(f.type || f.name)) cabM?.setFile(f); else if (f) cabM?.addPages([f], false);
     e.target.value = '';
   });
-  $('#da-pages-card').addEventListener('click', (e) => cabinet.onAddClick(e));
-  $('#da-filecard').addEventListener('click', (e) => cabinet.onAddClick(e));
-  $('#da-enhance').addEventListener('change', () => cabinet.renderAdd());
+  $('#da-pages-card').addEventListener('click', (e) => cabM?.onAddClick(e));
+  $('#da-filecard').addEventListener('click', (e) => cabM?.onAddClick(e));
+  $('#da-enhance').addEventListener('change', () => cabM?.renderAdd());
   $('#da-due-kind').addEventListener('change', (e) => { $('#da-due-row').hidden = !e.target.value; });
-  $('#da-save').addEventListener('click', () => cabinet.save());
+  $('#da-save').addEventListener('click', () => cabM?.save());
 
   // --- 1.9.0: Google Drive ---
   $('#gd-client').addEventListener('change', (e) => {
@@ -2954,7 +3088,7 @@ function wire() {
     state.settings.gdClientId = v;
     db.setSetting('gdClientId', v).catch(() => {});
     if (v && !/\.apps\.googleusercontent\.com$/.test(v)) toast('Die Client-ID endet normalerweise auf „.apps.googleusercontent.com“.', true);
-    if (v) gdrive.loadGsi().catch(() => {});
+    if (v) gdrive().then((m) => m.loadGsi()).catch(() => {});
     renderGdSettings();
   });
   $('#gd-setup').addEventListener('click', gdSetupClick);
@@ -2962,14 +3096,12 @@ function wire() {
   $('#gd-restore').addEventListener('click', gdRestoreClick);
   $('#gd-off').addEventListener('click', async () => {
     if (!confirm('Google-Sicherung ausschalten? Die Sicherung in Google Drive bleibt liegen; das gemerkte Passwort wird auf diesem Gerät vergessen.')) return;
-    await gdrive.disconnect();
+    await (await gdrive()).disconnect();
     renderGdSettings();
     toast('Google-Sicherung ist aus.');
   });
 
   $('#cat-add').addEventListener('click', () => addNamed('categories', $('#cat-new')));
-  $('#place-add').addEventListener('click', () => addNamed('places', $('#place-new')));
-  $('#room-add').addEventListener('click', () => addNamed('rooms', $('#room-new')));
 }
 
 /* =========================== 1.9.0: Passwort, Google Drive =========================== */
@@ -3010,16 +3142,17 @@ function gdSetupClick() {
   state.settings.gdClientId = cid;
   db.setSetting('gdClientId', cid).catch(() => {});
   if (!cid) { toast('Bitte zuerst die OAuth-Client-ID eintragen (Anleitung darunter).', true); $('#gd-client').focus(); return; }
-  gdrive.loadGsi().catch(() => {});
+  gdrive().then((m) => m.loadGsi()).catch(() => {});
   passwordSheet({
     title: 'Passwort für die Google-Sicherung', repeat: true, remember: true, submit: 'Mit Google verbinden',
     note: 'Mit diesem Passwort wird alles verschlüsselt, bevor es das Gerät verlässt. Passwort vergessen = Sicherung unbrauchbar. Gibt es schon eine Sicherung, nimm dasselbe Passwort wie dort.',
     onPassword: (pw, remember) => {
-      const conn = gdrive.connect();   // noch im Tipp: Anmeldefenster
+      // Noch im Tipp: Anmeldefenster. Das Modul lädt beim Öffnen der Einstellungen vor (gdPreload).
+      const conn = gd ? gd.connect() : gdrive().then((m) => m.connect());
       gdOut('Verbinde mit Google …', 'busy');
-      conn.then(() => gdrive.setup(pw, remember))
-        .then((r) => { gdOut(r ? `Eingerichtet und gesichert (${plural(r.uploaded, 'Datei', 'Dateien')} hochgeladen).` : 'Eingerichtet.', 'ok'); toast('Google-Sicherung ist eingerichtet.'); })
-        .catch((e) => { gdOut(e instanceof WrongPassword ? 'Das Passwort passt nicht zur vorhandenen Sicherung in Google Drive. Nichts wurde verändert.' : e.message, 'err'); })
+      conn.then(() => gd.setup(pw, remember))
+        .then((r) => { sound.play('bell'); gdOut(r ? `Eingerichtet und gesichert (${plural(r.uploaded, 'Datei', 'Dateien')} hochgeladen).` : 'Eingerichtet.', 'ok'); toast('Google-Sicherung ist eingerichtet.'); })
+        .catch((e) => { gdOut(isWrongPw(e) ? 'Das Passwort passt nicht zur vorhandenen Sicherung in Google Drive. Nichts wurde verändert.' : e.message, 'err'); })
         .finally(renderGdSettings);
     },
   });
@@ -3030,14 +3163,15 @@ function gdRestoreClick() {
   if (!cid) { toast('Bitte zuerst die OAuth-Client-ID eintragen.', true); return; }
   if (cid !== state.settings.gdClientId) { state.settings.gdClientId = cid; db.setSetting('gdClientId', cid).catch(() => {}); }
   if (!confirm('Aus Google Drive wiederherstellen? Alles auf diesem Gerät wird durch die Sicherung ersetzt.')) return;
-  gdrive.loadGsi().catch(() => {});
+  gdrive().then((m) => m.loadGsi()).catch(() => {});
   passwordSheet({
     title: 'Wiederherstellen', repeat: false, remember: true, submit: 'Wiederherstellen',
     onPassword: (pw, remember) => {
-      const conn = gdrive.connect();
+      const conn = gd ? gd.connect() : gdrive().then((m) => m.connect());
       gdOut('Verbinde mit Google …', 'busy');
-      conn.then(() => gdrive.restore(pw, remember, (t) => gdOut(t, 'busy')))
+      conn.then(() => gd.restore(pw, remember, (t) => gdOut(t, 'busy')))
         .then(async (st) => {
+          sound.play('bell');
           await reloadAll();
           renderManagers();
           renderCurrent();
@@ -3046,7 +3180,7 @@ function gdRestoreClick() {
           gdOut(`Wiederhergestellt: ${plural(st.items, 'Eintrag', 'Einträge')}, ${st.photos} Fotos, ${plural(st.docs, 'Dokument', 'Dokumente')}`
             + (st.missing ? ` – ${st.missing} Dateien fehlten.` : '.'), 'ok');
         })
-        .catch((e) => gdOut((e instanceof WrongPassword ? 'Das Passwort stimmt nicht.' : e.message) + ' Es wurde nichts verändert.', 'err'))
+        .catch((e) => gdOut((isWrongPw(e) ? 'Das Passwort stimmt nicht.' : e.message) + ' Es wurde nichts verändert.', 'err'))
         .finally(renderGdSettings);
     },
   });
@@ -3054,23 +3188,24 @@ function gdRestoreClick() {
 
 // Tipp auf die Statuszeile (Zuhause) oder „Jetzt sichern“: je nach Lage anmelden, Passwort, sichern.
 function onSyncTap(manual = false) {
-  const x = gdrive.status();
+  const x = gdStatus();
+  if (x.enabled && !gd) { gdrive().then(() => onSyncTap(manual)).catch((e) => toast(e.message, true)); return; }
   if (!x.enabled) { navigate('settings'); $('#gd-client').scrollIntoView({ block: 'center' }); return; }
   if (x.state === 'needPassword') {
     passwordSheet({
       title: 'Google-Sicherung fortsetzen', remember: true, submit: 'Fortsetzen',
       onPassword: (pw, remember) => {
-        const conn = gdrive.connect();
-        conn.then(() => gdrive.unlock(pw, remember)).then(() => toast('Gesichert.'))
-          .catch((e) => toast(e instanceof WrongPassword ? 'Das Passwort stimmt nicht.' : e.message, true));
+        const conn = gd.connect();
+        conn.then(() => gd.unlock(pw, remember)).then(() => toast('Gesichert.'))
+          .catch((e) => toast(isWrongPw(e) ? 'Das Passwort stimmt nicht.' : e.message, true));
       },
     });
     return;
   }
   if (x.state === 'error' && !manual) { navigate('settings'); $('#gd-status').scrollIntoView({ block: 'center' }); return; }
   // Anmeldung nötig oder abgelaufen: das Fenster muss jetzt, im Tipp, aufgehen.
-  const run = x.state === 'needAuth' ? gdrive.connect().then(() => gdrive.syncNow()) : gdrive.syncNow();
-  run.then((r) => { if (manual && r) toast(r.uploaded ? `Gesichert – ${plural(r.uploaded, 'neue Datei', 'neue Dateien')}.` : 'Gesichert – nichts Neues.'); })
+  const run = x.state === 'needAuth' ? gd.connect().then(() => gd.syncNow()) : gd.syncNow();
+  run.then((r) => { if (manual && r) sound.play('bell'); if (manual && r) toast(r.uploaded ? `Gesichert – ${plural(r.uploaded, 'neue Datei', 'neue Dateien')}.` : 'Gesichert – nichts Neues.'); })
     .catch((e) => toast(e.message, true));
 }
 
@@ -3080,10 +3215,10 @@ function onSyncStatus() {
 }
 
 function renderGdSettings() {
-  const x = gdrive.status();
+  const x = gdStatus();
   const el = $('#gd-status');
   if (!el) return;
-  el.textContent = x.enabled ? gdrive.statusText() : (state.settings.gdClientId ? 'Noch nicht eingerichtet.' : 'Aus.');
+  el.textContent = x.enabled ? (gdStatusText() || 'Wird geladen …') : (state.settings.gdClientId ? 'Noch nicht eingerichtet.' : 'Aus.');
   el.className = 'gd-status' + (x.state === 'error' || x.state === 'needAuth' || x.state === 'needPassword' ? ' warn' : x.state === 'ok' ? ' ok' : '');
   $('#gd-on').hidden = !x.enabled;
   $('#gd-setup').hidden = x.enabled;
@@ -3093,9 +3228,7 @@ async function addNamed(kind, input) {
   const name = input.value.trim();
   if (!name) return;
   try {
-    if (kind === 'rooms') await db.ensureRoom($('#room-new-place').value, name);
-    else if (kind === 'places') await db.ensurePlace(name);
-    else await db.ensureNamed(kind, name);
+    await db.ensureNamed(kind, name);
     input.value = '';
     await reloadAll();
     renderManagers();
@@ -3112,6 +3245,7 @@ let toastAction = null;   // Aktion des gerade stehenden Toasts (oder null)
 // action: { label, run } – z. B. „Rückgängig“; bleibt dann 5 s stehen.
 function toast(msg, isError, action) {
   const t = $('#toast');
+  if (isError) sound.play('error');
   toastAction = action || null;
   t.className = 'toast' + (isError ? ' err' : '') + (action ? ' has-act' : '');
   if (action) {

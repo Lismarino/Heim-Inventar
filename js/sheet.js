@@ -7,6 +7,7 @@
 import { esc, icon, modal, trapTab } from './ui.js';
 import { reduced, springAnimate, num } from './motion.js';
 import { origin } from './glass.js';
+import { play } from './sound.js';
 
 const $ = (s) => document.querySelector(s);
 let onAction = null;
@@ -62,6 +63,7 @@ function show(html) {
 
 /** Aktionen: [{ id, label, icon, danger }]. head: fertiges (escaptes) HTML für den Kopf. */
 export function open({ head = '', actions, onAction: fn }) {
+  play('pop');
   onAction = fn;
   onSubmit = null;
   onPanelClick = null;

@@ -4,6 +4,7 @@
 import * as db from './db.js';
 import * as img from './img.js';
 import * as ai from './gemini.js';
+import { play } from './sound.js';
 
 const MAX_PARALLEL = 2;
 const AI_EDGE = 768;          // an Gemini geht eine kleine Fassung – das spart Zeit
@@ -128,6 +129,7 @@ async function work(id) {
     const res = await db.applyRecognition(id, found.map(f => ({ name: f.name, category: f.category, confidence: f.confidence })));
     // Stark ähnlicher Eintrag schon vorhanden? Nur ein Hinweis am neuen – blockiert nichts.
     if (res?.applied) await db.flagDuplicate(id).catch((e) => console.warn('Duplikat-Prüfung:', e));
+    if (res?.applied) play('sparkle');   // gedrosselt in sound.js: höchstens alle 1,5 s
     tries.delete(id);
     quotaHits = 0;
     if (slow && ++okStreak >= SLOW_RECOVER) { slow = false; okStreak = 0; }

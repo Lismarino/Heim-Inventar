@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
-<meta name="app-version" content="1.9.0">
+<meta name="app-version" content="1.10.0">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -180,8 +180,8 @@
         <div class="sec-row"><h2 class="sec">Zuletzt hinzugefügt</h2><button class="sec-link" data-nav="list">Alle</button></div>
         <div class="recent" id="home-recent"></div>
       </section>
-      <section>
-        <div class="sec-row"><h2 class="sec">Räume <span class="sec-n" id="home-rooms-count"></span></h2><button class="sec-link" data-nav="places" id="home-rooms-all" hidden>Alle</button></div>
+      <section id="home-rooms-sec">
+        <div class="sec-row"><h2 class="sec">Räume <span class="sec-n" id="home-rooms-count"></span></h2><button class="sec-link" data-nav="places" id="home-rooms-all">Alle</button></div>
         <div class="room-groups" id="home-rooms"></div>
       </section>
     </div>
@@ -222,6 +222,8 @@
       <button class="noroom-hint" id="noroom-hint" data-nav="rooms" hidden></button>
       <div id="list" class="list"></div>
       <div class="empty" id="list-empty" hidden></div>
+      <!-- 1.10.0: das Archiv (aus der Liste gewischte Einträge) wohnt jetzt hier, nicht mehr in den Einstellungen -->
+      <button class="list-archive" id="list-archive" data-nav="archive" hidden><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg><span>Archiv ansehen</span><svg class="ic go" aria-hidden="true"><use href="#i-chev-r"/></svg></button>
     </div>
   </section>
 
@@ -427,7 +429,7 @@
           <label class="field"><span>Kaufdatum</span><input id="it-bought" type="date"></label>
           <label class="field"><span>Garantie bis</span><input id="it-warranty" type="date"></label>
           <div class="docs" id="it-docs"></div>
-          <button class="btn block" id="it-doc-add" type="button"><svg class="ic" aria-hidden="true"><use href="#i-doc"/></svg>Anhang hinzufügen</button>
+          <button class="btn block" id="it-doc-add" type="button"><svg class="ic" aria-hidden="true"><use href="#i-doc"/></svg>Beleg hinzufügen</button>
           <input type="file" id="it-doc-input" accept="image/*,application/pdf" multiple hidden>
           <p class="hint">Fotos oder PDFs (bis 10 MB), z. B. Kassenbon, Rechnung, Garantieschein.</p>
         </details>
@@ -435,7 +437,7 @@
       <p class="hint meta-hint" id="it-meta"></p>
       <div id="it-actions">
         <button class="btn block" id="it-out-set"><svg class="ic" aria-hidden="true"><use href="#i-out"/></svg>Unterwegs / verliehen …</button>
-        <button class="btn danger block" id="it-archive"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg>Ins Archiv verschieben</button>
+        <button class="btn block" id="it-archive"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg>Ins Archiv verschieben</button>
       </div>
       <div id="it-actions-arch" hidden>
         <button class="btn block" id="it-restore">Wiederherstellen</button>
@@ -448,7 +450,7 @@
   <section class="view" id="view-archive" hidden>
     <div class="head">
       <header class="topbar">
-        <button class="link back" data-nav="settings"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+        <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
         <h1>Archiv</h1>
         <span class="count" id="arch-count"></span>
       </header>
@@ -534,8 +536,11 @@
 
       <h2 class="sec">Sicherung</h2>
       <div class="card">
-        <p class="hint lead">Sichert alles: Einträge, Kategorien, Orte, Räume, Archiv, Fotos und Anhänge (Belege) in einer Datei. Der API-Key wird aus Sicherheitsgründen nicht mitgesichert.</p>
-        <label class="check"><input type="checkbox" id="exp-photos" checked> <span>Fotos und Anhänge mitsichern</span></label>
+        <details class="help lead-help">
+          <summary>Was wird gesichert?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
+          <p>Alles: Einträge, Kategorien, Orte, Räume, Archiv, Fotos, Belege und Dokumente – in einer Datei. Der API-Key wird aus Sicherheitsgründen nicht mitgesichert.</p>
+        </details>
+        <label class="check"><input type="checkbox" id="exp-photos" checked> <span>Fotos und Belege mitsichern</span></label>
         <label class="check"><input type="checkbox" id="exp-encrypt"> <span>Sicherungsdatei mit Passwort verschlüsseln</span></label>
         <button class="btn primary block" id="exp-build">Sicherung erstellen</button>
         <p class="hint" id="exp-out"></p>
@@ -554,8 +559,11 @@
 
       <h2 class="sec">Google Drive (verschlüsselt)</h2>
       <div class="card gd-card">
-        <p class="hint lead">Sichert automatisch in den versteckten App-Ordner deines Google Drive – beim Start und etwa 30 Sekunden nach jeder Änderung. Alles wird <b>auf diesem Gerät</b> mit deinem Passwort verschlüsselt; Google sieht weder Inhalte noch Dateinamen.</p>
         <p class="gd-status" id="gd-status" role="status"></p>
+        <details class="help lead-help">
+          <summary>So funktioniert’s<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
+          <p>Sichert automatisch in den versteckten App-Ordner deines Google Drive – beim Start und etwa 30 Sekunden nach jeder Änderung. Alles wird <b>auf diesem Gerät</b> mit deinem Passwort verschlüsselt; Google sieht weder Inhalte noch Dateinamen.</p>
+        </details>
         <label class="field"><span>OAuth-Client-ID</span>
           <input id="gd-client" type="text" placeholder="…apps.googleusercontent.com" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         </label>
@@ -609,19 +617,16 @@
       <h2 class="sec">Kategorien</h2>
       <div class="card list-card">
         <div id="cat-mgr" class="mgr"></div>
-        <div class="row-btns add-row"><input id="cat-new" type="text" placeholder="Neue Kategorie"><button class="btn" id="cat-add">Anlegen</button></div>
+        <div class="row-btns add-row"><input id="cat-new" type="text" placeholder="Neue Kategorie" aria-label="Neue Kategorie"><button class="btn" id="cat-add">Anlegen</button></div>
       </div>
+      <p class="hint sec-note">Orte und Räume legst du im Tab <button class="link inline" data-nav="places">Räume</button> an – umbenennen, Symbol ändern oder löschen über ⋯ bzw. langes Drücken.</p>
 
-      <h2 class="sec">Orte</h2>
-      <div class="card list-card">
-        <div id="place-mgr" class="mgr"></div>
-        <div class="row-btns add-row"><input id="place-new" type="text" placeholder="Neuer Ort, z. B. Auto" aria-label="Neuer Ort"><button class="btn" id="place-add">Anlegen</button></div>
-      </div>
-
-      <h2 class="sec">Räume</h2>
-      <div class="card list-card">
-        <div id="room-mgr" class="mgr"></div>
-        <div class="row-btns add-row"><input id="room-new" type="text" placeholder="Neuer Raum" aria-label="Neuer Raum"><select id="room-new-place" aria-label="Ort des neuen Raums" hidden></select><button class="btn" id="room-add">Anlegen</button></div>
+      <h2 class="sec">Töne</h2>
+      <div class="card">
+        <label class="check"><input type="checkbox" id="set-sound" checked> <span>Töne bei Aktionen</span></label>
+        <label class="field range-field"><span>Lautstärke</span>
+          <input type="range" id="set-sound-vol" min="0.05" max="0.5" step="0.05" value="0.25" aria-label="Lautstärke der Töne">
+        </label>
       </div>
 
       <h2 class="sec">Fotos &amp; Speicher</h2>
@@ -638,13 +643,15 @@
         <p class="hint strong" id="storage-info"></p>
         <button class="btn block" id="diag-run">Datenbank prüfen</button>
         <p class="hint" id="diag-out"></p>
-        <button class="btn block" data-nav="archive"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg>Archiv öffnen</button>
       </div>
 
       <h2 class="sec">Über</h2>
       <div class="card about">
-        <p class="hint">Alle Einträge und Fotos liegen ausschließlich in der lokalen Datenbank dieses Geräts (IndexedDB). Es gibt keinen Server und kein Konto. Nur die Bilderkennung schickt das jeweilige Foto an Google Gemini; die KI-Suche bekommt Namen und Orte – von Dokumenten nur Titel, Ordner, Stichworte und Datum, nie den Inhalt. Die Google-Drive-Sicherung ist freiwillig und wird vorher auf dem Gerät verschlüsselt.</p>
-        <p class="hint">Die Daten hängen an dieser Web-Adresse und an dieser Installation. Sie gehen verloren, wenn du die App vom Home-Bildschirm löschst, in Safari die Website-Daten löschst oder die App unter einer anderen Adresse aufrufst. Mach dir deshalb regelmäßig eine Sicherung.</p>
+        <details class="help lead-help">
+          <summary>Wo liegen meine Daten?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
+          <p>Alle Einträge und Fotos liegen ausschließlich in der lokalen Datenbank dieses Geräts (IndexedDB). Es gibt keinen Server und kein Konto. Nur die Bilderkennung schickt das jeweilige Foto an Google Gemini; die KI-Suche bekommt Namen und Orte – von Dokumenten nur Titel, Ordner, Stichworte und Datum, nie den Inhalt. Die Google-Drive-Sicherung ist freiwillig und wird vorher auf dem Gerät verschlüsselt.</p>
+          <p>Die Daten hängen an dieser Web-Adresse und an dieser Installation. Sie gehen verloren, wenn du die App vom Home-Bildschirm löschst, in Safari die Website-Daten löschst oder die App unter einer anderen Adresse aufrufst. Mach dir deshalb regelmäßig eine Sicherung.</p>
+        </details>
         <button class="btn block" id="onb-again">Einführung erneut zeigen</button>
         <p class="hint ver" id="ver-info"></p>
       </div>
@@ -670,7 +677,7 @@
 
   <nav id="nav">
     <span class="lens" aria-hidden="true"></span>
-    <button data-nav="home" class="active" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Zuhause</span></button>
+    <button data-nav="home" class="active" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Start</span></button>
     <button data-nav="list"><svg class="ic" aria-hidden="true"><use href="#i-shelf"/></svg><span>Alles</span></button>
     <button data-nav="add" class="add" aria-label="Hinzufügen"><span class="fab"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span></button>
     <button data-nav="places"><svg class="ic" aria-hidden="true"><use href="#i-rooms"/></svg><span>Räume</span></button>
@@ -859,7 +866,7 @@ setTimeout(function watchdog() {
                  './js/combo.js', './js/backup.js', './js/queue.js', './js/ui.js', './js/home.js',
                  './js/gestures.js', './js/motion.js', './js/sheet.js', './js/onboarding.js',
                  './js/glass.js', './js/intro.js', './js/places.js', './js/match.js', './js/docs.js',
-                 './js/cabinet.js', './js/scan.js', './js/crypto.js', './js/gdrive.js',
+                 './js/cabinet.js', './js/scan.js', './js/crypto.js', './js/gdrive.js', './js/sound.js',
                  './css/app.css', './manifest.webmanifest'];
     var missing = [];
     Promise.all(files.map(function (f) {

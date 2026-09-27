@@ -2,8 +2,9 @@
 // Bilder werden wie Fotos verkleinert (JPEG), PDFs roh gespeichert – bis DOC_MAX.
 // 1.9.0: Dokumente (Aktenschrank) – derselbe Store; ein Dokument hat Ordner UND/ODER Eintrag.
 import * as img from './img.js';
-import { uid } from './db.js';
-import { cleanDate } from './match.js';
+import { uid, getAll, docMetas } from './db.js';
+import { cleanDate, daysUntil } from './match.js';
+import { norm } from './combo.js';
 
 // Startvorschläge beim ersten Öffnen von „Dokumente“ (abwählbar).
 export const FOLDER_SUGGESTIONS = ['Versicherungen', 'Verträge', 'Steuer', 'Auto', 'Arbeit', 'Gesundheit', 'Wohnen', 'Rechnungen'];
@@ -33,7 +34,7 @@ export const docMeta = (d) => ({
 export function cleanDocMeta(d) {
   const createdAt = num(d?.createdAt, Date.now());
   return {
-    name: cleanText(d?.name, 120) || 'Anhang',
+    name: cleanText(d?.name, 120) || 'Beleg',
     createdAt,
     updatedAt: num(d?.updatedAt, createdAt),
     date: cleanDate(d?.date),
@@ -102,4 +103,42 @@ export function shareName(doc) {
   const ext = doc.type === 'application/pdf' ? '.pdf' : '.jpg';
   const base = String(doc.name || 'Dokument').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/\.(pdf|jpe?g|png|heic)$/i, '').slice(0, 100) || 'Dokument';
   return base + ext;
+}
+
+/* ---------------- Verzeichnis (1.10.0) ----------------
+ * Ordner und Dokument-Metadaten (ohne Datei) für Zuhause (Fristen, Anzahl), Vorschläge, Suche
+ * und KI – schlank, direkt aus db.js. Der Aktenschrank (cabinet.js) teilt sich dieses
+ * Verzeichnis, wird aber erst beim Öffnen von „Dokumente“ geladen. */
+export const ix = { folders: [], docs: [], loaded: false };
+
+export async function loadIndex() {
+  const [folders, docs] = await Promise.all([getAll('folders'), docMetas()]);
+  ix.folders = folders;
+  ix.docs = docs;
+  ix.loaded = true;
+}
+
+export const folderById = (id) => ix.folders.find(f => f.id === id) || null;
+export const liveDocs = () => ix.docs.filter(d => !d.trashedAt);
+
+/** „Versicherungen › Auto“ – für Anzeige, Suche und KI. */
+export function folderPath(id, sep = ' › ') {
+  const out = [];
+  let f = folderById(id);
+  let guard = 0;
+  while (f && guard++ < 30) { out.unshift(f.name); f = folderById(f.parentId); }
+  return out.join(sep);
+}
+
+export const docCount = () => liveDocs().length;
+export const docTitles = () => [...new Map(liveDocs().map(d => [norm(d.name), d.name])).values()];
+/** Für die KI-Suche: NUR Titel, Ordnerpfad, Stichworte, Datum (siehe docsForAi). */
+export const aiDocs = () => { const list = liveDocs(); return { list, entries: docsForAi(list, (id) => folderPath(id)) }; };
+
+/** Fristen in den nächsten 30 Tagen (für Zuhause), die nächste zuerst. */
+export function dueSoon(days = 30) {
+  return liveDocs().map(d => ({ d, n: daysUntil(d.due) }))
+    .filter(x => x.n != null && x.n >= 0 && x.n <= days)
+    .sort((a, b) => a.n - b.n)
+    .map(({ d, n }) => ({ id: d.id, title: d.name, due: d.due, kind: DUE_KINDS[d.dueKind] || 'Frist', days: n }));
 }

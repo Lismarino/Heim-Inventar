@@ -16,7 +16,7 @@ import * as cr from './crypto.js';
 import { docMeta } from './docs.js';
 import { applyBackup, FORMAT_VERSION } from './backup.js';
 
-export const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const GSI_URL = 'https://accounts.google.com/gsi/client';
 const API = 'https://www.googleapis.com/drive/v3/files';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
@@ -37,7 +37,7 @@ let again = false;
 const st = { state: 'off', error: '', progress: '' };
 
 const s = () => ctx?.settings() || {};
-export const clientId = () => String(s().gdClientId || '').trim();
+const clientId = () => String(s().gdClientId || '').trim();
 export const enabled = () => !!(clientId() && s().gdEnabled);
 export const status = () => ({ ...st, last: Number(s().gdLastSync) || 0, enabled: enabled() });
 
@@ -292,7 +292,7 @@ export async function disconnect() {
 
 /* ---------------- Sichern ---------------- */
 
-export function schedule(ms = DEBOUNCE) {
+function schedule(ms = DEBOUNCE) {
   clearTimeout(timer);
   timer = setTimeout(() => { syncNow().catch(() => {}); }, ms);
 }
@@ -419,7 +419,7 @@ export async function restore(password, remember, onProgress = () => {}) {
 }
 
 /** „vor 2 Min.“ für die Statuszeile. */
-export function ago(t, now = Date.now()) {
+function ago(t, now = Date.now()) {
   const m = Math.round((now - t) / 60000);
   if (m < 1) return 'gerade eben';
   if (m < 60) return `vor ${m} Min.`;
