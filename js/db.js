@@ -11,11 +11,19 @@
 // 1.8.0 (Datenbank-Version 3): Store „docs“ (Anhänge, Index by_item). Neue, optionale Felder
 // am Eintrag: out { type, to, since } (unterwegs/verliehen), essential + homePlaceId
 // (Checkliste je Ort), serial, purchaseDate, warrantyUntil (JJJJ-MM-TT), dupOf/dupDismissed.
+//
+// 1.9.0 (Datenbank-Version 4): Dokumente (digitaler Aktenschrank). Store „folders“
+// { id, name, parentId|null, createdAt, order }. Der Store „docs“ bleibt – ein Dokument hat
+// jetzt Ordner UND/ODER Eintrag: { id, itemId|null, folderId|null, name (= Titel), type, buf,
+// createdAt, date, tags[], due, dueKind, trashedAt }. Die Anhänge aus 1.8.x bleiben unverändert
+// gültig (nur itemId, kein Ordner) – neue Felder sind optional, gelesen wird mit Ersatzwerten.
+// Neuer Index „by_folder“. Store „sync“ { key, value }: Google-Drive-Sicherung (Schlüssel als
+// nicht exportierbarer CryptoKey, Zugangs-Token, Blob-Tabelle) – wird nie mitgesichert.
 import { findSimilar } from './match.js';
 import { DEFAULT_PLACE, suggestIcon, colorFor, safeIcon, safeColor, byOrder } from './places.js';
 
 const DB_NAME = 'heim-inventar';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let _db = null;
 let _opening = null;
@@ -30,6 +38,16 @@ export function uid() {
 const listeners = new Set();
 export function onDbEvent(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 const emit = (type) => { for (const fn of listeners) { try { fn(type); } catch (_) { void _; } } };
+
+// Schreib-Meldungen (1.9.0) für die automatische Sicherung: fn(storeNamen) nach jedem
+// erfolgreichen Schreiben. „settings“ und „sync“ allein zählen nicht als Datenänderung.
+const writers = new Set();
+export function onWrite(fn) { writers.add(fn); return () => writers.delete(fn); }
+function wrote(stores) {
+  const list = [].concat(stores).filter(n => n !== 'settings' && n !== 'sync');
+  if (!list.length) return;
+  for (const fn of writers) { try { fn(list); } catch (_) { void _; } }
+}
 
 export function openDB() {
   if (_db) return Promise.resolve(_db);
@@ -55,6 +73,12 @@ export function openDB() {
       if (!db.objectStoreNames.contains('docs')) {
         db.createObjectStore('docs', { keyPath: 'id' }).createIndex('by_item', 'itemId');
       }
+      // Version 4 (1.9.0): Ordner, Index nach Ordner, Sync-Zustand. Rein additiv – kein
+      // bestehender Satz wird umgeschrieben; alles in der Upgrade-Transaktion (atomar).
+      if (!db.objectStoreNames.contains('folders')) db.createObjectStore('folders', { keyPath: 'id' });
+      const docs = req.transaction.objectStore('docs');
+      if (!docs.indexNames.contains('by_folder')) docs.createIndex('by_folder', 'folderId');
+      if (!db.objectStoreNames.contains('sync')) db.createObjectStore('sync', { keyPath: 'key' });
     };
     req.onsuccess = () => {
       _db = req.result;
@@ -84,7 +108,7 @@ function withTx(stores, mode, fn) {
   return openDB().then(db => new Promise((resolve, reject) => {
     const tx = db.transaction(stores, mode);
     let box;
-    tx.oncomplete = () => resolve(box);
+    tx.oncomplete = () => { if (mode === 'readwrite') wrote(stores); resolve(box); };
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error || new Error('Transaktion abgebrochen'));
     try { box = fn(tx); } catch (e) { try { tx.abort(); } catch (_) { void _; } reject(e); }
@@ -107,22 +131,27 @@ export async function get(name, key) {
 }
 export async function put(name, value) {
   await reqP((await store(name, 'readwrite')).put(value));
+  wrote(name);
   return value;
 }
 export async function del(name, key) {
-  return reqP((await store(name, 'readwrite')).delete(key));
+  const r = await reqP((await store(name, 'readwrite')).delete(key));
+  wrote(name);
+  return r;
 }
 export async function count(name) {
   return reqP((await store(name, 'readonly')).count());
 }
 export async function clear(name) {
-  return reqP((await store(name, 'readwrite')).clear());
+  const r = await reqP((await store(name, 'readwrite')).clear());
+  wrote(name);
+  return r;
 }
 
 /** Rohe Satzzahlen direkt aus der Datenbank – für die Speicher-Diagnose. */
 export async function rawCounts() {
   const out = {};
-  for (const s of ['items', 'photos', 'categories', 'rooms', 'places', 'docs', 'settings']) {
+  for (const s of ['items', 'photos', 'categories', 'rooms', 'places', 'docs', 'folders', 'settings']) {
     try { out[s] = await count(s); } catch (_) { void _; out[s] = -1; }
   }
   return out;
@@ -819,10 +848,13 @@ export async function purgeItem(id) {
   return withTx(['items', 'photos', 'docs'], 'readwrite', (tx) => {
     tx.objectStore('items').delete(id);
     if (dropPhoto) tx.objectStore('photos').delete(dropPhoto);
-    tx.objectStore('docs').index('by_item').openKeyCursor(IDBKeyRange.only(id)).onsuccess = (ev) => {
+    // Anhänge: nur reine Belege löschen – liegt ein Dokument auch in einem Ordner, bleibt es
+    // dort und verliert nur die Verknüpfung.
+    tx.objectStore('docs').index('by_item').openCursor(IDBKeyRange.only(id)).onsuccess = (ev) => {
       const cur = ev.target.result;
       if (!cur) return;
-      tx.objectStore('docs').delete(cur.primaryKey);
+      if (cur.value.folderId) cur.update({ ...cur.value, itemId: null });
+      else cur.delete();
       cur.continue();
     };
   });
@@ -882,9 +914,75 @@ export async function flagDuplicate(id) {
   return patchItem(id, { dupOf: hit.item.id }, (x) => !x.dupOf && !x.dupDismissed && !x.archived);
 }
 
-// Anhänge (Belege, Unterlagen): { id, itemId, name, type, buf, createdAt }
+// Anhänge (Belege, Unterlagen): { id, itemId, name, type, buf, createdAt } – ab 1.9.0 Dokumente
+// (siehe oben). Im Papierkorb liegende zählen am Eintrag nicht.
 export function docsOf(itemId) {
-  return store('docs', 'readonly').then(s => reqP(s.index('by_item').getAll(IDBKeyRange.only(itemId))));
+  return store('docs', 'readonly').then(s => reqP(s.index('by_item').getAll(IDBKeyRange.only(itemId))))
+    .then(list => list.filter(d => !d.trashedAt));
+}
+// Alle Dokumente ohne die Datei selbst – für Listen, Suche, Fristen (spart Speicher).
+export function docMetas() {
+  return withTx(['docs'], 'readonly', (tx) => {
+    const out = [];
+    tx.objectStore('docs').openCursor().onsuccess = (ev) => {
+      const cur = ev.target.result;
+      if (!cur) return;
+      const { buf, ...meta } = cur.value;
+      meta.size = buf?.byteLength || 0;
+      out.push(meta);
+      cur.continue();
+    };
+    return out;
+  });
+}
+// Metadaten eines Dokuments ändern (Titel, Ordner, Frist …) – die Datei bleibt, wie sie ist.
+export function patchDoc(id, patch) {
+  return withTx(['docs'], 'readwrite', (tx) => {
+    const box = { doc: null };
+    const s = tx.objectStore('docs');
+    s.get(id).onsuccess = (ev) => {
+      const d = ev.target.result;
+      if (!d) return;
+      const { buf: _b, ...safe } = patch;   // die Datei nie über diesen Weg ersetzen
+      void _b;
+      box.doc = { ...d, ...safe, updatedAt: Date.now() };
+      s.put(box.doc);
+    };
+    return box;
+  }).then(b => b.doc);
+}
+
+// Ordner löschen: samt Unterordnern; enthaltene Dokumente wandern in den Papierkorb
+// (wiederherstellbar) – EINE Transaktion.
+export function dropFolder(folderId) {
+  return withTx(['folders', 'docs'], 'readwrite', (tx) => {
+    const fs = tx.objectStore('folders');
+    const box = { folders: 0, docs: 0 };
+    fs.getAll().onsuccess = (ev) => {
+      const all = ev.target.result;
+      const gone = new Set([folderId]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const f of all) if (!gone.has(f.id) && gone.has(f.parentId)) { gone.add(f.id); grew = true; }
+      }
+      for (const id of gone) fs.delete(id);
+      box.folders = gone.size;
+      const now = Date.now();
+      tx.objectStore('docs').openCursor().onsuccess = (e2) => {
+        const cur = e2.target.result;
+        if (!cur) return;
+        if (gone.has(cur.value.folderId)) {
+          // Mit Eintrag verknüpft: bleibt als Beleg am Eintrag, sonst in den Papierkorb.
+          const d = cur.value;
+          cur.update(d.itemId ? { ...d, folderId: null } : { ...d, folderId: null, trashedAt: d.trashedAt || now });
+          box.docs++;
+        }
+        cur.continue();
+      };
+    };
+    return box;
+  });
 }
 export const addDoc = (doc) => put('docs', doc);
 export const delDoc = (id) => del('docs', id);
@@ -892,10 +990,10 @@ export const delDoc = (id) => del('docs', id);
 /* ---------------- Sicherung einlesen ---------------- */
 
 // Schreibt einen fertig vorbereiteten Import in EINER Transaktion.
-// `replace` leert vorher alle sechs Stores (samt Anhängen). Scheitert irgendetwas (Speicher voll,
+// `replace` leert vorher alle sieben Stores (samt Anhängen, 1.9.0: und Ordnern). Scheitert irgendetwas (Speicher voll,
 // ungültiger Schlüssel), rollt IndexedDB alles zurück – der alte Stand bleibt.
-export function writeImport({ replace = false, places = [], categories = [], rooms = [], photos = [], items = [], docs = [] }) {
-  const names = ['items', 'photos', 'categories', 'rooms', 'places', 'docs'];
+export function writeImport({ replace = false, places = [], categories = [], rooms = [], photos = [], items = [], docs = [], folders = [] }) {
+  const names = ['items', 'photos', 'categories', 'rooms', 'places', 'docs', 'folders'];
   return withTx(names, 'readwrite', (tx) => {
     if (replace) for (const n of names) tx.objectStore(n).clear();
     const putAll = (n, list) => { const s = tx.objectStore(n); for (const r of list) s.put(r); };
@@ -905,5 +1003,6 @@ export function writeImport({ replace = false, places = [], categories = [], roo
     putAll('photos', photos);
     putAll('items', items);
     putAll('docs', docs);
+    putAll('folders', folders);
   });
 }

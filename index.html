@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
-<meta name="app-version" content="1.8.1">
+<meta name="app-version" content="1.9.0">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -81,6 +81,11 @@
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2"/></symbol>
   <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14.5 4.5 10 9 5.5"/><path d="M4.5 10h10a5 5 0 0 1 0 10H12"/></symbol>
   <symbol id="i-rooms" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M11 3.5v5.25M11 12.25v8.25M3.5 12.25H8M11 12.25h9.5"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.25h7a2 2 0 0 1 2 2v8.75a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 14.5V3.5M8 7.25l4-3.75 4 3.75"/><path d="M8.5 10.5H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5M7.5 12h9"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.3-5.4M4.5 4.5V8.5h4"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18.5a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4.5 4.5 0 0 1-.5 9z"/></symbol>
   <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"/><path d="M14 3.5V8h4.5M8.75 12.5h6.5M8.75 16h4.5"/></symbol>
   <symbol id="i-out" viewBox="0 0 24 24"><path d="M13.5 4.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-4"/><path d="M10 16.5 5.5 12 10 7.5M5.5 12h10"/></symbol>
   <symbol id="i-done" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8.25 12.25 2.5 2.5 5-5.25"/></symbol>
@@ -161,6 +166,13 @@
       <button class="home-search" id="home-search" type="button">
         <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><span>Suchen oder KI fragen …</span>
       </button>
+      <!-- Dokumente (1.9.0): eigener Einstieg direkt auf Zuhause – ein Tipp, ohne einen Tab zu belegen -->
+      <button class="home-docs" id="home-docs" type="button">
+        <span class="hd-ic"><svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg></span>
+        <span class="hd-txt"><b>Dokumente</b><small id="home-docs-sub">Verträge, Versicherungen, Rechnungen</small></span>
+        <svg class="ic go" aria-hidden="true"><use href="#i-chev-r"/></svg>
+      </button>
+      <button class="home-sync" id="home-sync" type="button" hidden></button>
       <div class="card todo" id="home-todo" hidden></div>
       <div class="card backup-card" id="home-backup" hidden></div>
       <div class="empty home-empty" id="home-empty" hidden></div>
@@ -450,6 +462,69 @@
     </div>
   </section>
 
+  <!-- ============ DOKUMENTE (1.9.0, Push-Ansicht von Zuhause) ============ -->
+  <section class="view" id="view-docs" hidden>
+    <div class="head">
+      <header class="topbar">
+        <button class="link back" id="docs-back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg><span id="docs-back-txt">Zurück</span></button>
+        <h1 id="docs-title">Dokumente</h1>
+        <button class="link strong" id="docs-new" aria-label="Dokument hinzufügen"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Neu</button>
+      </header>
+      <div class="toolbar">
+        <label class="search">
+          <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+          <input id="docs-q" type="search" placeholder="Titel, Ordner, Stichwort …" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="Dokumente durchsuchen">
+        </label>
+      </div>
+    </div>
+    <div class="scroll docs-view">
+      <p class="docs-path" id="docs-path" hidden></p>
+      <div class="list docs-list" id="docs-list"></div>
+      <div class="empty" id="docs-empty" hidden></div>
+      <div class="row-btns docs-foot">
+        <button class="btn" id="docs-folder-add" type="button"><svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg>Neuer Ordner</button>
+        <button class="btn primary" id="docs-add" type="button"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Dokument</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DOKUMENT HINZUFÜGEN / BEARBEITEN ============ -->
+  <section class="view" id="view-docadd" hidden>
+    <div class="head">
+      <header class="topbar">
+        <button class="link" data-nav="back">Abbrechen</button>
+        <h1 id="da-head">Neues Dokument</h1>
+        <button class="link strong" id="da-save">Sichern</button>
+      </header>
+    </div>
+    <div class="scroll">
+      <div class="da-src" id="da-src">
+        <button class="da-btn" id="da-scan" type="button"><svg class="ic" aria-hidden="true"><use href="#i-scan"/></svg><span>Scannen</span></button>
+        <button class="da-btn" id="da-photos" type="button"><svg class="ic" aria-hidden="true"><use href="#i-photos"/></svg><span>Fotos</span></button>
+        <button class="da-btn" id="da-file" type="button"><svg class="ic" aria-hidden="true"><use href="#i-doc"/></svg><span>PDF / Datei</span></button>
+      </div>
+      <input type="file" id="da-scan-input" accept="image/*" capture="environment" hidden>
+      <input type="file" id="da-photos-input" accept="image/*" multiple hidden>
+      <input type="file" id="da-file-input" accept="application/pdf,.pdf,image/*" hidden>
+      <div class="card da-pages-card" id="da-pages-card" hidden>
+        <div class="da-pages" id="da-pages"></div>
+        <label class="check"><input type="checkbox" id="da-enhance"> <span>Schwarz-weiß, mehr Kontrast <small>(für Text)</small></span></label>
+        <p class="hint" id="da-pages-hint"></p>
+      </div>
+      <div class="card da-filecard" id="da-filecard" hidden></div>
+      <div class="card group">
+        <label class="field"><span>Titel</span><input id="da-title" type="text" autocomplete="off" data-combo="doctitles" placeholder="z. B. Kfz-Versicherung 2026"></label>
+        <label class="field"><span>Ordner</span><select id="da-folder" aria-label="Ordner"></select></label>
+        <label class="field"><span>Datum</span><input id="da-date" type="date"></label>
+        <label class="field"><span>Stichworte</span><input id="da-tags" type="text" autocomplete="off" placeholder="z. B. Kfz, Haftpflicht"></label>
+        <label class="field"><span>Frist</span><select id="da-due-kind" aria-label="Art der Frist"><option value="">Keine</option><option value="ablauf">Läuft ab</option><option value="kuendigen">Kündigen bis</option></select></label>
+        <label class="field" id="da-due-row" hidden><span>Bis</span><input id="da-due" type="date" aria-label="Frist-Datum"></label>
+        <label class="field"><span>Eintrag</span><input id="da-item" type="text" autocomplete="off" data-combo="items" placeholder="optional, z. B. Waschmaschine"></label>
+      </div>
+      <p class="hint">Dokumente bleiben auf diesem Gerät. Die KI-Suche kennt nur Titel, Ordner, Stichworte und Datum – nie den Inhalt.</p>
+    </div>
+  </section>
+
   <!-- ============ EINSTELLUNGEN ============ -->
   <section class="view" id="view-settings" hidden>
     <div class="head">
@@ -461,6 +536,7 @@
       <div class="card">
         <p class="hint lead">Sichert alles: Einträge, Kategorien, Orte, Räume, Archiv, Fotos und Anhänge (Belege) in einer Datei. Der API-Key wird aus Sicherheitsgründen nicht mitgesichert.</p>
         <label class="check"><input type="checkbox" id="exp-photos" checked> <span>Fotos und Anhänge mitsichern</span></label>
+        <label class="check"><input type="checkbox" id="exp-encrypt"> <span>Sicherungsdatei mit Passwort verschlüsseln</span></label>
         <button class="btn primary block" id="exp-build">Sicherung erstellen</button>
         <p class="hint" id="exp-out"></p>
         <button class="btn block" id="exp-save" hidden>Sichern / Teilen</button>
@@ -474,6 +550,27 @@
           <button class="btn danger block" id="imp-replace">Alles ersetzen</button>
           <button class="btn ghost block" id="imp-cancel">Abbrechen</button>
         </div>
+      </div>
+
+      <h2 class="sec">Google Drive (verschlüsselt)</h2>
+      <div class="card gd-card">
+        <p class="hint lead">Sichert automatisch in den versteckten App-Ordner deines Google Drive – beim Start und etwa 30 Sekunden nach jeder Änderung. Alles wird <b>auf diesem Gerät</b> mit deinem Passwort verschlüsselt; Google sieht weder Inhalte noch Dateinamen.</p>
+        <p class="gd-status" id="gd-status" role="status"></p>
+        <label class="field"><span>OAuth-Client-ID</span>
+          <input id="gd-client" type="text" placeholder="…apps.googleusercontent.com" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        </label>
+        <button class="btn primary block" id="gd-setup"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>Verbinden &amp; einrichten</button>
+        <div id="gd-on" hidden>
+          <button class="btn block" id="gd-sync">Jetzt sichern</button>
+          <button class="btn ghost block" id="gd-off">Google-Sicherung ausschalten</button>
+        </div>
+        <button class="btn block" id="gd-restore">Aus Google Drive wiederherstellen</button>
+        <p class="hint" id="gd-out"></p>
+        <details class="help">
+          <summary>Client-ID besorgen – Anleitung<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
+          <p>Einmalig in der Google Cloud Console ein Projekt anlegen, die Drive-API einschalten und einen OAuth-Client vom Typ „Webanwendung“ mit dem Ursprung <code>https://lismarino.github.io</code> erstellen. Die Schritt-für-Schritt-Anleitung steht in der Datei <b>docs/GOOGLE-DRIVE.md</b> im Projekt.</p>
+          <p><b>Wichtig:</b> Ohne dein Passwort ist die Sicherung unbrauchbar – niemand, auch nicht Google, kann sie entschlüsseln. Passwort vergessen = Sicherung verloren.</p>
+        </details>
       </div>
 
       <h2 class="sec">Google Gemini API</h2>
@@ -546,7 +643,7 @@
 
       <h2 class="sec">Über</h2>
       <div class="card about">
-        <p class="hint">Alle Einträge und Fotos liegen ausschließlich in der lokalen Datenbank dieses Geräts (IndexedDB). Es gibt keinen Server und kein Konto. Nur die Bilderkennung schickt das jeweilige Foto an Google Gemini.</p>
+        <p class="hint">Alle Einträge und Fotos liegen ausschließlich in der lokalen Datenbank dieses Geräts (IndexedDB). Es gibt keinen Server und kein Konto. Nur die Bilderkennung schickt das jeweilige Foto an Google Gemini; die KI-Suche bekommt Namen und Orte – von Dokumenten nur Titel, Ordner, Stichworte und Datum, nie den Inhalt. Die Google-Drive-Sicherung ist freiwillig und wird vorher auf dem Gerät verschlüsselt.</p>
         <p class="hint">Die Daten hängen an dieser Web-Adresse und an dieser Installation. Sie gehen verloren, wenn du die App vom Home-Bildschirm löschst, in Safari die Website-Daten löschst oder die App unter einer anderen Adresse aufrufst. Mach dir deshalb regelmäßig eine Sicherung.</p>
         <button class="btn block" id="onb-again">Einführung erneut zeigen</button>
         <p class="hint ver" id="ver-info"></p>
@@ -762,6 +859,7 @@ setTimeout(function watchdog() {
                  './js/combo.js', './js/backup.js', './js/queue.js', './js/ui.js', './js/home.js',
                  './js/gestures.js', './js/motion.js', './js/sheet.js', './js/onboarding.js',
                  './js/glass.js', './js/intro.js', './js/places.js', './js/match.js', './js/docs.js',
+                 './js/cabinet.js', './js/scan.js', './js/crypto.js', './js/gdrive.js',
                  './css/app.css', './manifest.webmanifest'];
     var missing = [];
     Promise.all(files.map(function (f) {

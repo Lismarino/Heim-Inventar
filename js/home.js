@@ -305,11 +305,26 @@ export function renderHome() {
   if (c.busy) rows.push(todoRow('busy', '', 'busy', `${c.busy} ${c.busy === 1 ? 'wird' : 'werden'} erkannt`, ctx.queueNote() || 'Die KI benennt sie im Hintergrund.'));
   if (c.needKey) rows.push(todoRow('needkey', 'sparkle', 'clay', `${c.needKey} ${c.needKey === 1 ? 'wartet' : 'warten'} auf API-Key`, 'Key in den Einstellungen eintragen'));
   if (c.out) rows.push(todoRow('out', 'out', 'clay', `${c.out} unterwegs/verliehen`, 'Antippen für die Liste'));
-  if (c.warranty) rows.push(todoRow('warranty', 'doc', 'clay', c.warranty === 1 ? 'Garantie läuft bald ab' : `${c.warranty}× Garantie läuft bald ab`, 'In den nächsten 30 Tagen'));
+  // Bald fällig (1.9.0): Garantien und Fristen aus den Dokumenten (≤ 30 Tage), zusammen.
+  const due = [];
+  if (c.warranty) due.push(todoRow('warranty', 'doc', 'clay', c.warranty === 1 ? 'Garantie läuft bald ab' : `${c.warranty}× Garantie läuft bald ab`, 'In den nächsten 30 Tagen'));
+  const docsDue = ctx.docsDue ? ctx.docsDue() : [];
+  for (const d of docsDue.slice(0, 4)) {
+    due.push(`<button class="todo-row" data-due-doc="${esc(d.id)}">
+      <span class="todo-ic clay">${icon('folder')}</span>
+      <span class="todo-txt"><b>${esc(d.title)}</b><small>${esc(`${d.kind} ${dueDay(d.days)}`)}</small></span>
+      ${icon('chev-r', 'go')}
+    </button>`);
+  }
+  if (docsDue.length > 4) due.push(`<button class="todo-row" id="home-due-more" data-due-more><span class="todo-ic busy">${icon('more')}</span><span class="todo-txt"><b>${docsDue.length - 4} weitere Fristen</b><small>In „Dokumente“ ansehen</small></span></button>`);
   renderBackup(all.length);
+  renderSync();
+  const docsN = ctx.docsCount ? ctx.docsCount() : 0;
+  $('#home-docs-sub').textContent = docsN ? plural(docsN, 'Dokument', 'Dokumente') + (docsDue.length ? ` · ${plural(docsDue.length, 'Frist', 'Fristen')} bald` : '') : 'Verträge, Versicherungen, Rechnungen';
   const todo = $('#home-todo');
-  todo.hidden = !rows.length;
-  todo.innerHTML = rows.length ? `<h2 class="todo-title">Zu erledigen</h2>${rows.join('')}` : '';
+  todo.hidden = !rows.length && !due.length;
+  todo.innerHTML = (rows.length ? `<h2 class="todo-title">Zu erledigen</h2>${rows.join('')}` : '')
+    + (due.length ? `<h2 class="todo-title${rows.length ? ' sub' : ''}">Bald fällig</h2>${due.join('')}` : '');
 
   // Leer: freundlicher Einstieg statt leerer Streifen
   const empty = !all.length;
@@ -352,11 +367,27 @@ export function renderHome() {
 
 // Sicherungs-Erinnerung: ab 7 Tagen seit der letzten Sicherung – oder nie gesichert, sobald
 // 10 Einträge da sind. „Später“ (backupSnooze) blendet sie 3 Tage aus.
+const dueDay = (n) => (n === 0 ? 'heute' : n === 1 ? 'morgen' : `in ${n} Tagen`);
+
+/** Statuszeile der Google-Drive-Sicherung (nur wenn eingerichtet). */
+export function renderSync() {
+  const el = $('#home-sync');
+  if (!el || !ctx.syncText) return;
+  const text = ctx.syncText();
+  const x = ctx.syncState();
+  el.hidden = !text;
+  if (!text) return;
+  const warn = x.state === 'error' || x.state === 'needAuth' || x.state === 'needPassword';
+  el.className = 'home-sync' + (warn ? ' warn' : x.state === 'syncing' ? ' busy' : '');
+  el.innerHTML = `${x.state === 'syncing' ? '<span class="spin"></span>' : icon(warn ? 'alert' : 'cloud')}<span>${esc(text)}</span>`;
+}
+
+// Sicherungs-Erinnerung: zählt auch die Google-Drive-Sicherung (1.9.0) als Sicherung.
 function renderBackup(n) {
   const box = $('#home-backup');
   const s = ctx.state.settings;
   const st = ctx.backupState();
-  const last = Number(s.lastBackupAt) || 0;
+  const last = Math.max(Number(s.lastBackupAt) || 0, s.gdEnabled ? Number(s.gdLastSync) || 0 : 0);
   const days = last ? daysSince(last) : 0;
   const due = Date.now() >= (Number(s.backupSnooze) || 0) && (last ? days >= 7 : n >= 10);
   box.hidden = !due && !st;

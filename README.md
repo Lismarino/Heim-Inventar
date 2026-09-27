@@ -325,6 +325,29 @@ Zu erreichen über Einstellungen → Archiv öffnen.
   und Anhänge (Fotos oder PDFs bis 10 MB; Bilder werden verkleinert). Läuft eine Garantie in den
   nächsten 30 Tagen ab, erinnert Zuhause daran.
 
+**Neu in 1.9.0**
+
+- **Dokumente** (digitaler Aktenschrank) – Karte **Dokumente** auf Zuhause, direkt unter der
+  Suche. Bewusst kein eigener Tab: Die fünf Plätze der Leiste sind belegt, und Zuhause ist der
+  Startbildschirm – so bleibt der Aktenschrank immer einen Tipp entfernt, ohne Räume oder
+  Einstellungen zu verdrängen. Beim ersten Öffnen schlägt die App Ordner vor (Versicherungen,
+  Verträge, Steuer, Auto, Arbeit, Gesundheit, Wohnen, Rechnungen – abwählbar). Ordner lassen sich
+  schachteln, umbenennen, verschieben und löschen (⋯ rechts; Inhalt kommt in den Papierkorb).
+- **Dokument hinzufügen** – **Scannen** (Kamera; mehrere Seiten, Drehen, „Schwarz-weiß, mehr
+  Kontrast“ → ein PDF, das die App selbst erzeugt), **Fotos** oder **PDF / Datei** aus der
+  Dateien-App. Dazu Titel (Vorschläge aus bisherigen Titeln), Ordner (der zuletzt benutzte ist
+  vorausgewählt), Datum, Stichworte, Frist („Läuft ab“ / „Kündigen bis“) und optional ein Eintrag.
+  Die Belege aus 1.8.0 gehören zum selben System: Ein Dokument kann in einem Ordner liegen, an
+  einem Eintrag hängen oder beides; reine Belege stehen unter „Belege zu Einträgen“.
+- Antippen: **Ansehen**, **Teilen / Sichern**, **Bearbeiten**, **Umbenennen**, **Verschieben**,
+  **In den Papierkorb** (mit Wiederherstellen). Die Suche oben findet Titel, Ordner und Stichworte.
+- **Bald fällig** auf Zuhause: Fristen der nächsten 30 Tage, zusammen mit ablaufenden Garantien.
+- **KI und Dokumente:** Die KI-Suche kennt von Dokumenten **nur Titel, Ordnerpfad, Stichworte und
+  Datum** – nie Dateien, Bilder oder Text daraus (erzwungen in `docsForAi` in `js/docs.js`).
+- **Automatische Sicherung in Google Drive**, Ende-zu-Ende verschlüsselt – siehe unten und
+  **[docs/GOOGLE-DRIVE.md](docs/GOOGLE-DRIVE.md)** (Einrichtung Schritt für Schritt).
+- **Sicherungsdatei mit Passwort verschlüsseln** (Haken unter Einstellungen → Sicherung).
+
 ---
 
 ## 4. Sicherung, Übertragung, Datenverlust
@@ -341,6 +364,28 @@ per Mail verschickst. Ihn trägst du auf dem neuen Gerät einmal von Hand ein.
 
 Der Haken „Fotos mitsichern“ lässt sich abschalten. Die Datei wird dann sehr klein, die
 Vorschaubilder in der Liste bleiben trotzdem erhalten – nur die Originale fehlen.
+
+**Verschlüsselt (seit 1.9.0):** Mit dem Haken „Sicherungsdatei mit Passwort verschlüsseln“ fragt
+die App vor dem Erstellen nach einem Passwort (PBKDF2-SHA-256 mit 310 000 Runden → AES-GCM).
+In der Datei steht dann nichts Lesbares mehr; beim Einlesen fragt die App nach dem Passwort.
+**Passwort vergessen = Datei unbrauchbar.**
+
+**Wohin?** iCloud Drive und Proton Drive gehen über diese Datei-Sicherung („In Dateien sichern“ →
+iCloud Drive bzw. der Proton-Drive-Ordner in der Dateien-App). Proton Drive hat keine Schnittstelle
+für Web-Apps, iCloud ebenso wenig – eine *automatische* Sicherung gibt es deshalb nur für Google Drive.
+
+### Automatisch in Google Drive (seit 1.9.0)
+
+Einstellungen → **Google Drive (verschlüsselt)**: OAuth-Client-ID eintragen (einmalig in der
+Google Cloud Console anlegen – Anleitung für Laien: **[docs/GOOGLE-DRIVE.md](docs/GOOGLE-DRIVE.md)**),
+**Verbinden & einrichten**, Passwort festlegen. Danach sichert die App beim Start und etwa 30 Sekunden
+nach jeder Änderung – nur Neues, verschlüsselt, in den versteckten App-Datenordner deines Drive
+(Scope `drive.appdata`: für dich und andere Apps unsichtbar, die App sieht nichts von deinem übrigen
+Drive). Google sieht weder Inhalte noch Dateinamen. Auf Zuhause steht „In Google Drive gesichert vor
+2 Min.“; läuft die Anmeldung ab (nach etwa einer Stunde) und lässt sie sich nicht still erneuern,
+steht dort „einmal tippen zum Fortsetzen“. Auf einem neuen Gerät: Client-ID eintragen →
+**Aus Google Drive wiederherstellen** → Passwort. Die Google-Sicherung zählt für die
+Sicherungs-Erinnerung mit.
 
 ### Einlesen
 
@@ -366,6 +411,12 @@ einlesen:** Alle Räume kommen dann nach „Zuhause“ (vorhanden – sonst in d
 Raum mit; Einträge ohne Raum stehen danach unter „Ohne Ort“, wie vorher unter „Ohne Raum“. Eine
 Sicherung aus 1.7.0 lässt sich in älteren Fassungen **nicht** einlesen („stammt aus einer neueren
 Version“). Symbole und Farben aus der Datei werden nur aus den festen Listen der App übernommen.
+Seit 1.9.0 ist es **Version 4**: dazu kommen `folders` (Ordner mit `parentId`) und an `docs` die
+Felder `folderId`, `date`, `tags`, `due`, `dueKind`, `trashedAt`. Version 1–3 bleiben lesbar; die
+Datenbank bekommt beim ersten Start von 1.9.0 die Speicher `folders` und `sync` sowie den Index
+`by_folder` (IndexedDB-Version 4) – bestehende Anhänge bleiben unverändert und erscheinen unter
+„Belege zu Einträgen“. Eine verschlüsselte Sicherung ist eine JSON-Hülle
+(`"encrypted": true`, Salz, Iterationen, Chiffretext in base64).
 Seit 1.8.0 ist es **Version 3**: dazu kommt `docs` (Anhänge als base64, nur mit „Fotos und
 Anhänge mitsichern“) und die neuen Felder am Eintrag (`out`, `essential`, `serial`,
 `purchaseDate`, `warrantyUntil`). Version 1 und 2 bleiben lesbar. Die Datenbank bekommt beim
@@ -433,7 +484,13 @@ js/home.js              Startseite „Zuhause“ (mit Orts-Umschalter), Tab „R
 js/places.js            Orte: Symbole, Farben, Symbol-Vorschlag aus dem Namen, Raumvorschläge je Art,
                         Chips und Plaketten (ohne Datenbank)
 js/match.js             Namen vergleichen (Habe ich das schon?, Duplikat-Hinweis), Unterwegs-Text, Datumsangaben
-js/docs.js              Belege & Unterlagen: Anhänge vorbereiten (Bilder verkleinern, PDFs bis 10 MB), anzeigen
+js/docs.js              Belege & Dokumente: vorbereiten (Bilder verkleinern, PDFs bis 10 MB), Metadaten
+                        bereinigen, docsForAi (einzige Stelle, die Dokumente für die KI aufbereitet)
+js/cabinet.js           Dokumente (Aktenschrank): Ordner, Übersicht, Suche, Papierkorb, Hinzufügen/Bearbeiten
+js/scan.js              Scan aufbereiten (Drehen, Graustufen/Kontrast, verkleinern) und PDF-Writer (JPEG-Seiten)
+js/crypto.js            PBKDF2 → AES-GCM (WebCrypto), verschlüsselte Sicherungsdatei
+js/gdrive.js            Google-Drive-Sicherung: Anmeldung (Google Identity Services, erst bei Bedarf
+                        nachgeladen), Manifest + Blobs verschlüsselt, inkrementell, Wiederherstellen
 js/ui.js                gemeinsame Darstellungs-Helfer (Escapen, Symbole, Platzhalter)
 js/motion.js            Übergänge zwischen den Ansichten (nur transform/opacity) und die Federn
 js/glass.js             Liquid Glass: Tab-Linse (und Linse im Orts-Umschalter), schrumpfende Leiste, Glas-Kopfzeilen, Aufquellen,
@@ -442,7 +499,7 @@ js/intro.js             Start-Szene „Glasregal“ (nur beim echten Start)
 js/gestures.js          Zurückwischen, Zeile wegwischen, langes Drücken, Haptik
 js/sheet.js             Aktionsblatt von unten (Kontextmenü, kleine Eingaben)
 js/onboarding.js        Einführung beim ersten Start
-js/db.js                IndexedDB (Version 2): Einträge, Fotos, Kategorien, Orte, Räume, Einstellungen;
+js/db.js                IndexedDB (Version 4 – Ordner, Sync-Zustand seit 1.9.0): Einträge, Fotos, Kategorien, Orte, Räume, Einstellungen;
                         Umstellung auf Orte (migratePlaces), Verschieben an Ort + Raum, Ort löschen
 js/img.js               Bilder dekodieren, drehen, verkleinern, kodieren
 js/gemini.js            Aufrufe an die Gemini-API
