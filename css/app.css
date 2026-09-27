@@ -1277,7 +1277,7 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 /* ---------- Tab-Leiste ---------- */
 /* Seitlich nie in die Safe-Areas (Querformat: Notch/Dynamic Island links oder rechts) */
 #nav{left:max(var(--nav-x),env(safe-area-inset-left,0px));right:max(var(--nav-x),env(safe-area-inset-right,0px))}
-#nav{background-color:var(--nav-tint);transform-origin:50% 100%;transition:transform var(--spring-dur) var(--spring)}
+#nav{background-color:var(--nav-tint);transform-origin:50% 100%;transition:transform var(--spring-dur) var(--spring),opacity .22s ease}
 /* Aktiver Tab in der dunkleren (hell: tieferen) Tanne – auf der grünen Linse sonst unter 4,5:1 */
 #nav button.active{color:var(--accent-ink)}
 #nav .lens{
@@ -1302,10 +1302,8 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 #nav button.is-pressed .ic{transform:scale(1.14)}
 #nav .add.is-pressed .fab{transform:scale(1.1)}
 #nav .add.is-pressed .fab .ic{transform:none}
-/* Beim Runterscrollen etwas kleiner, Beschriftungen weichen – wie in iOS 26 */
-#nav.compact{transform:translateY(6px) scale(.9)}
-#nav.compact button span:not(.fab){opacity:0;transform:translateY(-3px)}
-#nav.compact button:not(.add) .ic{transform:translateY(6px)}
+/* Beim Runterscrollen gleitet die Leiste nach unten weg, beim Hochscrollen kommt sie wieder */
+#nav.compact{transform:translateY(calc(100% + 24px + var(--safe-b)));opacity:0;pointer-events:none}
 
 /* ---------- Kopfzeile: Glas, sobald Inhalt darunter durchscrollt ---------- */
 .head{position:absolute;left:0;right:0;top:0;z-index:3}

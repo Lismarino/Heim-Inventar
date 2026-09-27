@@ -178,8 +178,9 @@ alles gut lesbar ist.
   wird nur noch übergeblendet. Solange die Szene steht, springt die Tab-Taste (Tastatur,
   Schaltersteuerung) nicht unsichtbar in die App dahinter.
 - **Tab-Leiste:** Die Markierung des aktiven Tabs ist eine Glas-Linse, die beim Wechsel federnd
-  hinübergleitet. Beim Runterscrollen wird die Leiste etwas kleiner, beim Hochscrollen oder
-  Anhalten wieder groß.
+  hinübergleitet. Beim Runterscrollen gleitet die Leiste nach unten weg, damit mehr Platz für die
+  Liste bleibt; beim Hochscrollen, ganz oben oder am Ende der Liste ist sie sofort wieder da.
+  Mit „Bewegung reduzieren“ bleibt sie stehen.
 - **Knöpfe aus Glas** (Tabs, Kamera-Knopf, Knöpfe oben, „Rückgängig“, „Abbrechen“ im Blatt)
   quellen beim Drücken leicht auf, ein Glanzlicht folgt dem Finger, solange er auf dem Knopf
   bleibt.

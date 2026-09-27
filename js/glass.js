@@ -128,10 +128,9 @@ export function moveLens(el, btn, { instant = false } = {}) {
   st.anim.finished.then(() => { st.anim = null; }, () => {});
 }
 
-/* ---------------- Leiste schrumpft beim Scrollen ---------------- */
+/* ---------------- Leiste gleitet beim Runterscrollen weg ---------------- */
 
 let compact = false;
-let idleTimer = 0;
 const lastTop = new WeakMap();
 
 function setCompact(on) {
@@ -140,9 +139,8 @@ function setCompact(on) {
   $('#nav')?.classList.toggle('compact', on);
 }
 
-/** Beim Ansichtswechsel: Leiste wieder groß. */
+/** Beim Ansichtswechsel: Leiste wieder zeigen. */
 export function resetBar() {
-  clearTimeout(idleTimer);
   setCompact(false);
 }
 
@@ -169,10 +167,10 @@ function flushScroll() {
     lastTop.set(sc, st);
     if (view.hidden || view.id !== 'view-' + document.body.dataset.view || reduced()) continue;
     const dy = st - prev;
-    if (st < 40 || dy < -6) setCompact(false);
+    const atEnd = st + sc.clientHeight >= sc.scrollHeight - 24;
+    // Runter: Leiste weg. Hoch, ganz oben oder am Listenende: wieder da.
+    if (st < 40 || dy < -6 || atEnd) setCompact(false);
     else if (dy > 6 && st > 90) setCompact(true);
-    clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => setCompact(false), 1100);   // Anhalten: wieder groß
   }
   pending.clear();
 }
