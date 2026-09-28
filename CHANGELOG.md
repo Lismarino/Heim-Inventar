@@ -3,6 +3,12 @@
 Versionschronik von Heim-Inventar – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
 
+## 1.10.3
+
+- **Tabwechsel wieder schlicht:** Statt des Wassertropfens blendet die alte Ansicht in 0,18 s
+  weich aus, die neue ist sofort bedienbar. Der Tropfen war auf dem iPhone zu viel Bewegung und
+  kostete Leistung.
+
 ## 1.10.2
 
 - **Tabwechsel als Wassertropfen, neu gemacht:** Ein kleines Glas-Tröpfchen steigt vom Tab auf,
