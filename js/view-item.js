@@ -7,7 +7,7 @@ import * as sound from './sound.js';
 import { docSize, folderPath, isImageDoc, loadIndex, prepareDoc } from './docs.js';
 import { haptic } from './gestures.js';
 import { cleanDate, outText, qtyNumber } from './match.js';
-import { $, dtf, esc, icon, plural } from './ui.js';
+import { $, dtf, esc, icon, modal, plural } from './ui.js';
 import { cabinet, cabM } from './lazy.js';
 import { navigate, renderCurrent } from './nav.js';
 import { archiveWithUndo, itemHead, outSheet, setOut } from './select.js';
@@ -118,12 +118,19 @@ export function openLightbox(url, ownURL) {
   $('#lb-scroll').scrollTop = 0;
   $('#lb-scroll').scrollLeft = 0;
   lb.hidden = false;
+  // Modal: Hintergrund inert, Fokus auf „Schließen“, beim Schließen zurück zum Auslöser.
+  lbRelease = modal();
+  try { $('#lb-close').focus({ preventScroll: true }); } catch (_) { void _; }
 }
+let lbRelease = null;
 
 export function closeLightbox() {
   const lb = $('#lightbox');
   if (lb.hidden) return;
   lb.hidden = true;
+  const rel = lbRelease;
+  lbRelease = null;
+  rel?.();
   lb.classList.remove('zoom');
   $('#lb-img').removeAttribute('src');
   if (state.lightboxURL) { URL.revokeObjectURL(state.lightboxURL); state.lightboxURL = null; }

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/version.js und VERSION in sw.js passen – sonst rettet sich die App per Update
      (tests/consistency.spec.js prüft das; ebenso die Dateiliste des Start-Wächters unten). -->
-<meta name="app-version" content="2.0.0">
+<meta name="app-version" content="2.0.1">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -224,12 +224,13 @@
       </header>
       <div class="toolbar">
         <div class="search-row">
-          <label class="search">
+          <!-- 2.0.1: Kamera „Habe ich das schon?“ rechts im Suchfeld (wie das Mikrofon unter iOS) -->
+          <div class="search has-cam">
             <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
             <input id="q" type="search" placeholder="Suchen oder KI fragen …" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="Suchen">
-          </label>
+            <button class="search-cam" id="have-btn" type="button" aria-label="Habe ich das schon? Foto prüfen"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></button>
+          </div>
           <button class="have-btn filter-btn" id="filter-btn" type="button" aria-label="Filtern"><svg class="ic" aria-hidden="true"><use href="#i-filter"/></svg><span class="filter-n" id="filter-n" hidden></span></button>
-          <button class="have-btn" id="have-btn" type="button" aria-label="Habe ich das schon? Foto prüfen"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></button>
         </div>
         <input type="file" id="have-input" accept="image/*" capture="environment" hidden>
         <!-- 2.0: aktive Filter als Chips mit × (Blatt über den Filter-Knopf neben der Suche) -->
@@ -447,7 +448,7 @@
           <label class="field"><span>Bestand</span><input id="it-qty" type="text" autocomplete="off" placeholder="z. B. 3 oder genug"></label>
           <label class="field stack"><span>Notiz</span><textarea id="it-note" rows="3" placeholder="Freitext"></textarea></label>
           <label class="check"><input type="checkbox" id="it-essential"> <span>Gehört immer hierher <small>(Checkliste des Orts)</small></span></label>
-          <h3 class="sec grp docs-head">Belege &amp; Unterlagen</h3>
+          <h2 class="sec grp docs-head">Belege &amp; Unterlagen</h2>
           <label class="field"><span>Seriennummer</span><input id="it-serial" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="z. B. SN 12345"></label>
           <label class="field"><span>Kaufdatum</span><input id="it-bought" type="date"></label>
           <label class="field"><span>Garantie bis</span><input id="it-warranty" type="date"></label>
@@ -618,7 +619,7 @@
      <div class="spage" data-spage="about" data-title="Über &amp; Hilfe" hidden>
       <div class="card about">
         <p class="hint ver" id="ver-info"></p>
-        <h3 class="about-h">Datenschutz</h3>
+        <h2 class="about-h">Datenschutz</h2>
         <p>Alles liegt nur auf diesem Gerät – kein Server, kein Konto. An Google Gemini geht nur, was die KI braucht: das <b>Foto</b>, wenn ein Ding erkannt wird, und bei der <b>KI-Suche</b> deine Frage mit Namen und Orten deiner Dinge (von Dokumenten nur Titel, Ordner, Stichworte und Datum – <b>nie der Inhalt</b>). Die Google-Drive-Sicherung ist freiwillig und wird vorher auf dem Gerät <b>verschlüsselt</b>.</p>
       </div>
       <h2 class="sec">Kurzhilfe</h2>
@@ -723,7 +724,7 @@
 <!-- Aktionsblatt (langes Drücken, Raum ändern, Umbenennen) -->
 <div id="sheet" class="sheet-wrap" hidden>
   <div class="sheet-backdrop" data-sheet-close></div>
-  <div class="sheet" role="dialog" aria-modal="true" aria-label="Aktionen">
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Aktionen" tabindex="-1">
     <div class="sheet-grab" aria-hidden="true"></div>
     <div id="sheet-body"></div>
   </div>
@@ -739,13 +740,13 @@
         <img src="./icons/icon-512.png" alt="" width="132" height="132" draggable="false">
       </div>
       <p class="onb-eyebrow">Heim-Inventar</p>
-      <h2>Alles, was du besitzt – schnell gefunden.</h2>
+      <h1>Alles, was du besitzt – schnell gefunden.</h1>
       <p class="onb-lead">Fotografiere Stück für Stück, was du aufbewahrst. Die App merkt sich, was es ist und wo es liegt. Verträge und Rechnungen haben ihren eigenen Tab: <b>Dokumente</b>.</p>
       <p class="onb-private"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>Deine Daten bleiben auf diesem iPhone.</p>
     </section>
     <section class="onb-page onb-places">
       <p class="onb-eyebrow">Schritt 1 von 3</p>
-      <h2>Wo hast du Sachen?</h2>
+      <h1>Wo hast du Sachen?</h1>
       <p class="onb-lead">Zu Hause, im Auto, im Betrieb … Tippe an, was für dich passt. Alle Orte und ihre Räume findest du später im Tab <b>Orte</b>.</p>
       <div class="onb-chips" id="onb-places"></div>
       <div class="onb-add">
@@ -756,7 +757,7 @@
     </section>
     <section class="onb-page onb-2">
       <p class="onb-eyebrow">Schritt 2 von 3</p>
-      <h2 id="onb-rooms-title">Welche Räume hast du?</h2>
+      <h1 id="onb-rooms-title">Welche Räume hast du?</h1>
       <div class="onb-rtabs" id="onb-rtabs" role="group" aria-label="Ort" hidden></div>
       <p class="onb-lead" id="onb-rooms-lead">Tippe an, was es bei dir gibt. Weitere Räume entstehen später ganz von selbst.</p>
       <div id="onb-rooms-box">
@@ -770,7 +771,7 @@
     </section>
     <section class="onb-page onb-3">
       <p class="onb-eyebrow">Schritt 3 von 3 · optional</p>
-      <h2>KI-Erkennung</h2>
+      <h1>KI-Erkennung</h1>
       <p class="onb-lead">Mit einem kostenlosen Schlüssel von Google benennt die App deine Fotos von selbst – „Akkuschrauber“, „Pfanne“, „Wintermantel“.</p>
       <label class="field onb-keyfield">
         <span><svg class="ic" aria-hidden="true"><use href="#i-key"/></svg>Gemini-API-Key</span>
@@ -791,8 +792,8 @@
   </div>
 </div>
 
-<div id="lightbox" class="lightbox" hidden>
-  <div class="lb-scroll" id="lb-scroll"><img id="lb-img" alt=""></div>
+<div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Foto" hidden>
+  <div class="lb-scroll" id="lb-scroll"><img id="lb-img" alt="Foto, groß"></div>
   <button class="lb-close" id="lb-close" aria-label="Schließen"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
   <p class="lb-hint">Bild antippen zum Hineinzoomen</p>
 </div>

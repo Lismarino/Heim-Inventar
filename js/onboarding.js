@@ -52,7 +52,7 @@ export const isOpen = () => !$('#onboarding').hidden;
  */
 export function focusStart() {
   if (!isOpen()) return;
-  const h = $$('#onb-pages .onb-page')[page]?.querySelector('h2');
+  const h = $$('#onb-pages .onb-page')[page]?.querySelector('h1');
   if (!h) return;
   h.tabIndex = -1;
   try { h.focus({ preventScroll: true }); } catch (_) { void _; }

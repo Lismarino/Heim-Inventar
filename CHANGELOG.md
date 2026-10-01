@@ -3,6 +3,18 @@
 Versionschronik von Heim-Inventar – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
 
+## 2.0.1
+
+Barrierefreiheit und zwei Restpunkte – Daten bleiben, wie sie sind.
+
+- **Zurückwischen** in einer Unterseite der Einstellungen (Kategorien, Über & Hilfe, Erweitert)
+  führt wie „Zurück“ zur Hauptseite der Einstellungen.
+- **„Habe ich das schon?“:** das Kamera-Symbol sitzt jetzt rechts im Suchfeld (wie das Mikrofon unter iOS).
+- **Barrierefreiheit:** Tippflächen mindestens 44 × 44 Punkte, Platzhalter und kleine Hinweise mit
+  genug Kontrast (hell und dunkel), eine Überschrift je Ansicht ohne übersprungene Ebene, Blätter
+  und das große Foto als Dialog (Fokus hinein und zurück, Escape schließt). Neue dauerhafte
+  Prüfung `tests/a11y.spec.js`.
+
 ## 2.0.0
 
 Fertig gemacht (Bildschirme, Sprache, Hilfe) – Daten bleiben, wie sie sind (Datenbank Version 4).

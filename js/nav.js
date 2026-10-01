@@ -15,7 +15,7 @@ import { closeLightbox, leaveItem, syncItemAi } from './view-item.js';
 import { renderArchive, renderList } from './view-list.js';
 import { renderNoPlace, resetRoomSel } from './view-noplace.js';
 import { renderOrte } from './view-orte.js';
-import { renderManagers, settingsPage, updateStorageInfo } from './view-settings.js';
+import { renderManagers, settingsPage, settingsSub, updateStorageInfo } from './view-settings.js';
 
 // Tabs (2.0): Start · Alles · [Kamera] · Orte · Dokumente. „orte“ verwaltet Orte und Räume,
 // „noplace“ sammelt Dinge ohne Ort, „room“ zeigt einen Raum oder, ohne Raum, einen Ort selbst,
@@ -175,6 +175,8 @@ let swipeFrom = null;
 export function beginSwipeBack() {
   if (motion.busy() || !$('#lightbox').hidden || sheet.isOpen() || !$('#onboarding').hidden) return null;
   if (state.view === 'docs' && cabM?.canUp()) return folderSwipe();
+  // Unterseite der Einstellungen: wie „Zurück“ erst zur Hauptseite der Einstellungen.
+  if (state.view === 'settings' && settingsSub()) return slideSwipe($('#view-settings .scroll'), () => settingsPage(''));
   if (!PUSH.includes(state.view)) return null;
   const prev = prevView();
   const prevEl = $('#view-' + prev);
@@ -197,7 +199,11 @@ export function commitSwipeBack() {
 
 // In einem Ordner der Dokumente: der Inhalt folgt dem Finger, losgelassen geht es eine Ebene hoch.
 function folderSwipe() {
-  const el = $('#view-docs .scroll');
+  return slideSwipe($('#view-docs .scroll'), () => cabM?.up());
+}
+
+// Inhalt einer Ansicht folgt dem Finger; losgelassen führt up() eine Ebene hoch.
+function slideSwipe(el, up) {
   const w = el.getBoundingClientRect().width || window.innerWidth;
   hideCombo();
   return {
@@ -206,7 +212,7 @@ function folderSwipe() {
     end(commit, onDone = () => {}) {
       el.style.transform = '';
       el.style.opacity = '';
-      if (commit) { cabM?.up(); sound.play('tick'); }
+      if (commit) { up(); sound.play('tick'); }
       onDone();
       return Promise.resolve();
     },

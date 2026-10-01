@@ -13,6 +13,15 @@ module.exports = async (t) => {
   await A.tab(page, 'list');
   t.ok('Alles: keine Auswahllisten mehr, ein Filter-Knopf neben der Suche',
     await page.evaluate(() => !document.querySelector('#view-list .toolbar select') && !!document.querySelector('.search-row #filter-btn')));
+  // 2.0.1: Kamera „Habe ich das schon?“ als Knopf rechts im Suchfeld, benannt, 44 × 44, Text läuft nicht darunter.
+  const cam = await page.evaluate(() => {
+    const b = document.getElementById('have-btn'), q = document.getElementById('q');
+    const rb = b.getBoundingClientRect(), rq = q.getBoundingClientRect();
+    return { inside: !!b.closest('.search') && rb.left >= rq.left && rb.right <= rq.right + 0.5 && rb.top >= rq.top - 0.5 && rb.bottom <= rq.bottom + 0.5,
+      right: Math.round(rq.right - rb.right), w: rb.width, h: rb.height, label: b.getAttribute('aria-label'),
+      pad: parseFloat(getComputedStyle(q).paddingRight) >= rb.width };
+  });
+  t.ok('Alles: Kamera-Knopf im Suchfeld rechts, mit Namen, 44 × 44, Text endet davor', cam.inside && cam.right <= 2 && cam.w >= 44 && cam.h >= 44 && /Habe ich das schon/.test(cam.label) && cam.pad, JSON.stringify(cam));
   const total = await page.locator('#list .row').count();
   await page.click('#filter-btn');
   await A.sleep(500);
@@ -63,6 +72,17 @@ module.exports = async (t) => {
   await page.click('#view-settings [data-nav="back"]');
   await A.sleep(300);
   t.ok('Zurück aus einer Unterseite führt zur Hauptseite', (await A.view(page)) === 'settings' && await page.isVisible('#bk-last'));
+  // 2.0.1: Zurückwischen in einer Unterseite wirkt wie „Zurück“ – erst zur Hauptseite, dann hinaus.
+  for (const sp of ['cats', 'about', 'adv']) {
+    await page.click(`[data-spage-go="${sp}"]`);
+    await A.sleep(300);
+    await A.swipeBack(page);
+    const sw = await page.evaluate(() => ({ view: document.body.dataset.view, main: !document.querySelector('#view-settings .spage[data-spage=""]').hidden, h1: document.querySelector('#view-settings h1').textContent }));
+    t.ok(`Zurückwischen aus Unterseite „${sp}“ führt zur Hauptseite der Einstellungen`, sw.view === 'settings' && sw.main && sw.h1 === 'Einstellungen', JSON.stringify(sw));
+  }
+  await A.swipeBack(page);
+  t.ok('Zurückwischen auf der Hauptseite verlässt die Einstellungen', (await A.view(page)) === 'home');
+  await A.tab(page, 'settings');
 
   /* ---------- Über & Hilfe ---------- */
   await page.click('[data-spage-go="about"]');
@@ -76,8 +96,9 @@ module.exports = async (t) => {
       mail: document.getElementById('feedback').getAttribute('href'),
     };
   });
-  t.ok('Über & Hilfe: Version, Datenschutz, 6 Fragen', /2\.0\.0/.test(ab.ver) && ab.priv && ab.faq === 6, JSON.stringify(ab));
-  t.ok('Über & Hilfe: Feedback per E-Mail ohne Adresse, Betreff mit Version', /^mailto:\?subject=.*2\.0\.0/.test(ab.mail), ab.mail);
+  const V = require('fs').readFileSync(require('path').join(t.root, 'js/version.js'), 'utf8').match(/APP_VERSION = '([^']+)'/)[1];
+  t.ok('Über & Hilfe: Version, Datenschutz, 6 Fragen', ab.ver.includes(V) && ab.priv && ab.faq === 6, JSON.stringify(ab));
+  t.ok('Über & Hilfe: Feedback per E-Mail ohne Adresse, Betreff mit Version', /^mailto:\?subject=/.test(ab.mail) && decodeURIComponent(ab.mail).includes(V), ab.mail);
   t.ok('Kein „Was ist neu“ bei Testdaten, die es schon gesehen haben', await page.isHidden('#sheet'));
 
   /* ---------- Dynamic Type: 135 % ---------- */

@@ -61,6 +61,8 @@ export async function applyKey(key) {
 
 /** Unterseite der Einstellungen zeigen ('' = Hauptseite). */
 let spage = '';
+/** Offene Unterseite der Einstellungen ('' = Hauptseite). */
+export const settingsSub = () => spage;
 export function settingsPage(name = '') {
   spage = name;
   let title = 'Einstellungen';

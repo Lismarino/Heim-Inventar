@@ -26,6 +26,7 @@ Playwright seinen eigenen Browser. Nichts davon gehört zur App.
 | `backup.spec.js` | Sicherung erstellen (offen/verschlüsselt), ersetzen/hinzufügen, falsches Passwort; Sicherungen aus 1.6.2, 1.7.1, 1.8.1, 1.10.3 (Format 1–4, auch verschlüsselt) aus `fixtures/` |
 | `upgrade.spec.js` | Datenbank aus 1.6.2, 1.7.1 und 1.10.3 (per `git archive` aus dem Verlauf) → aktuelle Fassung ohne Datenverlust |
 | `ia.spec.js` | Informationsarchitektur 2.0: Leiste, Start ≤ 1,1 und Orte ≤ 2 Bildschirmhöhen, „Wichtig“ + Blatt, Dokumente in einem Tipp mit richtigem Tab, keine alten Doppel-Einstiege, Papierkorb, Zurückwischen, homePlace/Papierkorb aus alten Daten |
+| `a11y.spec.js` | Barrierefreiheit (eigene Regeln, hell und dunkel) auf allen Hauptansichten, Blättern, Einstellungs-Unterseiten und der Einführung: zugängliche Namen, Tippflächen ≥ 44 × 44 (Treffer-Test), Textkontrast ≥ 4,5 : 1 bzw. 3 : 1, eine h1 ohne übersprungene Ebenen, Bilder/Symbole; Dialoge (role, aria-modal, Fokus hinein/zurück, Escape, Hintergrund inert); Tab-Leiste mit aria-current und Fokusrahmen |
 | `consistency.spec.js` | eine Versionsnummer (`js/version.js` = `index.html` = `sw.js` = CHANGELOG), `ASSETS` und Start-Wächter vollständig, `modulepreload` = Start-Module, keine toten Exporte, Dateigrößen, Syntax |
 | `screens.spec.js` | nur auf Wunsch: Bildschirmfotos aller Hauptansichten mit dem großen Testbestand |
 
