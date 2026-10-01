@@ -9,7 +9,7 @@
 // gehören wie bisher nur zu Einträgen dieses Imports). Fotos und Dokumente dürfen statt „data“
 // (base64) auch „buf“ (ArrayBuffer) tragen – so liest die Google-Drive-Wiederherstellung ein.
 import * as db from './db.js';
-import { cleanOut, cleanDate } from './match.js';
+import { cleanOut, cleanDate, localDay } from './match.js';
 import { DOC_TYPES, DOC_MAX, docMeta, cleanDocMeta } from './docs.js';
 import { blobToBase64 } from './img.js';
 import { DEFAULT_PLACE, PLACE_ICONS, PLACE_COLORS, suggestIcon, colorFor } from './places.js';
@@ -39,7 +39,7 @@ export async function buildExport({ withPhotos = true, onProgress } = {}) {
     version: FORMAT_VERSION,
     exportedAt: new Date().toISOString(),
     withPhotos,
-    counts: { items: items.length, photos: photos.length, docs: docs.length, folders: folders.length, categories: cats.length, rooms: rooms.length, places: places.length },
+    counts: { items: items.length, archived: items.filter(it => it.archived).length, photos: photos.length, docs: docs.length, folders: folders.length, categories: cats.length, rooms: rooms.length, places: places.length },
     // Der API-Key wird bewusst NICHT mitgesichert.
     settings: { model: settings.model, imgMax: settings.imgMax },
   };
@@ -70,7 +70,7 @@ export async function buildExport({ withPhotos = true, onProgress } = {}) {
   parts.push(']}');
 
   const blob = new Blob(parts, { type: 'application/json' });
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = localDay();
   return { blob, filename: `heim-inventar-${stamp}.json`, counts: head.counts };
 }
 
@@ -92,7 +92,7 @@ export function parseBackup(text) {
     return data;
   }
   if (Number(data.version) > FORMAT_VERSION) throw new Error('Die Datei stammt aus einer neueren Version der App.');
-  if (!Array.isArray(data.items)) throw new Error('In der Datei fehlt die Liste der Einträge.');
+  if (!Array.isArray(data.items)) throw new Error('In der Datei fehlt die Liste der Dinge.');
   return data;
 }
 

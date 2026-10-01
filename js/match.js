@@ -74,6 +74,11 @@ export function outText(it) {
 
 /* ---------------- Datum (JJJJ-MM-TT aus <input type="date">) ---------------- */
 
+/** Heutiges (oder t-) Datum als JJJJ-MM-TT in Ortszeit – toISOString() wäre UTC (nachts ein Tag daneben). */
+export function localDay(t = Date.now()) {
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 export const cleanDate = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) ? v : '');
 const dateFmt = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' });
 export const fmtDate = (v) => (cleanDate(v) ? dateFmt.format(new Date(v + 'T12:00:00')) : '');

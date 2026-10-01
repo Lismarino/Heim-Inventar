@@ -462,7 +462,7 @@ export async function renameNamed(kind, id, name) {
       const field = fieldOf(kind);
       const affected = state.items.filter(i => i[field] === id);
       const msg = `„${clean}“ gibt es bereits. Zusammenführen?` +
-        (affected.length ? ` ${plural(affected.length, 'Eintrag wird', 'Einträge werden')} umgehängt.` : '');
+        (affected.length ? ` ${plural(affected.length, 'Ding wird', 'Dinge werden')} umgehängt.` : '');
       if (!confirm(msg)) { renderManagers(); return id; }
       await db.moveAndDropNamed(kind, id, twin.id);
       if (kind === 'rooms') await followLastRoom(rec.name, twin.name, rec.placeId);
@@ -497,8 +497,8 @@ export async function dropNamed(kind, id) {
   const room = kind === 'rooms' ? roomById(id) : null;
   const msg = !affected.length ? `${label} löschen?`
     : room && placeById(room.placeId)
-      ? `${label} löschen? ${plural(affected.length, 'Eintrag bleibt', 'Einträge bleiben')} erhalten und ${affected.length === 1 ? 'liegt' : 'liegen'} dann direkt in „${placeName(room.placeId)}“.`
-      : `${label} löschen? Bei ${plural(affected.length, 'Eintrag', 'Einträgen')} wird das Feld geleert. Die Einträge selbst bleiben erhalten.`;
+      ? `${label} löschen? ${plural(affected.length, 'Ding bleibt', 'Dinge bleiben')} erhalten und ${affected.length === 1 ? 'liegt' : 'liegen'} dann direkt in „${placeName(room.placeId)}“.`
+      : `${label} löschen? Bei ${plural(affected.length, 'Ding', 'Dingen')} wird das Feld geleert. Die Dinge selbst bleiben erhalten.`;
   if (!confirm(msg)) return false;
   try {
     await db.moveAndDropNamed(kind, id, null);

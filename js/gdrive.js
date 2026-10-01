@@ -222,7 +222,7 @@ async function snapshot() {
 async function guardEmpty(m) {
   const remote = Array.isArray(m?.items) ? m.items.length : 0;
   if (remote && !(await db.getAllKeys('items')).length) {
-    throw new Error(`In Google Drive liegt schon eine Sicherung mit ${remote} ${remote === 1 ? 'Eintrag' : 'Einträgen'}, dieses Gerät ist leer. Nutze „Aus Google Drive wiederherstellen“ – sonst würde sie überschrieben.`);
+    throw new Error(`In Google Drive liegt schon eine Sicherung mit ${remote} ${remote === 1 ? 'Ding' : 'Dingen'}, dieses Gerät ist leer. Nutze „Aus Google Drive wiederherstellen“ – sonst würde sie überschrieben.`);
   }
 }
 

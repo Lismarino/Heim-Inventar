@@ -27,11 +27,20 @@ export function refreshPickers() {
   if (flt.cat && !state.cats.some(c => c.id === flt.cat)) flt.cat = '';
 }
 
-/** Von „Start“ aus: nur einen Status zeigen, andere Filter zurücksetzen. */
-export function showOnly(k) {
-  flt.place = flt.room = flt.cat = '';
+/** Von „Start“ aus: nur einen Status zeigen – im dort gewählten Ort (place, '' = alle), andere Filter zurücksetzen. */
+export function showOnly(k, place = '') {
+  flt.room = flt.cat = '';
+  flt.place = place && state.places.some(p => p.id === place) ? place : '';
   state.listFilter = k;
 }
+
+/** Alle Filter aus (Blatt und leerer Zustand: „Filter zurücksetzen“). */
+function resetFilters() {
+  flt.place = flt.room = flt.cat = '';
+  state.listFilter = null;
+  renderList();
+}
+const resetBtn = '<button type="button" class="btn ghost" data-reset-filters>Filter zurücksetzen</button>';
 
 const opts = (rows, keep, allLabel) => `<option value="">${allLabel}</option>` +
   rows.map(r => `<option value="${esc(r.id)}"${r.id === keep ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
@@ -46,7 +55,8 @@ function openFilterSheet() {
     html: `${many ? `<label class="field"><span>Ort</span><select id="ff-place">${opts(state.places, flt.place, 'Alle Orte')}</select></label>` : ''}
       <label class="field"><span>Raum</span><select id="ff-room">${opts(roomRows(flt.place), flt.room, 'Alle Räume')}</select></label>
       <label class="field"><span>Kategorie</span><select id="ff-cat">${opts(state.cats, flt.cat, 'Alle Kategorien')}</select></label>
-      <label class="field"><span>Status</span><select id="ff-status">${opts(Object.entries(STATUS).map(([id, name]) => ({ id, name })), state.listFilter || '', 'Alle')}</select></label>`,
+      <label class="field"><span>Status</span><select id="ff-status">${opts(Object.entries(STATUS).map(([id, name]) => ({ id, name })), state.listFilter || '', 'Alle')}</select></label>
+      ${activeChips().length ? `<button type="button" class="btn ghost block" id="ff-reset">Filter zurücksetzen</button>` : ''}`,
     onSubmit: () => {
       flt.place = $('#ff-place')?.value || '';
       flt.room = $('#ff-room').value;
@@ -55,6 +65,7 @@ function openFilterSheet() {
       renderList();
     },
   });
+  $('#ff-reset')?.addEventListener('click', () => { sheet.close(); resetFilters(); });
   // Ort gewechselt: nur dessen Räume anbieten.
   $('#ff-place')?.addEventListener('change', (e) => {
     const room = $('#ff-room');
@@ -90,17 +101,22 @@ function haystack(it) {
 /** Wird gerade gesucht oder gefiltert? */
 const filtering = () => !!(state.listFilter || $('#q').value.trim() || flt.cat || flt.place || flt.room);
 
+/** Passt ein Ding zu den Filtern (Ort, Raum, Kategorie, Status) – ohne Suchtext? Gilt auch für KI-Treffer. */
+function passes(i) {
+  const { cat, place, room } = flt;
+  return !i.archived
+    && (!place || placeOf(i)?.id === place)
+    && (!cat || i.categoryId === cat)
+    && (!room || i.roomId === room)
+    && (state.listFilter !== 'unnamed' || home.isUnnamed(i))
+    && (state.listFilter !== 'out' || !!cleanOut(i.out))
+    && (state.listFilter !== 'warranty' || warrantySoon(i));
+}
+
 function visibleItems() {
   const q = norm($('#q').value);
-  const { cat, place, room } = flt;
   return state.items
-    .filter(i => !i.archived)
-    .filter(i => !place || placeOf(i)?.id === place)
-    .filter(i => !cat || i.categoryId === cat)
-    .filter(i => !room || i.roomId === room)
-    .filter(i => state.listFilter !== 'unnamed' || home.isUnnamed(i))
-    .filter(i => state.listFilter !== 'out' || !!cleanOut(i.out))
-    .filter(i => state.listFilter !== 'warranty' || warrantySoon(i))
+    .filter(passes)
     .filter(i => !q || norm(haystack(i)).includes(q))
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -138,7 +154,7 @@ export function rowHTML(it, why, opts = {}) {
     <div class="body">
       ${title}
       <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${place ? `<span class="place">${p ? placeIcon(p) : icon('pin')}<span>${esc(place)}</span></span>` : ''}${qn == null ? qty : ''}</div>
-      ${out ? `<div class="out-tag">${icon('out')}<span>${esc(out)}</span></div>` : ''}${it.dupOf && !it.archived ? '<div class="dup-tag">Ähnlicher Eintrag schon vorhanden</div>' : ''}
+      ${out ? `<div class="out-tag">${icon('out')}<span>${esc(out)}</span></div>` : ''}${it.dupOf && !it.archived ? '<div class="dup-tag">Ähnliches Ding schon vorhanden</div>' : ''}
       ${why ? `<div class="why">${esc(why)}</div>` : ''}
     </div>${qn != null ? qty : ''}
   </button>`;
@@ -237,24 +253,25 @@ export function renderList() {
       ? `<span class="empty-badge">${icon('check')}</span><p>Alles hat einen Namen.</p>`
       : state.listFilter === 'out' && !$('#q').value.trim()
         ? `<span class="empty-badge">${icon('check')}</span><p>Alles ist wieder da.</p>`
-      : `<span class="empty-badge muted">${icon('search')}</span><p>Keine Treffer für diese Suche oder Filter.</p>`;
+      : `<span class="empty-badge muted">${icon('search')}</span><p>Keine Treffer für diese Suche oder Filter.</p>${activeChips().length ? resetBtn : ''}`;
 }
 
 /* ---------------- KI-Suche ---------------- */
 
 function renderAiResult() {
   const a = state.aiSearch;
-  // Inzwischen Archiviertes (z. B. weggewischt) nicht mehr zeigen.
+  // Inzwischen Archiviertes (z. B. weggewischt) nicht mehr zeigen; aktive Filter gelten auch hier
+  // (Chips bleiben sichtbar). Dokumente haben weder Ort noch Kategorie – nur ohne Filter.
   const matches = a.matches
     .map(m => ({ item: state.items.find(i => i.id === m.item.id), why: m.why }))
-    .filter(m => m.item && !m.item.archived);
-  $('#filters').hidden = true;
-  $('#filter-n').hidden = true;
+    .filter(m => m.item && passes(m.item));
+  renderChips();
+  const filtered = activeChips().length > 0;
   $('#list-hits').hidden = true;
   $('#ai-answer').hidden = false;
   $('#ai-answer-q').textContent = a.question;
   $('#ai-answer-text').textContent = a.answer || 'Keine Antwort erhalten.';
-  const docs = (a.docs || []).filter(m => m.doc);
+  const docs = filtered ? [] : (a.docs || []).filter(m => m.doc);
   listSig = '';   // die Liste zeigt jetzt etwas anderes
   rowJobs.delete($('#list'));
   $('#list-archive').hidden = true;
@@ -265,7 +282,9 @@ function renderAiResult() {
   const empty = $('#list-empty');
   empty.hidden = matches.length + docs.length > 0;
   empty.classList.remove('first');
-  empty.innerHTML = `<span class="empty-badge muted">${icon('sparkle')}</span><p>Dazu passt nichts aus deinem Bestand.</p>`;
+  empty.innerHTML = filtered
+    ? `<span class="empty-badge muted">${icon('sparkle')}</span><p>Mit diesen Filtern passt nichts.</p>${resetBtn}`
+    : `<span class="empty-badge muted">${icon('sparkle')}</span><p>Dazu passt nichts aus deinem Bestand.</p>`;
 }
 
 function clearAiSearch() {
@@ -379,6 +398,7 @@ export function init() {
   $('#list').addEventListener('click', rowClick);
   $('#arch-list').addEventListener('click', rowClick);
   $('#room-list').addEventListener('click', rowClick);
+  $('#list-empty').addEventListener('click', (e) => { if (e.target.closest('[data-reset-filters]')) resetFilters(); });
   $('#filters').addEventListener('click', (e) => {
     const k = e.target.closest('[data-unfilter]')?.dataset.unfilter;
     if (!k) return;

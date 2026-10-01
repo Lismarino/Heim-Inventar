@@ -156,7 +156,7 @@ export async function updateStorageInfo() {
   try {
     if (navigator.storage?.persisted) persist = (await navigator.storage.persisted()) ? ' · dauerhaft gesichert' : '';
   } catch (_) { void _; }
-  $('#storage-info').textContent = `${plural(n, 'Eintrag', 'Einträge')}, ${a} im Papierkorb${usage}${persist}`;
+  $('#storage-info').textContent = `${plural(n + a, 'Ding', 'Dinge')}${a ? ` (davon ${a} im Papierkorb)` : ''}${usage}${persist}`;
 }
 
 async function runDiagnostics() {
@@ -167,7 +167,7 @@ async function runDiagnostics() {
     const c = await db.rawCounts();
     const lines = [
       `Adresse: ${location.origin}${location.pathname}`,
-      `Datenbank: ${c.items} Einträge, ${c.photos} Fotos, ${c.categories} Kategorien, ${c.places} Orte, ${c.rooms} Räume`,
+      `Datenbank: ${c.items} Dinge, ${c.photos} Fotos, ${c.categories} Kategorien, ${c.places} Orte, ${c.rooms} Räume`,
       `Modus: ${window.matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'vom Home-Bildschirm' : 'im Browser'}`,
     ];
     if (indexedDB.databases) {

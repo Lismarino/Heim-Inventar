@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/version.js und VERSION in sw.js passen – sonst rettet sich die App per Update
      (tests/consistency.spec.js prüft das; ebenso die Dateiliste des Start-Wächters unten). -->
-<meta name="app-version" content="2.0.1">
+<meta name="app-version" content="2.0.2">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -227,7 +227,7 @@
           <!-- 2.0.1: Kamera „Habe ich das schon?“ rechts im Suchfeld (wie das Mikrofon unter iOS) -->
           <div class="search has-cam">
             <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
-            <input id="q" type="search" placeholder="Suchen oder KI fragen …" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="Suchen">
+            <input id="q" type="search" placeholder="Suchen …" autocomplete="off" autocorrect="off" autocapitalize="off" aria-label="Suchen">
             <button class="search-cam" id="have-btn" type="button" aria-label="Habe ich das schon? Foto prüfen"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></button>
           </div>
           <button class="have-btn filter-btn" id="filter-btn" type="button" aria-label="Filtern"><svg class="ic" aria-hidden="true"><use href="#i-filter"/></svg><span class="filter-n" id="filter-n" hidden></span></button>
@@ -348,7 +348,7 @@
   <section class="view" id="view-noplace" hidden>
     <div class="head">
       <header class="topbar">
-        <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+        <button class="link back" data-nav="back" aria-label="Zurück"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg><span class="back-txt">Zurück</span></button>
         <h1>Ohne Ort</h1>
         <span></span>
       </header>
@@ -384,7 +384,7 @@
   <section class="view" id="view-room" hidden>
     <div class="head">
       <header class="topbar">
-        <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+        <button class="link back" data-nav="back" aria-label="Zurück"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg><span class="back-txt">Zurück</span></button>
         <h1 id="room-bar-title" class="bar-title"></h1>
         <div class="tb-right">
           <button class="link sel-toggle" id="room-select" data-select-toggle>Auswählen</button>
@@ -412,8 +412,8 @@
   <section class="view" id="view-item" hidden>
     <div class="head">
       <header class="topbar">
-        <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
-        <h1>Eintrag</h1>
+        <button class="link back" data-nav="back" aria-label="Zurück"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg><span class="back-txt">Zurück</span></button>
+        <h1 id="item-title">Ding</h1>
         <button class="link strong" id="item-save">Fertig</button>
       </header>
     </div>
@@ -474,7 +474,7 @@
   <section class="view" id="view-archive" hidden>
     <div class="head">
       <header class="topbar">
-        <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+        <button class="link back" data-nav="back" aria-label="Zurück"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg><span class="back-txt">Zurück</span></button>
         <h1>Papierkorb</h1>
         <span></span>
       </header>
@@ -492,7 +492,7 @@
   <section class="view" id="view-docs" hidden>
     <div class="head">
       <header class="topbar large" id="docs-bar">
-        <button class="link back" id="docs-back" hidden><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg><span id="docs-back-txt">Dokumente</span></button>
+        <button class="link back" id="docs-back" aria-label="Zurück" hidden><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg><span id="docs-back-txt" class="back-txt">Dokumente</span></button>
         <h1 id="docs-title">Dokumente</h1>
         <button class="link icon" id="docs-new" aria-label="Dokument oder Ordner hinzufügen"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
       </header>
@@ -541,7 +541,7 @@
         <label class="field"><span>Stichworte</span><input id="da-tags" type="text" autocomplete="off" placeholder="z. B. Kfz, Haftpflicht"></label>
         <label class="field"><span>Frist</span><select id="da-due-kind" aria-label="Art der Frist"><option value="">Keine</option><option value="ablauf">Läuft ab</option><option value="kuendigen">Kündigen bis</option></select></label>
         <label class="field" id="da-due-row" hidden><span>Bis</span><input id="da-due" type="date" aria-label="Frist-Datum"></label>
-        <label class="field"><span>Eintrag</span><input id="da-item" type="text" autocomplete="off" data-combo="items" placeholder="optional, z. B. Waschmaschine"></label>
+        <label class="field"><span>Ding</span><input id="da-item" type="text" autocomplete="off" data-combo="items" placeholder="optional, z. B. Waschmaschine"></label>
       </div>
       <p class="hint">Dokumente bleiben auf diesem Gerät. Die KI-Suche kennt nur Titel, Ordner, Stichworte und Datum – nie den Inhalt.</p>
     </div>
@@ -551,7 +551,7 @@
   <section class="view" id="view-settings" hidden>
     <div class="head">
       <header class="topbar">
-        <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+        <button class="link back" data-nav="back" aria-label="Zurück"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg><span class="back-txt">Zurück</span></button>
         <h1>Einstellungen</h1>
         <span></span>
       </header>
@@ -562,7 +562,7 @@
       <h2 class="sec">Sicherung</h2>
       <div class="card">
         <p class="bk-last" id="bk-last" role="status"></p>
-        <label class="check"><input type="checkbox" id="exp-photos" checked> <span>Fotos und Belege mitsichern</span></label>
+        <label class="check"><input type="checkbox" id="exp-photos" checked> <span>Fotos und Dokumente mitsichern</span></label>
         <label class="check"><input type="checkbox" id="exp-encrypt"> <span>Mit Passwort verschlüsseln</span></label>
         <button class="btn primary block" id="exp-build">Jetzt sichern</button>
         <p class="hint" id="exp-out"></p>
@@ -626,10 +626,10 @@
       <div class="card faq">
         <details class="help"><summary>Wie erfasse ich etwas?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary><p>Unten auf die Kamera tippen und fotografieren – die KI schlägt Namen und Kategorie vor. Ohne Foto geht es über „Ohne Foto eintragen“.</p></details>
         <details class="help"><summary>Wie lege ich Orte und Räume an?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary><p>Im Tab <b>Orte</b>: oben einen Ort (Zuhause, Keller, Auto …) anlegen, darin Räume. Dinge ohne Ort findest du unter „Ohne Ort“.</p></details>
-        <details class="help"><summary>Wie scanne ich ein Dokument?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary><p>Im Tab <b>Dokumente</b> auf „Scannen“ tippen, Seiten fotografieren, Titel und Frist eintragen. An einem Ding hängt ein Dokument als <b>Beleg</b>.</p></details>
+        <details class="help"><summary>Wie scanne ich ein Dokument?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary><p>Im Tab <b>Dokumente</b> auf „+“ und dann „Scannen“ tippen, Seiten fotografieren, Titel und Frist eintragen. An einem Ding hängt ein Dokument als <b>Beleg</b>.</p></details>
         <details class="help"><summary>Wo sehe ich, was ich verliehen habe?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary><p>Im Ding unten „Unterwegs/verliehen“ wählen. Alles, was weg ist, zeigt Start unter „Wichtig“ – oder in Alles über Filtern → Status.</p></details>
         <details class="help"><summary>Wie sichere ich meine Daten?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary><p>Einstellungen → <b>Jetzt sichern</b> und die Datei z. B. in „Dateien“ oder iCloud ablegen. Wiederherstellen über „Aus Datei wiederherstellen“ – auch auf einem neuen iPhone.</p></details>
-        <details class="help"><summary>Update, neues iPhone, neu installieren?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary><p>Updates kommen von selbst („Neue Version bereit“). Die Daten hängen an dieser Installation: Wer die App vom Home-Bildschirm löscht oder die Website-Daten in Safari löscht, verliert sie. Vorher also sichern und danach wiederherstellen.</p></details>
+        <details class="help"><summary>Update, neues iPhone, neu installieren?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary><p>Updates kommen von selbst („Neue Version verfügbar“). Die Daten hängen an dieser Installation: Wer die App vom Home-Bildschirm löscht oder die Website-Daten in Safari löscht, verliert sie. Vorher also sichern und danach wiederherstellen.</p></details>
       </div>
       <a class="btn block" id="feedback" href="mailto:?subject=Heim-Inventar%20Feedback"><svg class="ic" aria-hidden="true"><use href="#i-share"/></svg>Feedback per E-Mail</a>
      </div>

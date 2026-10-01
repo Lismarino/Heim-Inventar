@@ -25,7 +25,7 @@ function renderItemExtras(it) {
   $('#it-dup').hidden = !other;
   if (other) {
     const w = whereShort(other);
-    $('#it-dup-text').textContent = `Ähnlich: ${other.name}${w ? ` (${w})` : ''} – schon vorhanden. Zusammenführen erhöht dort den Bestand um 1 und löscht diesen Eintrag.`;
+    $('#it-dup-text').textContent = `Ähnlich: ${other.name}${w ? ` (${w})` : ''} – schon vorhanden. Zusammenführen erhöht dort den Bestand um 1 und löscht dieses Ding.`;
   }
 }
 
@@ -93,7 +93,7 @@ async function deleteDoc(docId) {
   if (!d) return;
   // Liegt der Beleg auch in einem Ordner (Dokumente), nur die Verknüpfung lösen.
   if (d.folderId) {
-    if (!confirm(`„${d.name}“ vom Eintrag lösen? Das Dokument bleibt im Ordner „${folderPath(d.folderId)}“.`)) return;
+    if (!confirm(`„${d.name}“ vom Ding lösen? Das Dokument bleibt im Ordner „${folderPath(d.folderId)}“.`)) return;
     try { await db.patchDoc(docId, { itemId: null }); await renderDocs(state.currentId); await loadIndex(); toast('Verknüpfung gelöst.'); } catch (e) { toast(e.message, true); }
     return;
   }
@@ -141,7 +141,7 @@ export async function openPhotoOf(itemId) {
   const it = state.items.find(x => x.id === itemId);
   if (!it?.photoId) return;
   const photo = await db.get('photos', it.photoId);
-  if (!photo) { toast('Zu diesem Eintrag ist kein Foto gespeichert.', true); return; }
+  if (!photo) { toast('Zu diesem Ding ist kein Foto gespeichert.', true); return; }
   openLightbox(img.photoURL(photo), true);
 }
 
@@ -152,6 +152,7 @@ export async function openItem(id) {
   state.currentId = id;
 
   state.shown = {};
+  $('#item-title').textContent = String(it.name || '').trim() || 'Ding';
   showField('name', it.name || '');
   showField('cat', catName(it.categoryId));
   showField('room', roomName(it.roomId));
@@ -318,9 +319,9 @@ async function writeEdits(e) {
     patch.essential = s.essential;
     patch.homePlaceId = s.essential ? (patch.placeId !== undefined ? patch.placeId : e.fallbackPlace) : null;
   }
-  if (!Object.keys(patch).length) return false;
+  if (!Object.keys(patch).length) return null;
   await db.patchItem(e.id, patch);
-  return true;
+  return patch;
 }
 
 // Was jetzt in den Feldern steht, gilt ab hier als angezeigt (Grundlage für fieldChanged).
@@ -366,19 +367,39 @@ export function leaveItem({ quiet = false } = {}) {
   // Gleich im Speicher übernehmen, was keine Auflösung braucht – öffnet man den Eintrag sofort
   // wieder, steht dort schon das Neue (Kategorie, Ort und Raum folgen mit dem Neuladen).
   const it = state.items.find(x => x.id === e.id);
+  const before = it ? { ...it } : null;   // für „Rückgängig“
   const s = e.set;
   if (it) {
     if (s.name) it.name = s.name;
     for (const [k, f] of [['loc', 'locationDetail'], ['qty', 'quantity'], ['note', 'note']]) if (k in s) it[f] = s[k];
   }
   writeEdits(e)
-    .then(async (changed) => {
-      if (!changed) return;
+    .then(async (patch) => {
+      if (!patch) return;
       await reloadAll();
       renderCurrent();
-      if (!quiet) { sound.play('save'); toast(note ? `Gespeichert. ${note}` : 'Gespeichert.'); }
+      if (quiet) return;
+      sound.play('save');
+      const undo = before && { label: 'Rückgängig', run: () => undoEdits(e.id, before, patch) };
+      toast(note ? `Gespeichert. ${note}` : 'Gespeichert', false, undo);
     })
     .catch((err) => toast('Speichern fehlgeschlagen: ' + err.message, true));
+}
+
+// „Rückgängig“ nach dem Auto-Speichern: die geänderten Felder auf die alten Werte zurück.
+async function undoEdits(id, before, patch) {
+  const back = {};
+  for (const k of Object.keys(patch)) back[k] = before[k] === undefined ? null : before[k];
+  if ('essential' in back) back.essential = !!back.essential;
+  try {
+    await db.patchItem(id, back);
+    await reloadAll();
+    if (state.view === 'item' && state.currentId === id) openItem(id);
+    else renderCurrent();
+    toast('Änderung zurückgenommen.');
+  } catch (err) {
+    toast('Zurücknehmen fehlgeschlagen: ' + err.message, true);
+  }
 }
 
 export function initExtras() {
@@ -445,7 +466,7 @@ export function init() {
     }
   });
   $('#it-purge').addEventListener('click', async () => {
-    if (!confirm('Endgültig löschen? Eintrag und Foto sind danach unwiderruflich weg.')) return;
+    if (!confirm('Endgültig löschen? Ding und Foto sind danach unwiderruflich weg.')) return;
     try {
       await db.purgeItem(state.currentId);
       await reloadAll();

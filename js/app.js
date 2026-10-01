@@ -130,7 +130,7 @@ async function runPlacesMigration() {
     const pct = total ? Math.min(100, Math.round(n / total * 100)) : 0;
     bar.style.transform = `scaleX(${pct / 100})`;
     bar.parentElement.setAttribute('aria-valuenow', String(pct));
-    count.textContent = total ? `${n.toLocaleString('de-DE')} von ${total.toLocaleString('de-DE')} Einträgen` : '';
+    count.textContent = total ? `${n.toLocaleString('de-DE')} von ${total.toLocaleString('de-DE')} Dingen` : '';
   };
   const show = setTimeout(() => { draw(); box.hidden = false; }, pending.items > 400 ? 0 : 500);
   try {
@@ -175,7 +175,7 @@ function onDbEvent(type) {
     box.querySelector('h2').textContent = 'Einen Moment …';
     box.querySelector('p').textContent = 'Die App ist noch in einem anderen Tab oder Fenster mit einer älteren Version geöffnet. '
       + 'Schließe es dort (oder lade es neu) – dann geht es hier von selbst weiter.';
-    $('#boot-error-detail').textContent = 'Deine Einträge werden dabei auf Orte umgestellt (Version 1.7). Es geht nichts verloren.';
+    $('#boot-error-detail').textContent = 'Deine Dinge werden dabei auf Orte umgestellt (Version 1.7). Es geht nichts verloren.';
     box.hidden = false;
   } else if (type === 'unblocked') {
     window.__inventarFailed = false;
@@ -212,7 +212,7 @@ function onHomeClick(e) {
   if (todo) {
     const k = todo.dataset.todo;
     if (k === 'noroom') navigate('noplace');
-    else if (k === 'unnamed' || k === 'out' || k === 'warranty') { showOnly(k); clearSearch(); navigate('list'); }
+    else if (k === 'unnamed' || k === 'out' || k === 'warranty') { showOnly(k, home.homePlace()); clearSearch(); navigate('list'); }
     else if (k === 'busy') toast(queue.status().note || 'Die KI benennt die Fotos gerade im Hintergrund – du kannst einfach weitermachen.');
     else if (k === 'needkey') goToKey();
     return true;
@@ -266,7 +266,7 @@ function whatsNew() {
     html: `<div class="whats-new">
       ${pt('home', 'Neue Leiste.', ' Start · Alles · Kamera · Orte · Dokumente – die Einstellungen findest du über ⚙ oben auf Start.')}
       ${pt('alert', 'Wichtig auf einen Blick.', ' Start zeigt, was ansteht: Fristen, Verliehenes, Dinge ohne Ort, fällige Sicherung.')}
-      ${pt('trash', 'Aufgeräumt.', ' Gelöschtes landet im Papierkorb, Einträge speichern von selbst, Filter sitzen hinter einem Knopf.')}
+      ${pt('trash', 'Papierkorb statt Archiv.', ' Dein Archiv heißt jetzt Papierkorb – nichts wird automatisch gelöscht. Änderungen speichern von selbst.')}
     </div>`,
   });
 }

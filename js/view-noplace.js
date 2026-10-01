@@ -80,7 +80,7 @@ async function assignRooms() {
     await reloadAll();
     renderNoPlace();
     haptic();
-    toast(`${plural(res.changed, 'Eintrag', 'Einträge')} → ${whereText(where.placeId, where.roomId)}`);
+    toast(`${plural(res.changed, 'Ding', 'Dinge')} → ${whereText(where.placeId, where.roomId)}`);
   } catch (e) {
     toast('Zuweisen fehlgeschlagen: ' + e.message, true);
   } finally {

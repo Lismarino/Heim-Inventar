@@ -276,7 +276,7 @@ export function checklistSheet(pid) {
     }).join('');
     $('#sheet-check').innerHTML = items.length
       ? `<div class="ck-head"><p class="ck-sum">${n} von ${items.length} dabei</p><button type="button" class="btn pill ghost" data-check-reset>Alles zurücksetzen</button></div><div class="ck-list">${rows}</div>`
-      : '<p class="hint">Noch nichts auf der Checkliste. Öffne einen Eintrag und schalte unter „Mehr Angaben“ „Gehört immer hierher“ ein.</p>';
+      : '<p class="hint">Noch nichts auf der Checkliste. Öffne ein Ding und schalte unter „Mehr Angaben“ „Gehört immer hierher“ ein.</p>';
   };
   sheet.panel({
     head: placeHead(p), title: 'Checkliste', submit: 'Fertig',

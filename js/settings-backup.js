@@ -50,7 +50,7 @@ async function buildBackup(password = '') {
     }
     const c = exportFile.counts;
     out.className = 'hint ok';
-    out.textContent = `Fertig: ${plural(c.items, 'Ding', 'Dinge')}, ${c.photos} Fotos, `
+    out.textContent = `Fertig: ${plural(c.items, 'Ding', 'Dinge')}${c.archived ? ` (davon ${c.archived} im Papierkorb)` : ''}, ${c.photos} Fotos, `
       + `${c.categories} Kategorien, ${plural(c.places, 'Ort', 'Orte')}, ${c.rooms} Räume, ${plural(c.docs || 0, 'Dokument', 'Dokumente')} – ${mb(exportFile.blob.size)}`
       + (password ? ', verschlüsselt.' : '.');
     $('#exp-save').hidden = false;
@@ -179,7 +179,8 @@ function showImportInfo() {
   const when = importData.exportedAt ? dtf.format(new Date(importData.exportedAt)) : 'unbekannt';
   out.className = 'hint';
   const places = Array.isArray(importData.places) ? importData.places.length : 0;
-  out.textContent = `Sicherung vom ${when}: ${c.items ?? importData.items.length} Einträge, `
+  const arch = (importData.items || []).filter(it => it && it.archived).length;
+  out.textContent = `Sicherung vom ${when}: ${plural(c.items ?? importData.items.length, 'Ding', 'Dinge')}${arch ? ` (davon ${arch} im Papierkorb)` : ''}, `
     + `${(importData.photos || []).length} Fotos, ${(importData.categories || []).length} Kategorien, `
     + (places ? `${plural(places, 'Ort', 'Orte')}, ` : '')
     + `${(importData.rooms || []).length} Räume`
@@ -191,7 +192,7 @@ function showImportInfo() {
 
 async function runImport(mode) {
   if (!importData) return;
-  if (mode === 'replace' && !confirm('Wirklich alles ersetzen? Die aktuellen Einträge und Fotos auf diesem Gerät werden vorher gelöscht.')) return;
+  if (mode === 'replace' && !confirm('Wirklich alles ersetzen? Die aktuellen Dinge und Fotos auf diesem Gerät werden vorher gelöscht.')) return;
 
   const out = $('#imp-out');
   $('#imp-choice').hidden = true;

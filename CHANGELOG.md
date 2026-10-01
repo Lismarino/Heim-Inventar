@@ -3,6 +3,20 @@
 Versionschronik von Heim-Inventar – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
 
+## 2.0.2
+
+Nachbesserungen aus einer unabhängigen Prüfung – Daten bleiben, wie sie sind.
+
+- **Wichtig → Alles** behält den auf Start gewählten Ort (Orts-Chip sichtbar, Zahl wie auf der Karte).
+- **Auto-Speichern** beim Verlassen eines Dings meldet „Gespeichert“ mit **Rückgängig**.
+- **Filter:** die KI-Suche beachtet aktive Filter (Chips bleiben stehen); „Filter zurücksetzen“
+  im Filter-Blatt und bei leerem Ergebnis.
+- **Große Textgröße:** Kopfzeile ohne Überlappung (Titel kürzt mit „…“, „Zurück“ notfalls nur als
+  Pfeil), Unterwegs-Etikett kürzt, Tab-Beschriftungen höchstens 12 pt, Suchfeld „Suchen …“.
+- **Sprache:** überall „Dinge“ statt „Einträge“, die Kopfzeile zeigt den Namen des Dings, Zählungen
+  mit „(davon n im Papierkorb)“; Hilfe-Texte wie in der App; „Was ist neu“ nennt den Papierkorb.
+- **Datum** neuer Dokumente und Sicherungsdateien in Ortszeit (kurz nach Mitternacht nicht mehr der Vortag).
+
 ## 2.0.1
 
 Barrierefreiheit und zwei Restpunkte – Daten bleiben, wie sie sind.

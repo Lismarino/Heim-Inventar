@@ -545,7 +545,7 @@ details[open]>summary .chev{transform:rotate(180deg)}
 #nav button{
   position:relative;z-index:1;min-width:0;background:none;border:0;color:var(--nav-fg);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  font-size:0.6471rem;font-weight:650;letter-spacing:-.01em;padding:3px 0 0;
+  font-size:min(.6471rem,12px);font-weight:650;letter-spacing:-.01em;padding:3px 0 0;
   transition:color .2s;
 }
 #nav button span:not(.fab){max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1282,7 +1282,13 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 .topbar .link:active{opacity:1}
 .topbar .link.is-pressed{transform:scale(1.08)}
 /* Schmale Kopfzeile als Raster: der Titel bleibt genau mittig, egal wie breit die Kapseln sind. */
-.topbar:not(.large){display:grid;grid-template-columns:minmax(96px,1fr) minmax(0,auto) minmax(96px,1fr);column-gap:6px}
+.topbar:not(.large){display:grid;grid-template-columns:minmax(max-content,1fr) minmax(0,auto) minmax(max-content,1fr);column-gap:6px;container-type:inline-size}
+/* Große Textgröße (ab ca. 170 %): „Zurück“ nur noch als Pfeil (Name per aria-label), damit der Titel Platz behält. */
+@container (max-width:14rem){
+  .topbar .link.back{width:44px;padding:0;justify-content:center}
+  .topbar .link.back .ic{margin:0}
+  .topbar .back-txt{display:none}
+}
 .topbar:not(.large) > :first-child{justify-self:start}
 .topbar:not(.large) > :last-child{justify-self:end}
 .topbar:not(.large) h1{min-width:0}
@@ -1825,6 +1831,7 @@ body.selecting #nav{visibility:hidden}
 /* Unterwegs / verliehen, Duplikat */
 .out-tag,.dup-tag{display:flex;align-items:center;gap:4px;margin-top:3px;font-size:0.7647rem;font-weight:600;color:var(--clay-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .out-tag .ic{width:15px;height:15px;flex:none}
+.out-tag span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .out-box{margin-bottom:14px;padding:12px 14px;border-radius:var(--r-md);background:var(--clay-tint);box-shadow:inset 0 0 0 1px var(--clay-line)}
 .out-line{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-weight:650;color:var(--clay-ink)}
 .out-line .ic{width:20px;height:20px;flex:none}

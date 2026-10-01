@@ -95,7 +95,7 @@ export function whereSheet(it, ids) {
     for (const b of $$('#sheet-rooms .pchip')) b.classList.toggle('on', b.getAttribute('aria-pressed') === 'true');
   };
   sheet.panel({
-    head: ids ? `<span class="sh-txt"><b>${esc(plural(ids.length, 'Eintrag', 'Einträge'))}</b><small>ausgewählt</small></span>` : itemHead(it),
+    head: ids ? `<span class="sh-txt"><b>${esc(plural(ids.length, 'Ding', 'Dinge'))}</b><small>ausgewählt</small></span>` : itemHead(it),
     title: ids || hasPlace(it) ? 'Ort ändern' : 'Ort zuweisen', submit: 'Übernehmen',
     html: `<div id="sheet-places" class="sheet-places"></div>
       <div id="sheet-rooms" class="sheet-rooms"></div>
@@ -137,7 +137,7 @@ async function setItemWhere(id, pid, name) {
     renderCurrent();
     haptic();
     const it = state.items.find(x => x.id === id);
-    toast(`${it?.name ? `„${it.name}“` : 'Eintrag'} → ${whereText(where.placeId, where.roomId)}`);
+    toast(`${it?.name ? `„${it.name}“` : 'Ding'} → ${whereText(where.placeId, where.roomId)}`);
   } catch (e) {
     toast('Zuweisen fehlgeschlagen: ' + e.message, true);
   }

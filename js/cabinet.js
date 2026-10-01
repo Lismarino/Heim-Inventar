@@ -9,7 +9,7 @@ import * as db from './db.js';
 import * as sheet from './sheet.js';
 import { esc, icon, plural } from './ui.js';
 import { norm } from './combo.js';
-import { fmtDate, daysUntil, cleanDate } from './match.js';
+import { fmtDate, daysUntil, cleanDate, localDay } from './match.js';
 import { prepareDoc, docURL, isImageDoc, docSize, DOC_MAX, FOLDER_SUGGESTIONS, DUE_KINDS, cleanTags, titleFromName, shareName, ix, loadIndex, liveDocs, folderById, folderPath } from './docs.js';
 import { renderPage, makePdf } from './scan.js';
 
@@ -151,7 +151,9 @@ export function render() {
   $('#docs-bar').classList.toggle('large', !sub);
   $('#docs-back').hidden = !sub;
   document.body.classList.toggle('docs-sub', sub);
-  $('#docs-back-txt').textContent = f ? (folderById(f.parentId)?.name || 'Dokumente') : 'Dokumente';
+  const up = f ? (folderById(f.parentId)?.name || 'Dokumente') : 'Dokumente';
+  $('#docs-back-txt').textContent = up;
+  $('#docs-back').setAttribute('aria-label', `Zurück zu ${up}`);
   const path = f ? folderPath(f.parentId) : '';
   $('#docs-path').hidden = !path || !!q;
   $('#docs-path').textContent = path;
@@ -171,7 +173,7 @@ export function render() {
     empty = `<span class="empty-badge muted">${icon('trash')}</span><p>Der Papierkorb ist leer.</p>`;
   } else if (cab.at === ITEM_DOCS) {
     rows = live().filter(d => d.itemId && !d.folderId).sort(byDate).map(d => docRow(d)).join('');
-    empty = `<span class="empty-badge muted">${icon('doc')}</span><p>Noch keine Belege an Einträgen.</p>`;
+    empty = `<span class="empty-badge muted">${icon('doc')}</span><p>Noch keine Belege an Dingen.</p>`;
   } else {
     const subs = children(cab.at).map(x => folderRow(x)).join('');
     let virt = '';
@@ -212,13 +214,13 @@ function docRow(d, withPath = false) {
   const kind = isImageDoc(d) ? 'Bild' : 'PDF';
   const where = withPath ? (folderPath(d.folderId) || (d.itemId ? 'Beleg' : '')) : '';
   const item = d.itemId ? ctx.itemById(d.itemId) : null;
-  const meta = [fmtDate(d.date) || fmtDate(new Date(d.createdAt || Date.now()).toISOString().slice(0, 10)), kind, docSize(d)].join(' · ');
+  const meta = [fmtDate(d.date) || fmtDate(localDay(d.createdAt || Date.now())), kind, docSize(d)].join(' · ');
   const tags = (d.tags || []).slice(0, 4).map(t => `<span class="tag">${esc(t)}</span>`).join('');
   return `<button type="button" class="row drow" data-doc="${esc(d.id)}">
     <span class="d-ic ${isImageDoc(d) ? 'img' : 'pdf'}">${icon(isImageDoc(d) ? 'photos' : 'doc')}</span>
     <span class="body"><span class="name">${esc(d.name)}</span>
       <span class="meta">${esc(where ? where + ' · ' + meta : meta)}</span>
-      ${tags || item ? `<span class="d-tags">${tags}${item ? `<span class="d-item">${icon('box')}${esc(item.name || 'Eintrag')}</span>` : ''}</span>` : ''}
+      ${tags || item ? `<span class="d-tags">${tags}${item ? `<span class="d-item">${icon('box')}${esc(item.name || 'Unbenannt')}</span>` : ''}</span>` : ''}
       ${dueLine(d)}</span>
   </button>`;
 }
@@ -294,7 +296,7 @@ function folderMenu(id) {
         const n = countIn(f.id);
         const subs = descendants(f.id).size - 1;
         const what = [subs ? plural(subs, 'Unterordner', 'Unterordner') : '', n ? plural(n, 'Dokument', 'Dokumente') : ''].filter(Boolean).join(' und ');
-        if (!confirm(`Ordner „${f.name}“ löschen?${what ? `\n\nDarin: ${what}. Dokumente kommen in den Papierkorb (Belege bleiben an ihrem Eintrag).` : ''}`)) return;
+        if (!confirm(`Ordner „${f.name}“ löschen?${what ? `\n\nDarin: ${what}. Dokumente kommen in den Papierkorb (Belege bleiben an ihrem Ding).` : ''}`)) return;
         db.dropFolder(f.id).then(async () => {
           if (descendants(f.id).has(cab.at)) cab.at = f.parentId || null;
           await load(); render();
@@ -326,7 +328,7 @@ export async function docSheet(id) {
       { id: 'share', label: 'Teilen', icon: 'share' },
       // 2.0: Titel und Ordner ändert „Bearbeiten“ (früher zusätzlich „Umbenennen“ und „Verschieben“).
       { id: 'edit', label: 'Bearbeiten', icon: 'pencil' },
-      ...(item ? [{ id: 'item', label: `Zum Ding „${item.name || 'Eintrag'}“`, icon: 'box' }] : []),
+      ...(item ? [{ id: 'item', label: `Zum Ding „${item.name || 'Unbenannt'}“`, icon: 'box' }] : []),
       { id: 'trash', label: 'In den Papierkorb', icon: 'trash', danger: true },
     ];
   sheet.open({
@@ -428,7 +430,7 @@ async function openAdd({ itemId = null } = {}) {
   $('#da-src').hidden = false;
   fillFolderSelect(inFolder || (itemId ? '' : last) || '');
   $('#da-title').value = '';
-  $('#da-date').value = new Date().toISOString().slice(0, 10);
+  $('#da-date').value = localDay();
   $('#da-tags').value = '';
   $('#da-due-kind').value = '';
   $('#da-due').value = '';
@@ -478,7 +480,7 @@ const asPdf = () => cab.scanned || cab.pages.length > 1;
 function suggestTitle(name) {
   if ($('#da-title').value.trim()) return;
   const t = titleFromName(name);
-  $('#da-title').value = t || `Scan ${fmtDate(new Date().toISOString().slice(0, 10))}`;
+  $('#da-title').value = t || `Scan ${fmtDate(localDay())}`;
 }
 
 /** Fotos/Scans als Seiten hinzufügen. */
@@ -523,7 +525,7 @@ function formMeta() {
   let itemId = null;
   if (itemName) {
     const hit = ctx.items().find(i => !i.archived && norm(i.name) === norm(itemName));
-    if (!hit) throw new Error(`Kein Eintrag „${itemName}“ gefunden – Namen aus der Vorschlagsliste wählen oder leer lassen.`);
+    if (!hit) throw new Error(`Kein Ding „${itemName}“ gefunden – Namen aus der Vorschlagsliste wählen oder leer lassen.`);
     itemId = hit.id;
   }
   const kind = $('#da-due-kind').value;
@@ -602,7 +604,7 @@ async function buildDoc(meta) {
   } else {
     throw new Error('Bitte zuerst scannen, Fotos oder eine Datei wählen.');
   }
-  const name = meta.name || (cab.file ? titleFromName(cab.file.name) : '') || `Dokument ${fmtDate(new Date().toISOString().slice(0, 10))}`;
+  const name = meta.name || (cab.file ? titleFromName(cab.file.name) : '') || `Dokument ${fmtDate(localDay())}`;
   return { id: db.uid(), ...meta, name, ...base, createdAt: now, updatedAt: now, trashedAt: null };
 }
 
