@@ -57,15 +57,15 @@ export function roomMenu(id) {
   const lost = !placeById(r.placeId);
   sheet.open({
     head: roomHead(r),
+    // „Hier fotografieren“ steht groß in der Raum-Ansicht (2.0: nicht noch einmal hier).
     actions: [
-      { id: 'shoot', label: 'Hier fotografieren', icon: 'camera' },
       { id: 'rename', label: 'Umbenennen', icon: 'pencil' },
-      { id: 'move', label: lost ? 'Einem Ort zuordnen' : 'In anderen Ort verschieben', icon: 'pin' },
+      // Verschieben nur, wenn es einen anderen Ort gibt (angelegt wird ein Ort im Tab „Orte“).
+      ...(lost || state.places.length > 1 ? [{ id: 'move', label: lost ? 'Einem Ort zuordnen' : 'In anderen Ort verschieben', icon: 'pin' }] : []),
       { id: 'drop', label: 'Raum löschen', icon: 'trash', danger: true },
     ],
     onAction: (a) => {
-      if (a === 'shoot') shootHere(id);
-      else if (a === 'move') moveRoomSheet(id);
+      if (a === 'move') moveRoomSheet(id);
       else if (a === 'rename') {
         sheet.form({
           head: roomHead(r), title: 'Raum umbenennen', label: 'Name', value: r.name, submit: 'Umbenennen',
@@ -83,18 +83,14 @@ export function roomMenu(id) {
   });
 }
 
-// Wohin mit Räumen? Chips der Ziel-Orte (plus „Neuer Ort“: danach geht es hier weiter).
-// reopen(pid) zeigt dasselbe Blatt mit dem neuen Ort erneut, sobald „Neuer Ort“ zu ist.
-function roomTargetSheet({ head, title, others, target, note, submit, reopen, onSubmit }) {
-  const draw = () => placeChipsHTML(others, target, { label: 'Wohin?' });
+// Wohin mit Räumen? Chips der Ziel-Orte. (Neue Orte entstehen seit 2.0 nur noch im Tab „Orte“,
+// beim Hinzufügen und in der Einführung.)
+function roomTargetSheet({ head, title, others, target, note, submit, onSubmit }) {
+  const draw = () => placeChipsHTML(others, target, { add: false, label: 'Wohin?' });
   sheet.panel({
     head, title, submit,
     html: `<div id="sheet-places">${draw()}</div><p class="sheet-note small" id="sheet-move-note">${esc(note(target))}</p>`,
     onClick: (e) => {
-      if (e.target.closest('[data-place-new]')) {
-        addPlaceSheet({ onDone: (pid) => { sheet.close().then(() => reopen(pid)); } });
-        return;
-      }
       const b = e.target.closest('[data-place]');
       if (!b) return;
       target = b.dataset.place;
@@ -137,17 +133,16 @@ function moveRoomSheet(id, preselect = '') {
     target: others.some(p => p.id === preselect) ? preselect : (others.length === 1 ? others[0].id : ''),
     note: (t) => {
       const p = placeById(t);
-      if (!p) return others.length ? 'Wähle den Ort, in den der Raum umzieht.' : 'Es gibt noch keinen anderen Ort – leg einen an, z. B. „Auto“.';
+      if (!p) return others.length ? 'Wähle den Ort, in den der Raum umzieht.' : 'Es gibt noch keinen anderen Ort – leg im Tab „Orte“ mit „+“ einen an.';
       const twin = twinsIn([id], t).length ? roomsIn(t).find(x => low(x.name) === low(r.name)) : null;
       if (twin) return `In „${p.name}“ gibt es schon „${twin.name}“ – beide werden zusammengeführt.`;
       return n ? `${plural(n, 'Ding zieht', 'Dinge ziehen')} mit nach „${p.name}“.` : `Der Raum ist leer und zieht nach „${p.name}“.`;
     },
-    reopen: (pid) => moveRoomSheet(id, pid),
     onSubmit: (t) => moveRoomsTo([id], t),
   });
 }
 
-// Tab „Räume“, Gruppe „Ohne Ort“: alle Räume ohne gültigen Ort auf einmal einem Ort zuordnen.
+// Tab „Orte“, Gruppe „Räume ohne Ort“: alle Räume ohne gültigen Ort auf einmal einem Ort zuordnen.
 export function assignLostRoomsSheet(preselect = '') {
   const lost = state.rooms.filter(r => !placeById(r.placeId));
   if (!lost.length) return;
@@ -164,7 +159,6 @@ export function assignLostRoomsSheet(preselect = '') {
       const tw = twinsIn(lost.map(r => r.id), t).length;
       return `Die Räume ziehen samt Inhalt nach „${p.name}“.` + (tw ? ` ${plural(tw, 'gleichnamiger Raum wird', 'gleichnamige Räume werden')} dort zusammengeführt.` : '');
     },
-    reopen: (pid) => assignLostRoomsSheet(pid),
     onSubmit: (t) => moveRoomsTo(lost.map(r => r.id), t),
   });
 }
@@ -524,7 +518,6 @@ export async function dropNamed(kind, id) {
 export function init() {
   $('#room-shoot').addEventListener('click', () => shootHere(state.roomId, state.placeId));
   $('#room-menu').addEventListener('click', () => (state.roomId ? roomMenu(state.roomId) : placeMenu(state.placeId)));
-  $('#places-add').addEventListener('click', () => addPlaceSheet());
   const roomScroll = $('#view-room .scroll');
   roomScroll.addEventListener('scroll', () => {
     $('#view-room').classList.toggle('scrolled', roomScroll.scrollTop > 40);

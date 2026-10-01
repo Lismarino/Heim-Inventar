@@ -7,20 +7,22 @@ import * as glass from './glass.js';
 import * as sound from './sound.js';
 import { hideCombo } from './combo.js';
 import { $, $$ } from './ui.js';
-import { cabM } from './lazy.js';
+import { cabinet, cabM } from './lazy.js';
 import { endSelect } from './select.js';
 import { refreshItems, state } from './state.js';
 import { renderCapture, resetCapture } from './view-add.js';
 import { closeLightbox, leaveItem, syncItemAi } from './view-item.js';
 import { renderArchive, renderList } from './view-list.js';
-import { renderRooms, resetRoomSel } from './view-noplace.js';
+import { renderNoPlace, resetRoomSel } from './view-noplace.js';
+import { renderOrte } from './view-orte.js';
 import { renderManagers, updateStorageInfo } from './view-settings.js';
 
-// „places“ ist der Tab „Räume“ – „rooms“ ist (historisch) die Ansicht „Ohne Ort“
-// (bis 1.6 „Ohne Raum“), „room“ zeigt einen Raum oder, ohne Raum, einen Ort selbst.
-const TABS = ['home', 'list', 'places', 'settings'];
-// 1.9.0: „docs“ (Dokumente, von Zuhause) und „docadd“ (Dokument hinzufügen/bearbeiten).
-const PUSH = ['item', 'rooms', 'room', 'archive', 'docs', 'docadd'];
+// Tabs (2.0): Start · Alles · [Kamera] · Orte · Dokumente. „orte“ verwaltet Orte und Räume,
+// „noplace“ sammelt Dinge ohne Ort, „room“ zeigt einen Raum oder, ohne Raum, einen Ort selbst,
+// „archive“ ist der Papierkorb (Feld `archived`), „docadd“ legt ein Dokument an oder bearbeitet
+// es. Die Einstellungen sind seit 2.0 eine Push-Ansicht (⚙ auf Start).
+const TABS = ['home', 'list', 'orte', 'docs'];
+const PUSH = ['item', 'noplace', 'room', 'archive', 'docadd', 'settings'];
 
 // Die Warteschlange hat etwas geändert: Daten neu holen und nur die aktuelle Ansicht
 // auffrischen – ohne offene Eingabefelder oder die Detail-Ansicht zu zerstören.
@@ -45,14 +47,22 @@ export function renderCurrent() {
 export function renderView(view) {
   closeSwipes();   // eine offene Wisch-Zeile überlebt das Neuzeichnen nicht
   if (view === 'home') home.renderHome();
-  else if (view === 'places') home.renderPlaces();
+  else if (view === 'orte') renderOrte();
   else if (view === 'list') renderList();
   else if (view === 'add') renderCapture();
-  else if (view === 'rooms') renderRooms();
+  else if (view === 'noplace') renderNoPlace();
   else if (view === 'archive') renderArchive();
-  else if (view === 'docs') cabM?.render();
+  else if (view === 'docs') renderDocs();
   else if (view === 'docadd') cabM?.renderAdd();
   else if (view === 'room' && !home.renderRoom(state.roomId, state.placeId) && state.view === 'room') navigate('back');
+}
+
+// Der Aktenschrank wird erst beim ersten Öffnen geladen (js/lazy.js) – bis dahin bleibt der
+// Tab leer, danach zeichnet er sich, sofern man noch dort ist.
+function renderDocs() {
+  if (cabM?.ready()) { cabM.render(); return; }
+  cabinet().then((c) => c.ready() || c.reload()).then(() => { if (state.view === 'docs') cabM.render(); })
+    .catch((e) => console.warn('Dokumente laden:', e));
 }
 
 // Zu welchem Tab gehört die aktuelle Ansicht? (für die Markierung in der Leiste)
@@ -113,7 +123,9 @@ export function navigate(view, { instant = false, fresh = false } = {}) {
   if (state.detailURL && view !== 'item') { URL.revokeObjectURL(state.detailURL); state.detailURL = null; }
   // Neue Erfassungsrunde – außer man kommt nur aus einem Eintrag oder „Ohne Ort“ zurück.
   if (view === 'add' && !back && from !== 'add') resetCapture();
-  if (view === 'rooms' && !back && from !== 'rooms') resetRoomSel();
+  if (view === 'noplace' && !back && from !== 'noplace') resetRoomSel();
+  // Dokumente-Tab erneut angetippt: aus einem Ordner zurück nach oben.
+  if (view === 'docs' && from === 'docs' && cabM?.canUp()) cabM.toTop();
 
   const leaving = $('#view-' + from + ' .scroll');
   if (leaving) state.scrollPos[from] = leaving.scrollTop;
@@ -157,10 +169,13 @@ export function navigate(view, { instant = false, fresh = false } = {}) {
   motion.run(kind, fromEl, toEl, (el) => el === $('#view-' + state.view));
 }
 
-// Zurückwischen vom linken Rand – nur in Push-Ansichten und wenn nichts darüber liegt.
+// Zurückwischen vom linken Rand – nur in Push-Ansichten (und in Ordnern der Dokumente) und
+// wenn nichts darüber liegt.
 let swipeFrom = null;
 export function beginSwipeBack() {
-  if (!PUSH.includes(state.view) || motion.busy() || !$('#lightbox').hidden || sheet.isOpen() || !$('#onboarding').hidden) return null;
+  if (motion.busy() || !$('#lightbox').hidden || sheet.isOpen() || !$('#onboarding').hidden) return null;
+  if (state.view === 'docs' && cabM?.canUp()) return folderSwipe();
+  if (!PUSH.includes(state.view)) return null;
   const prev = prevView();
   const prevEl = $('#view-' + prev);
   if (!prevEl || prev === state.view) return null;
@@ -178,6 +193,24 @@ export function commitSwipeBack() {
   const at = swipeFrom;
   swipeFrom = null;
   if (at && state.view === at) navigate('back', { instant: true });
+}
+
+// In einem Ordner der Dokumente: der Inhalt folgt dem Finger, losgelassen geht es eine Ebene hoch.
+function folderSwipe() {
+  const el = $('#view-docs .scroll');
+  const w = el.getBoundingClientRect().width || window.innerWidth;
+  hideCombo();
+  return {
+    width: w,
+    move(px) { const x = Math.max(0, Math.min(w, px)); el.style.transform = `translateX(${x * 0.6}px)`; el.style.opacity = String(1 - x / w * 0.6); },
+    end(commit, onDone = () => {}) {
+      el.style.transform = '';
+      el.style.opacity = '';
+      if (commit) { cabM?.up(); sound.play('tick'); }
+      onDone();
+      return Promise.resolve();
+    },
+  };
 }
 
 // Aufgeklappte Wisch-Zeilen schließen (vor dem Neuzeichnen einer Liste und beim Navigieren).

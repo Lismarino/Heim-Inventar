@@ -1,14 +1,15 @@
-// Ansicht „Alles“: Liste mit Suche und Filtern, Zeichnen in Schüben, KI-Suche, Archiv.
+// Ansicht „Alles“: Liste mit Suche und Filtern, Zeichnen in Schüben, KI-Suche, Papierkorb
+// (gelöschte Dinge – intern „archive“, Feld `archived`).
 import * as ai from './gemini.js';
 import * as home from './home.js';
 import { norm } from './combo.js';
 import { aiDocs, folderPath } from './docs.js';
 import { cleanOut, outText, qtyNumber, warrantySoon } from './match.js';
 import { placeIcon } from './places.js';
-import { $, df, EMPTY_ART, esc, icon, isThumb, placeholderHTML, plural } from './ui.js';
+import { $, df, EMPTY_ART, esc, icon, isThumb, placeholderHTML } from './ui.js';
 import { cabinet } from './lazy.js';
 import { stepQty, toggleSel } from './select.js';
-import { aiBusy, aiNeedsKey, catName, hasKey, multiPlaces, noRoomItems, placeName, placeOf, roomName, roomsIn, state, whereOf } from './state.js';
+import { aiBusy, aiNeedsKey, catName, hasKey, multiPlaces, placeName, placeOf, roomName, roomsIn, state, whereOf } from './state.js';
 import { toast } from './toast.js';
 import { openItem, openPhotoOf } from './view-item.js';
 import { keyHint } from './view-settings.js';
@@ -42,6 +43,9 @@ function haystack(it) {
   return [it.name, catName(it.categoryId), placeOf(it)?.name, roomName(it.roomId), it.locationDetail, it.quantity, it.note, it.serial, outText(it)]
     .filter(Boolean).join(' ');
 }
+
+/** Wird gerade gesucht oder gefiltert? */
+const filtering = () => !!(state.listFilter || $('#q').value.trim() || $('#f-cat').value || $('#f-place').value || $('#f-room').value);
 
 function visibleItems() {
   const q = norm($('#q').value);
@@ -82,7 +86,7 @@ export function rowHTML(it, why, opts = {}) {
       ? `<div class="name">${esc(it.name)}</div>`
       : aiNeedsKey(it)
         ? '<div class="name unnamed">Wartet auf API-Key</div>'
-        : '<div class="name unnamed">Unbenannt – antippen zum Benennen</div>';
+        : '<div class="name unnamed">Unbenannt</div>';
   return `<button type="button" class="row${aiBusy(it) ? ' is-pending' : ''}${selOn ? ' selecting' : ''}${selOn && state.sel.has(it.id) ? ' sel-on' : ''}" data-id="${esc(it.id)}"${selOn ? ` aria-pressed="${state.sel.has(it.id)}"` : ''}>
     ${selOn ? `<span class="row-check" aria-hidden="true">${icon('check')}</span>` : ''}${thumb}
     <div class="body">
@@ -164,12 +168,6 @@ export function renderList() {
   $('#filters').hidden = false;
   $('#f-flag').hidden = !state.listFilter;
   $('#f-flag-txt').textContent = { unnamed: 'Nur unbenannte', out: 'Nur unterwegs/verliehen', warranty: 'Garantie läuft bald ab' }[state.listFilter] || '';
-  const nr = noRoomItems().length;
-  const hint = $('#noroom-hint');
-  hint.hidden = !nr;
-  if (nr) hint.innerHTML = `<span class="nr-ic">${icon('pin')}</span>`
-    + `<span class="nr-txt"><b>${plural(nr, 'Eintrag', 'Einträge')} ohne Ort</b><small>Jetzt gesammelt zuordnen</small></span>`
-    + icon('chev-r', 'go');
   const rows = visibleItems();
   const total = state.items.filter(i => !i.archived).length;
   const sig = listContextSig() + '\u0003' + rows.map(itemSig).join('\u0004');
@@ -178,8 +176,14 @@ export function renderList() {
     const sc = $('#view-list .scroll');
     drawRows($('#list'), rows, (it) => rowHTML(it), Math.max(sc?.scrollTop || 0, state.view === 'list' ? 0 : state.scrollPos.list || 0));
   }
-  $('#list-archive').hidden = !state.items.some(i => i.archived) || !!state.listFilter;
-  $('#list-count').textContent = total ? (rows.length === total ? `${total}` : `${rows.length}/${total}`) : '';
+  // Papierkorb am Ende – nicht, solange gefiltert oder gesucht wird.
+  const trash = state.items.filter(i => i.archived).length;
+  $('#list-archive').hidden = !trash || filtering();
+  $('#list-archive-txt').textContent = `Papierkorb (${trash})`;
+  // „11 von 61“ unter dem Suchfeld – nur, wenn gesucht oder gefiltert wird.
+  const hits = $('#list-hits');
+  hits.hidden = !total || !filtering();
+  hits.textContent = `${rows.length} von ${total}`;
   const empty = $('#list-empty');
   empty.hidden = rows.length > 0;
   empty.classList.toggle('first', total === 0);
@@ -202,7 +206,7 @@ function renderAiResult() {
     .filter(m => m.item && !m.item.archived);
   $('#filters').hidden = true;
   $('#f-flag').hidden = true;
-  $('#noroom-hint').hidden = true;
+  $('#list-hits').hidden = true;
   $('#ai-answer').hidden = false;
   $('#ai-answer-q').textContent = a.question;
   $('#ai-answer-text').textContent = a.answer || 'Keine Antwort erhalten.';
@@ -214,7 +218,6 @@ function renderAiResult() {
     + docs.map(m => `<button type="button" class="row drow" data-doc-hit="${esc(m.doc.id)}"><span class="d-ic">${icon('doc')}</span>`
       + `<span class="body"><span class="name">${esc(m.doc.name)}</span><span class="meta">${esc(folderPath(m.doc.folderId) || 'Dokumente')}</span>`
       + `${m.why ? `<span class="why">${esc(m.why)}</span>` : ''}</span></button>`).join('');
-  $('#list-count').textContent = (matches.length + docs.length) || '';
   const empty = $('#list-empty');
   empty.hidden = matches.length + docs.length > 0;
   empty.classList.remove('first');
@@ -287,7 +290,6 @@ async function runAiSearch() {
 export function renderArchive() {
   const rows = state.items.filter(i => i.archived).sort((a, b) => (b.archivedAt || 0) - (a.archivedAt || 0));
   drawRows($('#arch-list'), rows, (it) => rowHTML(it), state.scrollPos.archive || 0);
-  $('#arch-count').textContent = rows.length || '';
   $('#arch-empty').hidden = rows.length > 0;
 }
 

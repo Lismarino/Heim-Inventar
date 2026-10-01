@@ -131,6 +131,20 @@ export function panel({ head = '', title, html, submit = 'Übernehmen', danger =
   if (el) { try { el.focus({ preventScroll: true }); if (el.select) el.select(); } catch (_) { void _; } }
 }
 
+/** Blatt mit einer Liste (etwa „Wichtig“ – alle Zeilen): Titel, fertiges (escaptes) HTML, unten „Fertig“.
+ *  onClick(e) bekommt Klicks in der Liste. */
+export function list({ title, html, onClick }) {
+  play('pop');
+  onAction = null;
+  onSubmit = null;
+  onPanelClick = onClick || null;
+  show(`<div class="sheet-panel sheet-list">
+      <h2 class="sheet-title" id="sheet-title">${esc(title)}</h2>
+      ${html}
+    </div>
+    <button class="sheet-cancel" data-sheet-close>Fertig</button>`);
+}
+
 export function close() {
   const wrap = $('#sheet');
   if (wrap.hidden || closing) return closing || Promise.resolve();

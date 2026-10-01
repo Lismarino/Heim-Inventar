@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/version.js und VERSION in sw.js passen – sonst rettet sich die App per Update
      (tests/consistency.spec.js prüft das; ebenso die Dateiliste des Start-Wächters unten). -->
-<meta name="app-version" content="1.11.0">
+<meta name="app-version" content="2.0.0-beta.1">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -81,6 +81,7 @@
 <link rel="modulepreload" href="./js/view-item.js">
 <link rel="modulepreload" href="./js/view-list.js">
 <link rel="modulepreload" href="./js/view-noplace.js">
+<link rel="modulepreload" href="./js/view-orte.js">
 <link rel="modulepreload" href="./js/view-room.js">
 <link rel="modulepreload" href="./js/view-settings.js">
 <link rel="modulepreload" href="./js/where.js">
@@ -92,7 +93,6 @@
   <symbol id="i-shelf" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M3.5 12h17M9.5 7.75h5M9.5 16.25h5"/></symbol>
   <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3.5 9A2.5 2.5 0 0 1 6 6.5h1.7l1.2-1.8a1.6 1.6 0 0 1 1.33-.7h3.54a1.6 1.6 0 0 1 1.33.7l1.2 1.8H18A2.5 2.5 0 0 1 20.5 9v8a2.5 2.5 0 0 1-2.5 2.5H6A2.5 2.5 0 0 1 3.5 17z"/><circle cx="12" cy="12.75" r="3.6"/></symbol>
   <symbol id="i-photos" viewBox="0 0 24 24"><rect x="3.5" y="7" width="13.5" height="13.5" rx="2.5"/><path d="M7 3.5h10.5A3 3 0 0 1 20.5 6.5V17"/><path d="m3.75 17.5 3.6-3.6a1.2 1.2 0 0 1 1.7 0l4.9 4.9M12 16l1.3-1.3a1.2 1.2 0 0 1 1.7 0l1.8 1.8"/><circle cx="12.4" cy="11" r="1.2"/></symbol>
-  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7.5h9M18.5 7.5H20M4 16.5h1.5M11 16.5h9"/><circle cx="15.75" cy="7.5" r="2.5"/><circle cx="8.25" cy="16.5" r="2.5"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.75" cy="10.75" r="6.25"/><path d="m15.5 15.5 4.5 4.5"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 20.75s-6.5-5.5-6.5-10.9a6.5 6.5 0 0 1 13 0c0 5.4-6.5 10.9-6.5 10.9z"/><circle cx="12" cy="9.85" r="2.35"/></symbol>
   <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9.5 5.5 6.5 6.5-6.5 6.5"/></symbol>
@@ -107,7 +107,6 @@
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.25M12 7.9v.1"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.6a2 2 0 0 1 3.4 0l7 12.1a2 2 0 0 1-1.7 3H5a2 2 0 0 1-1.7-3z"/><path d="M12 9.5v4.25M12 16.6v.1"/></symbol>
-  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="4.5" rx="1.5"/><path d="M5 9v8.5A2 2 0 0 0 7 19.5h10a2 2 0 0 0 2-2V9M10 13h4"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.3-5.4M19.5 4.5V8.5h-4"/></symbol>
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.4 12 4l8 6.4v8.1a2 2 0 0 1-2 2h-3.25v-5.25a1.5 1.5 0 0 0-1.5-1.5h-2.5a1.5 1.5 0 0 0-1.5 1.5v5.25H6a2 2 0 0 1-2-2z"/></symbol>
   <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.4 12h.1M12 12h.1M15.6 12h.1" stroke-width="2.6"/></symbol>
@@ -117,6 +116,8 @@
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2"/></symbol>
   <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14.5 4.5 10 9 5.5"/><path d="M4.5 10h10a5 5 0 0 1 0 10H12"/></symbol>
   <symbol id="i-rooms" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M11 3.5v5.25M11 12.25v8.25M3.5 12.25H8M11 12.25h9.5"/></symbol>
+  <symbol id="i-docs" viewBox="0 0 24 24"><path d="M8.5 6.5V5.25c0-.97.78-1.75 1.75-1.75h5.5l4 4v9.75c0 .97-.78 1.75-1.75 1.75H16.5"/><path d="M15.5 3.75V7.5h3.75"/><rect x="4.5" y="6.5" width="12" height="14" rx="2"/><path d="M7.75 11.25h5.5M7.75 14.75h5.5M7.75 18h3"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.2 3h-.4a1.8 1.8 0 0 0-1.8 1.8v.16a1.8 1.8 0 0 1-.9 1.56l-.39.22a1.8 1.8 0 0 1-1.8 0l-.13-.07a1.8 1.8 0 0 0-2.46.66l-.2.34a1.8 1.8 0 0 0 .66 2.46l.13.09a1.8 1.8 0 0 1 .9 1.55v.46a1.8 1.8 0 0 1-.9 1.57l-.13.08a1.8 1.8 0 0 0-.66 2.46l.2.34a1.8 1.8 0 0 0 2.46.66l.13-.07a1.8 1.8 0 0 1 1.8 0l.39.22a1.8 1.8 0 0 1 .9 1.56v.16a1.8 1.8 0 0 0 1.8 1.8h.4a1.8 1.8 0 0 0 1.8-1.8v-.16a1.8 1.8 0 0 1 .9-1.56l.39-.22a1.8 1.8 0 0 1 1.8 0l.13.07a1.8 1.8 0 0 0 2.46-.66l.2-.35a1.8 1.8 0 0 0-.66-2.46l-.13-.07a1.8 1.8 0 0 1-.9-1.57v-.45a1.8 1.8 0 0 1 .9-1.57l.13-.08a1.8 1.8 0 0 0 .66-2.46l-.2-.34a1.8 1.8 0 0 0-2.46-.66l-.13.07a1.8 1.8 0 0 1-1.8 0l-.39-.22a1.8 1.8 0 0 1-.9-1.56V4.8A1.8 1.8 0 0 0 12.2 3z"/><circle cx="12" cy="12" r="2.75"/></symbol>
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.25h7a2 2 0 0 1 2 2v8.75a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 14.5V3.5M8 7.25l4-3.75 4 3.75"/><path d="M8.5 10.5H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/></symbol>
   <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5M7.5 12h9"/></symbol>
@@ -189,35 +190,23 @@
         <p class="home-date" id="home-date"></p>
         <h1 class="home-hello" id="home-hello">Hallo</h1>
         <p class="home-sum" id="home-sum"></p>
+        <!-- Einstellungen (2.0): kein Tab mehr, sondern eine Push-Ansicht von hier aus -->
+        <button class="home-gear" id="home-settings" type="button" data-nav="settings" aria-label="Einstellungen"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg></button>
       </header>
-      <!-- Orts-Umschalter: Alle · Zuhause · Auto … – die Linse gleitet zum gewählten (js/glass.js) -->
+      <!-- Orts-Umschalter (ab zwei Orten): Alle · Zuhause · Auto … – die Linse gleitet zum gewählten (js/glass.js) -->
       <div class="pswitch" id="home-places" hidden>
         <div class="pswitch-track" role="group" aria-label="Ort wählen"></div>
       </div>
-      <!-- Nur ein Ort: statt des Umschalters ein Hinweis, dass es weitere geben kann -->
-      <button type="button" class="place-hint" id="home-place-hint" data-place-add hidden>
-        <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg><span>Ort hinzufügen</span><small>z. B. Auto</small>
-      </button>
       <button class="home-search" id="home-search" type="button">
         <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><span>Suchen oder KI fragen …</span>
       </button>
-      <!-- Dokumente (1.9.0): eigener Einstieg direkt auf Zuhause – ein Tipp, ohne einen Tab zu belegen -->
-      <button class="home-docs" id="home-docs" type="button">
-        <span class="hd-ic"><svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg></span>
-        <span class="hd-txt"><b>Dokumente</b><small id="home-docs-sub">Verträge, Versicherungen, Rechnungen</small></span>
-        <svg class="ic go" aria-hidden="true"><use href="#i-chev-r"/></svg>
-      </button>
       <button class="home-sync" id="home-sync" type="button" hidden></button>
-      <div class="card todo" id="home-todo" hidden></div>
-      <div class="card backup-card" id="home-backup" hidden></div>
+      <!-- „Wichtig“ (2.0): eine Karte statt „Zu erledigen“, „Bald fällig“ und Sicherungs-Karte – höchstens drei Zeilen -->
+      <section class="card todo" id="home-todo" aria-labelledby="home-todo-title" hidden></section>
       <div class="empty home-empty" id="home-empty" hidden></div>
       <section id="home-recent-sec">
         <div class="sec-row"><h2 class="sec">Zuletzt hinzugefügt</h2><button class="sec-link" data-nav="list">Alle</button></div>
         <div class="recent" id="home-recent"></div>
-      </section>
-      <section id="home-rooms-sec">
-        <div class="sec-row"><h2 class="sec">Räume <span class="sec-n" id="home-rooms-count"></span></h2><button class="sec-link" data-nav="places" id="home-rooms-all">Alle</button></div>
-        <div class="room-groups" id="home-rooms"></div>
       </section>
     </div>
   </section>
@@ -227,7 +216,6 @@
     <div class="head">
       <header class="topbar large">
         <h1>Alles</h1>
-        <span class="count" id="list-count"></span>
         <button class="link sel-toggle" id="list-select" data-select-toggle>Auswählen</button>
       </header>
       <div class="toolbar">
@@ -245,6 +233,8 @@
           <select id="f-room" required aria-label="Raum filtern"><option value="">Alle Räume</option></select>
         </div>
         <button class="flag" id="f-flag" hidden><span id="f-flag-txt"></span><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+        <!-- 2.0: statt einer Zähler-Plakette im Titel – nur, wenn gesucht oder gefiltert wird -->
+        <p class="list-hits" id="list-hits" aria-live="polite" hidden></p>
         <button class="btn block ask" id="ai-search" hidden>Stattdessen die KI fragen</button>
       </div>
     </div>
@@ -254,25 +244,23 @@
         <p id="ai-answer-text"></p>
         <button class="btn ghost block" id="ai-clear">Zurück zur Liste</button>
       </div>
-      <button class="noroom-hint" id="noroom-hint" data-nav="rooms" hidden></button>
       <div id="list" class="list"></div>
       <div class="empty" id="list-empty" hidden></div>
-      <!-- 1.10.0: das Archiv (aus der Liste gewischte Einträge) wohnt jetzt hier, nicht mehr in den Einstellungen -->
-      <button class="list-archive" id="list-archive" data-nav="archive" hidden><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg><span>Archiv ansehen</span><svg class="ic go" aria-hidden="true"><use href="#i-chev-r"/></svg></button>
+      <!-- Papierkorb (bis 1.11 „Archiv“): gelöschte Dinge, wiederherstellbar; endgültig löschen nur dort -->
+      <button class="list-archive" id="list-archive" data-nav="archive" hidden><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg><span id="list-archive-txt">Papierkorb</span><svg class="ic go" aria-hidden="true"><use href="#i-chev-r"/></svg></button>
     </div>
   </section>
 
-  <!-- ============ RÄUME (Tab) ============ -->
-  <section class="view" id="view-places" hidden>
+  <!-- ============ ORTE (Tab, bis 1.11 „Räume“) ============ -->
+  <section class="view" id="view-orte" hidden>
     <div class="head">
       <header class="topbar large">
-        <h1>Räume</h1>
-        <span class="count" id="places-count"></span>
-        <button class="link" id="places-add" aria-label="Ort hinzufügen"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Ort</button>
+        <h1>Orte</h1>
+        <button class="link icon" id="orte-add" aria-label="Ort oder Raum hinzufügen"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
       </header>
     </div>
-    <div class="scroll places">
-      <div class="room-groups" id="places-grid"></div>
+    <div class="scroll orte">
+      <div id="orte-list"></div>
     </div>
   </section>
 
@@ -314,7 +302,6 @@
       </div>
       <input type="file" id="cap-camera-input" accept="image/*" capture="environment" hidden>
       <input type="file" id="cap-library-input" accept="image/*" multiple hidden>
-      <button class="btn ghost block have-add" id="cap-have" type="button"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>Habe ich das schon? Foto prüfen</button>
       <p class="hint note" id="cap-hint"></p>
 
       <div class="card cap-status" id="cap-status" hidden>
@@ -322,8 +309,6 @@
         <div class="cap-strip" id="cap-strip"></div>
         <p class="hint" id="cap-note" hidden></p>
       </div>
-
-      <button class="noroom-link" id="cap-noroom" data-nav="rooms" hidden></button>
 
       <details class="card manual" id="manual">
         <summary><svg class="ic" aria-hidden="true"><use href="#i-pencil"/></svg><span>Ohne Foto eintragen</span><svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
@@ -357,13 +342,13 @@
     </div>
   </section>
 
-  <!-- ============ OHNE ORT (bis 1.6 „Ohne Raum“) ============ -->
-  <section class="view" id="view-rooms" hidden>
+  <!-- ============ OHNE ORT ============ -->
+  <section class="view" id="view-noplace" hidden>
     <div class="head">
       <header class="topbar">
         <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
         <h1>Ohne Ort</h1>
-        <span class="count" id="rs-count"></span>
+        <span></span>
       </header>
     </div>
     <div class="scroll">
@@ -474,7 +459,7 @@
       <p class="hint meta-hint" id="it-meta"></p>
       <div id="it-actions">
         <button class="btn block" id="it-out-set"><svg class="ic" aria-hidden="true"><use href="#i-out"/></svg>Unterwegs / verliehen …</button>
-        <button class="btn block" id="it-archive"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg>Ins Archiv verschieben</button>
+        <button class="btn danger block" id="it-archive"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg>Löschen</button>
       </div>
       <div id="it-actions-arch" hidden>
         <button class="btn block" id="it-restore">Wiederherstellen</button>
@@ -483,31 +468,31 @@
     </div>
   </section>
 
-  <!-- ============ ARCHIV ============ -->
+  <!-- ============ PAPIERKORB (Dinge; intern „archive“, Feld archived) ============ -->
   <section class="view" id="view-archive" hidden>
     <div class="head">
       <header class="topbar">
         <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
-        <h1>Archiv</h1>
-        <span class="count" id="arch-count"></span>
+        <h1>Papierkorb</h1>
+        <span></span>
       </header>
     </div>
     <div class="scroll">
       <div id="arch-list" class="list"></div>
       <div class="empty" id="arch-empty" hidden>
-        <span class="empty-badge muted"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg></span>
-        <p>Das Archiv ist leer.</p>
+        <span class="empty-badge muted"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></span>
+        <p>Der Papierkorb ist leer.</p>
       </div>
     </div>
   </section>
 
-  <!-- ============ DOKUMENTE (1.9.0, Push-Ansicht von Zuhause) ============ -->
+  <!-- ============ DOKUMENTE (Tab seit 2.0) – oben großer Titel, in Ordnern „Zurück“ ============ -->
   <section class="view" id="view-docs" hidden>
     <div class="head">
-      <header class="topbar">
-        <button class="link back" id="docs-back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg><span id="docs-back-txt">Zurück</span></button>
+      <header class="topbar large" id="docs-bar">
+        <button class="link back" id="docs-back" hidden><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg><span id="docs-back-txt">Dokumente</span></button>
         <h1 id="docs-title">Dokumente</h1>
-        <button class="link strong" id="docs-new" aria-label="Dokument hinzufügen"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Neu</button>
+        <button class="link icon" id="docs-new" aria-label="Dokument oder Ordner hinzufügen"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
       </header>
       <div class="toolbar">
         <label class="search">
@@ -520,10 +505,6 @@
       <p class="docs-path" id="docs-path" hidden></p>
       <div class="list docs-list" id="docs-list"></div>
       <div class="empty" id="docs-empty" hidden></div>
-      <div class="row-btns docs-foot">
-        <button class="btn" id="docs-folder-add" type="button"><svg class="ic" aria-hidden="true"><use href="#i-folder"/></svg>Neuer Ordner</button>
-        <button class="btn primary" id="docs-add" type="button"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>Dokument</button>
-      </div>
     </div>
   </section>
 
@@ -567,7 +548,11 @@
   <!-- ============ EINSTELLUNGEN ============ -->
   <section class="view" id="view-settings" hidden>
     <div class="head">
-      <header class="topbar large"><h1>Einstellungen</h1></header>
+      <header class="topbar">
+        <button class="link back" data-nav="back"><svg class="ic" aria-hidden="true"><use href="#i-chev-l"/></svg>Zurück</button>
+        <h1>Einstellungen</h1>
+        <span></span>
+      </header>
     </div>
     <div class="scroll settings">
 
@@ -575,7 +560,7 @@
       <div class="card">
         <details class="help lead-help">
           <summary>Was wird gesichert?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary>
-          <p>Alles: Einträge, Kategorien, Orte, Räume, Archiv, Fotos, Belege und Dokumente – in einer Datei. Der API-Key wird aus Sicherheitsgründen nicht mitgesichert.</p>
+          <p>Alles: Einträge, Kategorien, Orte, Räume, Papierkorb, Fotos, Belege und Dokumente – in einer Datei. Der API-Key wird aus Sicherheitsgründen nicht mitgesichert.</p>
         </details>
         <label class="check"><input type="checkbox" id="exp-photos" checked> <span>Fotos und Belege mitsichern</span></label>
         <label class="check"><input type="checkbox" id="exp-encrypt"> <span>Sicherungsdatei mit Passwort verschlüsseln</span></label>
@@ -656,7 +641,7 @@
         <div id="cat-mgr" class="mgr"></div>
         <div class="row-btns add-row"><input id="cat-new" type="text" placeholder="Neue Kategorie" aria-label="Neue Kategorie"><button class="btn" id="cat-add">Anlegen</button></div>
       </div>
-      <p class="hint sec-note">Orte und Räume legst du im Tab <button class="link inline" data-nav="places">Räume</button> an – umbenennen, Symbol ändern oder löschen über ⋯ bzw. langes Drücken.</p>
+      <p class="hint sec-note">Orte und Räume legst du im Tab <button class="link inline" data-nav="orte">Orte</button> an – umbenennen, Symbol ändern oder löschen über ⋯ bzw. langes Drücken.</p>
 
       <h2 class="sec">Töne</h2>
       <div class="card">
@@ -705,7 +690,7 @@
       <button data-sel="where"><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg><span>Ort</span></button>
       <button data-sel="cat"><svg class="ic" aria-hidden="true"><use href="#i-shelf"/></svg><span>Kategorie</span></button>
       <button data-sel="out"><svg class="ic" aria-hidden="true"><use href="#i-out"/></svg><span>Unterwegs</span></button>
-      <button data-sel="archive" class="danger"><svg class="ic" aria-hidden="true"><use href="#i-archive"/></svg><span>Archiv</span></button>
+      <button data-sel="archive" class="danger"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg><span>Löschen</span></button>
     </div>
   </div>
 
@@ -714,8 +699,8 @@
     <button data-nav="home" class="active" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Start</span></button>
     <button data-nav="list"><svg class="ic" aria-hidden="true"><use href="#i-shelf"/></svg><span>Alles</span></button>
     <button data-nav="add" class="add" aria-label="Hinzufügen"><span class="fab"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span></button>
-    <button data-nav="places"><svg class="ic" aria-hidden="true"><use href="#i-rooms"/></svg><span>Räume</span></button>
-    <button data-nav="settings"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span>Einstellungen</span></button>
+    <button data-nav="orte"><svg class="ic" aria-hidden="true"><use href="#i-rooms"/></svg><span>Orte</span></button>
+    <button data-nav="docs"><svg class="ic" aria-hidden="true"><use href="#i-docs"/></svg><span>Dokumente</span></button>
   </nav>
 </div>
 
@@ -739,13 +724,13 @@
       </div>
       <p class="onb-eyebrow">Heim-Inventar</p>
       <h2>Alles, was du besitzt – schnell gefunden.</h2>
-      <p class="onb-lead">Fotografiere Stück für Stück, was du aufbewahrst. Die App merkt sich, was es ist und wo es liegt – zu Hause, im Auto oder im Betrieb.</p>
+      <p class="onb-lead">Fotografiere Stück für Stück, was du aufbewahrst. Die App merkt sich, was es ist und wo es liegt. Verträge und Rechnungen haben ihren eigenen Tab: <b>Dokumente</b>.</p>
       <p class="onb-private"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>Deine Daten bleiben auf diesem iPhone.</p>
     </section>
     <section class="onb-page onb-places">
       <p class="onb-eyebrow">Schritt 1 von 3</p>
       <h2>Wo hast du Sachen?</h2>
-      <p class="onb-lead">Zu Hause, im Auto, im Betrieb … Tippe an, was für dich passt – jeder Ort bekommt später seine eigenen Räume.</p>
+      <p class="onb-lead">Zu Hause, im Auto, im Betrieb … Tippe an, was für dich passt. Alle Orte und ihre Räume findest du später im Tab <b>Orte</b>.</p>
       <div class="onb-chips" id="onb-places"></div>
       <div class="onb-add">
         <input id="onb-place" type="text" placeholder="Eigener Ort, z. B. Haus 2" autocomplete="off" enterkeyhint="done" aria-label="Eigener Ort">
@@ -780,7 +765,7 @@
         <li><span><b>Create API key</b> tippen und den Key kopieren</span></li>
         <li><span>Hier einfügen – er bleibt nur auf diesem Gerät</span></li>
       </ol>
-      <p class="onb-note">Ohne Key funktioniert alles – Namen tippst du dann selbst. Nachtragen geht jederzeit in den Einstellungen.</p>
+      <p class="onb-note">Ohne Key funktioniert alles – Namen tippst du dann selbst. Nachtragen geht jederzeit in den Einstellungen (⚙ oben rechts auf Start).</p>
     </section>
   </div>
   <div class="onb-foot">
@@ -903,8 +888,8 @@ setTimeout(function watchdog() {
                  './js/nav.js', './js/onboarding.js', './js/places.js', './js/queue.js', './js/scan.js',
                  './js/select.js', './js/settings-backup.js', './js/sheet.js', './js/sound.js',
                  './js/state.js', './js/toast.js', './js/ui.js', './js/view-add.js', './js/view-item.js',
-                 './js/view-list.js', './js/view-noplace.js', './js/view-room.js', './js/view-settings.js',
-                 './js/where.js', './css/app.css', './manifest.webmanifest'];
+                 './js/view-list.js', './js/view-noplace.js', './js/view-orte.js', './js/view-room.js',
+                 './js/view-settings.js', './js/where.js', './css/app.css', './manifest.webmanifest'];
     var missing = [];
     Promise.all(files.map(function (f) {
       return fetch(f, { cache: 'no-store' })

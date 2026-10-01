@@ -123,7 +123,7 @@ export async function updateStorageInfo() {
   try {
     if (navigator.storage?.persisted) persist = (await navigator.storage.persisted()) ? ' · dauerhaft gesichert' : '';
   } catch (_) { void _; }
-  $('#storage-info').textContent = `${plural(n, 'Eintrag', 'Einträge')}, ${a} im Archiv${usage}${persist}`;
+  $('#storage-info').textContent = `${plural(n, 'Eintrag', 'Einträge')}, ${a} im Papierkorb${usage}${persist}`;
 }
 
 async function runDiagnostics() {

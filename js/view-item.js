@@ -168,7 +168,7 @@ export async function openItem(id) {
   $('#it-meta').textContent =
     `Hinzugefügt: ${dtf.format(new Date(it.createdAt))}` +
     (it.updatedAt && it.updatedAt !== it.createdAt ? ` · Geändert: ${dtf.format(new Date(it.updatedAt))}` : '') +
-    (it.archived && it.archivedAt ? ` · Archiviert: ${dtf.format(new Date(it.archivedAt))}` : '');
+    (it.archived && it.archivedAt ? ` · Gelöscht: ${dtf.format(new Date(it.archivedAt))}` : '');
 
   $('#it-actions').hidden = !!it.archived;
   $('#it-actions-arch').hidden = !it.archived;
@@ -197,7 +197,7 @@ export async function openItem(id) {
 
 // Ort im Eintrag: Chips, der Raum darunter folgt dem gewählten Ort.
 function renderItPlace() {
-  drawPlaceChips($('#it-place'), state.itPlace, { label: 'Ort' });
+  drawPlaceChips($('#it-place'), state.itPlace, { add: false, label: 'Ort' });
   $('#it-room').dataset.place = state.itPlace;
 }
 

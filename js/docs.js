@@ -130,7 +130,6 @@ export function folderPath(id, sep = ' › ') {
   return out.join(sep);
 }
 
-export const docCount = () => liveDocs().length;
 export const docTitles = () => [...new Map(liveDocs().map(d => [norm(d.name), d.name])).values()];
 /** Für die KI-Suche: NUR Titel, Ordnerpfad, Stichworte, Datum (siehe docsForAi). */
 export const aiDocs = () => { const list = liveDocs(); return { list, entries: docsForAi(list, (id) => folderPath(id)) }; };

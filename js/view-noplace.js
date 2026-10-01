@@ -1,5 +1,5 @@
-// Ansicht „Ohne Ort“ (intern „rooms“ – aus der Zeit, als es „Ohne Raum“ hieß): Einträge ohne Ort
-// gesammelt auswählen und einem Ort/Raum zuweisen.
+// Ansicht „Ohne Ort“ („noplace“): Einträge ohne Ort gesammelt auswählen und einem Ort/Raum
+// zuweisen. Erreichbar über „Wichtig“ auf Start und oben im Tab „Orte“.
 import * as db from './db.js';
 import { hideCombo } from './combo.js';
 import { haptic } from './gestures.js';
@@ -36,16 +36,15 @@ function pickHTML(it) {
   </div>`;
 }
 
-export function renderRooms() {
+export function renderNoPlace() {
   const rows = noRoomItems();
   const ids = new Set(rows.map(r => r.id));
   for (const id of [...state.roomSel]) if (!ids.has(id)) state.roomSel.delete(id);
-  $('#rs-count').textContent = rows.length || '';
   $('#rs-main').hidden = !rows.length;
   $('#rs-bar').hidden = !rows.length;
   $('#rs-empty').hidden = rows.length > 0;
   $('#rs-grid').innerHTML = rows.map(pickHTML).join('');
-  drawPlaceChips($('#rs-places'), state.rsPlace, { label: 'Ort' });
+  drawPlaceChips($('#rs-places'), state.rsPlace, { add: false, label: 'Ort' });
   $('#rs-room').dataset.place = state.rsPlace;
   updateAssignButton();
 }
@@ -79,7 +78,7 @@ async function assignRooms() {
     state.roomSel.clear();
     hideCombo();
     await reloadAll();
-    renderRooms();
+    renderNoPlace();
     haptic();
     toast(`${plural(res.changed, 'Eintrag', 'Einträge')} → ${whereText(where.placeId, where.roomId)}`);
   } catch (e) {
@@ -91,11 +90,11 @@ async function assignRooms() {
 
 export function init() {
   $('#rs-places').addEventListener('click', (e) => {
-    const next = pickPlace(e, state.rsPlace, (id) => { if (id) { state.rsPlace = id; renderRooms(); } });
+    const next = pickPlace(e, state.rsPlace, (id) => { if (id) { state.rsPlace = id; renderNoPlace(); } });
     if (next == null) return;
     state.rsPlace = next;
     followPlace($('#rs-room'), next);
-    renderRooms();
+    renderNoPlace();
   });
   $('#rs-grid').addEventListener('click', (e) => {
     const pick = e.target.closest('.pick');
@@ -108,8 +107,8 @@ export function init() {
   });
   $('#rs-all').addEventListener('click', () => {
     for (const it of noRoomItems()) state.roomSel.add(it.id);
-    renderRooms();
+    renderNoPlace();
   });
-  $('#rs-none').addEventListener('click', () => { state.roomSel.clear(); renderRooms(); });
+  $('#rs-none').addEventListener('click', () => { state.roomSel.clear(); renderNoPlace(); });
   $('#rs-assign').addEventListener('click', assignRooms);
 }

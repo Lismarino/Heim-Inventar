@@ -82,10 +82,6 @@ async function finishOnboarding({ key, goAdd, skipped }) {
   if (goAdd) resetCapture();
 }
 
-export function openCabinet(at) {
-  cabinet().then((c) => c.open(at)).catch((e) => toast('Dokumente laden: ' + e.message, true));
-}
-
 // Ansichten des Aktenschranks: Er öffnet sie selbst und ist dann schon geladen (cabM).
 export function wireDocs() {
   // Diese Ansichten öffnet nur der Aktenschrank selbst – er ist dann schon geladen (cabM).
@@ -94,18 +90,19 @@ export function wireDocs() {
   $('#docs-list').addEventListener('click', (e) => cabM?.onClick(e));
   $('#docs-empty').addEventListener('click', (e) => cabM?.onClick(e));
   $('#docs-list').addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('[data-folder-menu]')) { e.preventDefault(); cabM?.onClick(e); } });
-  $('#docs-folder-add').addEventListener('click', () => cabM?.newFolder());
-  for (const b of [$('#docs-add'), $('#docs-new')]) b.addEventListener('click', () => cabinet().then((c) => c.openAdd()));
+  // „+“ oben rechts (2.0): Blatt mit Scannen, Fotos, Datei, Neuer Ordner – statt Knöpfen unten.
+  $('#docs-new').addEventListener('click', () => cabinet().then((c) => c.addMenu()).catch((e) => toast(e.message, true)));
   $('#da-scan').addEventListener('click', () => $('#da-scan-input').click());
   $('#da-photos').addEventListener('click', () => $('#da-photos-input').click());
   $('#da-file').addEventListener('click', () => $('#da-file-input').click());
-  $('#da-scan-input').addEventListener('change', (e) => { cabM?.addPages(e.target.files || [], true); e.target.value = ''; });
-  $('#da-photos-input').addEventListener('change', (e) => { cabM?.addPages(e.target.files || [], false); e.target.value = ''; });
-  $('#da-file-input').addEventListener('change', (e) => {
-    const f = e.target.files?.[0];
-    if (f && /pdf/i.test(f.type || f.name)) cabM?.setFile(f); else if (f) cabM?.addPages([f], false);
-    e.target.value = '';
-  });
+  // Gewählt im Formular oder schon aus dem „+“-Blatt (dann öffnet sich das Formular erst jetzt).
+  for (const kind of ['scan', 'photos', 'file']) {
+    $(`#da-${kind}-input`).addEventListener('change', (e) => {
+      const files = [...(e.target.files || [])].slice(0, kind === 'file' ? 1 : Infinity);
+      e.target.value = '';
+      cabM?.addChosen(files, kind).catch((err) => toast(err.message, true));
+    });
+  }
   $('#da-pages-card').addEventListener('click', (e) => cabM?.onAddClick(e));
   $('#da-filecard').addEventListener('click', (e) => cabM?.onAddClick(e));
   $('#da-enhance').addEventListener('change', () => cabM?.renderAdd());

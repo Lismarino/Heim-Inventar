@@ -8,7 +8,7 @@
 // frisch vom Server in einen neuen Cache. Der Fetch-Handler schreibt nie in den
 // Cache – sonst landen neues index.html und (per HTTP-Cache) veraltetes app.js
 // nebeneinander, und die App startet nicht mehr.
-const VERSION = 'v1.11.0';
+const VERSION = 'v2.0.0-beta.1';
 const CACHE = 'heim-inventar-' + VERSION;
 
 // Die Startbilder unter icons/splash/ stehen bewusst NICHT hier: iOS holt sie beim
@@ -54,6 +54,7 @@ const ASSETS = [
   './js/view-item.js',
   './js/view-list.js',
   './js/view-noplace.js',
+  './js/view-orte.js',
   './js/view-room.js',
   './js/view-settings.js',
   './js/where.js',

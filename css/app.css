@@ -228,7 +228,7 @@ button:focus:not(:focus-visible){outline:none}
   flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:4px var(--gut) calc(var(--nav-h) + var(--safe-b) + 32px);
 }
-#view-rooms .scroll{padding-bottom:calc(var(--bar-h, 170px) + var(--nav-y) + var(--nav-h) + 24px)}
+#view-noplace .scroll{padding-bottom:calc(var(--bar-h, 170px) + var(--nav-y) + var(--nav-h) + 24px)}
 .sec{
   font-size:13px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;color:var(--fg2);
   margin:28px 16px 8px;
@@ -552,7 +552,7 @@ details[open]>summary .chev{transform:rotate(180deg)}
 }
 .toast.err{background:#a3271d}
 /* In „Ohne Raum“ nicht über der Zuweisen-Leiste liegen */
-body[data-view="rooms"] .toast{bottom:calc(var(--nav-y) + var(--nav-h) + var(--rooms-bar-h, 170px) + 22px)}
+body[data-view="noplace"] .toast{bottom:calc(var(--nav-y) + var(--nav-h) + var(--rooms-bar-h, 170px) + 22px)}
 /* Während der Auswahl: über der Auswahl-Leiste, nicht auf ihr (1.11.0). */
 body.selecting .toast{bottom:calc(var(--nav-y) + 100px)}
 .update-bar{
@@ -667,28 +667,6 @@ body.selecting .toast{bottom:calc(var(--nav-y) + 100px)}
 .cap-status #cap-note{margin:10px 0 0}
 
 /* „Ohne Raum“-Hinweise: Terrakotta, freundlich aber deutlich */
-.noroom-hint{
-  display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin:0 0 16px;padding:12px 12px 12px 12px;
-  border:0;border-radius:var(--r-lg);background:var(--clay-tint);color:var(--clay-ink);
-  box-shadow:inset 0 0 0 1px var(--clay-line);transition:transform .12s ease;
-}
-.noroom-hint:active{transform:scale(.985)}
-.noroom-hint .nr-ic{flex:none;width:42px;height:42px;border-radius:var(--r-md);display:grid;place-items:center;background:var(--clay);color:var(--on-clay)}
-.noroom-hint .nr-ic .ic{width:22px;height:22px;stroke-width:2}
-.noroom-hint .nr-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.noroom-hint b{font-size:16px;font-weight:700;color:var(--clay-ink)}
-.noroom-hint small{font-size:13px;line-height:1.35;color:var(--clay-ink);opacity:.85}
-.noroom-hint .go{width:20px;height:20px;color:var(--clay);stroke-width:2.2}
-.noroom-link{
-  display:flex;align-items:center;gap:10px;width:100%;min-height:52px;margin:0 0 16px;padding:0 14px;
-  border:0;border-radius:var(--r-md);background:var(--clay-tint);color:var(--clay-ink);
-  box-shadow:inset 0 0 0 1px var(--clay-line);font-size:15px;font-weight:650;text-align:left;
-  transition:transform .12s ease;
-}
-.noroom-link:active{transform:scale(.985)}
-.noroom-link::before,.noroom-link::after{content:"";flex:none;width:20px;height:20px;background:currentColor}
-.noroom-link::before{-webkit-mask:var(--m-pin) center/contain no-repeat;mask:var(--m-pin) center/contain no-repeat}
-.noroom-link::after{margin-left:auto;background:var(--clay);-webkit-mask:var(--m-chev) center/contain no-repeat;mask:var(--m-chev) center/contain no-repeat}
 
 /* „Ohne Foto eintragen“ */
 .manual{padding:0}
@@ -754,8 +732,7 @@ body.selecting .toast{bottom:calc(var(--nav-y) + 100px)}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{transition-duration:0s !important;animation-duration:0s !important}
   .spin{animation-duration:1.6s !important}
-  .btn:active,.cap-btn:active,.chip:active,.pick:active .pick-img,.pick.on .pick-img,
-  .noroom-hint:active,.noroom-link:active,.cap-thumb:active,#nav .add:active .fab,#nav button:active .ic{transform:none}
+  .btn:active,.cap-btn:active,.chip:active,.pick:active .pick-img,.pick.on .pick-img,.cap-thumb:active,#nav .add:active .fab,#nav button:active .ic{transform:none}
 }
 
 @media (min-width:720px){
@@ -839,8 +816,7 @@ html{overscroll-behavior:none}
 /* Abschnittsköpfe mit Link rechts */
 .sec-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:26px 4px 10px}
 .sec-row .sec{margin:0;display:flex;align-items:center;gap:8px}
-.sec-n{padding:1px 8px;border-radius:999px;background:var(--fill);font-size:12px;letter-spacing:0;font-variant-numeric:tabular-nums}
-.sec-n:empty{display:none}
+
 .sec-link{min-height:32px;padding:0 2px;border:0;background:none;color:var(--accent-text);font-size:15px;font-weight:600;transition:opacity .15s}
 .sec-link:active{opacity:.5}
 #home-recent-sec .sec-row{margin-top:6px}
@@ -870,34 +846,6 @@ html{overscroll-behavior:none}
 .rtile.pressing .rtile-img{transition-duration:.45s}
 
 /* Räume: große Kacheln, zwei Spalten */
-.room-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.rt{
-  position:relative;display:block;aspect-ratio:1/1;min-width:0;padding:0;border:0;border-radius:var(--r-xl);overflow:hidden;
-  background:var(--ph-bg,var(--surface-2));color:var(--ph-fg,var(--fg));text-align:left;box-shadow:var(--sh-1);
-  isolation:isolate;transition:transform .18s ease;
-}
-.rt:active{transform:scale(.97)}
-.rt.pressing{transform:scale(.95);transition-duration:.45s}
-.rt-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.rt-shade{position:absolute;inset:0;background:linear-gradient(to top,rgba(18,10,4,.72) 0%,rgba(18,10,4,.5) 20%,rgba(18,10,4,.24) 40%,rgba(18,10,4,.08) 56%,rgba(18,10,4,0) 70%)}
-.rt::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgba(60,40,20,.08);pointer-events:none}
-.rt-ph{position:absolute;inset:0}
-.rt-initial{position:absolute;left:16px;top:10px;font-family:var(--font-round);font-size:64px;font-weight:750;line-height:1;letter-spacing:-.03em;opacity:.9}
-.rt-door{position:absolute;right:14px;top:14px;width:26px;height:26px;opacity:.45;stroke-width:1.7}
-.rt-txt{position:absolute;left:14px;right:12px;bottom:12px;display:flex;flex-direction:column;gap:1px;min-width:0}
-.rt-txt b{font-family:var(--font-round);font-size:18px;font-weight:720;letter-spacing:-.012em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rt-txt small{font-size:13px;font-weight:600;opacity:.82;font-variant-numeric:tabular-nums}
-.rt.has-pic{background:var(--surface-2);color:#fff}
-.rt.has-pic .rt-txt{text-shadow:0 1px 10px rgba(0,0,0,.28)}
-.rt-add{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
-  background:transparent;box-shadow:none;color:var(--accent-text);
-  border:2px dashed var(--line-strong);
-}
-.rt-add::after{display:none}
-.rt-plus{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:var(--accent-tint);color:var(--accent-ink)}
-.rt-plus .ic{width:26px;height:26px;stroke-width:2.2}
-.rt-add-txt{font-size:15px;font-weight:650}
 
 /* Leer: großer Kamera-Aufruf */
 .home-empty{padding:4px 0 8px}
@@ -1060,8 +1008,7 @@ html{overscroll-behavior:none}
 
 /* ---------- Bewegung reduzieren (Ergänzungen) ---------- */
 @media (prefers-reduced-motion: reduce){
-  .home-search:active,.rt:active,.rt.pressing,.rtile:active .rtile-img,.rtile.pressing .rtile-img,.row.pressing,
-  .flag:active,.onb-chip:active,.sheet-cancel:active,.onb-dots i.on{transform:none}
+  .home-search:active,.rtile:active .rtile-img,.rtile.pressing .rtile-img,.row.pressing,.flag:active,.onb-chip:active,.sheet-cancel:active,.onb-dots i.on{transform:none}
 }
 
 /* =====================================================================
@@ -1075,19 +1022,11 @@ html{overscroll-behavior:none}
   position:absolute;left:0;top:calc(var(--safe-t) + 52px);bottom:calc(var(--nav-h) + var(--safe-b));
   width:20px;z-index:4;display:none;touch-action:none;
 }
-body[data-view="item"] .edge-strip,body[data-view="rooms"] .edge-strip,
-body[data-view="room"] .edge-strip,body[data-view="archive"] .edge-strip{display:block}
+body[data-view="item"] .edge-strip,body[data-view="noplace"] .edge-strip,
+body[data-view="room"] .edge-strip,body[data-view="archive"] .edge-strip,
+body[data-view="settings"] .edge-strip,body[data-view="docs"].docs-sub .edge-strip{display:block}
 
 /* ---------- Räume (Tab) ---------- */
-.scroll.places{padding-top:8px}
-.rt-noroom{background:var(--clay-tint);color:var(--clay-ink);box-shadow:var(--sh-1),inset 0 0 0 1px var(--clay-line)}
-.rt-noroom::after{display:none}
-.rt-noroom .rt-pin{
-  position:absolute;left:14px;top:14px;width:46px;height:46px;border-radius:var(--r-md);
-  display:grid;place-items:center;background:var(--clay);color:var(--on-clay);
-}
-.rt-noroom .rt-pin .ic{width:24px;height:24px;stroke-width:2}
-.rt-noroom .rt-txt small{opacity:.9}
 
 /* ---------- Platzhalter-Initiale mittig (auch im Streifen) ---------- */
 .rtile-img .ph,.cap-thumb .ph,.pick-img .ph{display:grid;place-items:center}
@@ -1302,7 +1241,7 @@ body,.view,.onb,.boot-error{background:var(--amb),var(--bg)}
 }
 .view > .scroll{padding-top:calc(var(--head-h, 100px) + 4px)}
 .view > .scroll.home{padding-top:calc(var(--safe-t) + 12px)}
-#view-places > .scroll{padding-top:calc(var(--head-h, 100px) + 8px)}
+#view-orte > .scroll{padding-top:calc(var(--head-h, 100px) + 8px)}
 /* Raum: die schmale Leiste zeigt den Titel erst, wenn der große weggescrollt ist */
 #view-room.scrolled .topbar{box-shadow:none}
 /* Zuhause hat keine Kopfzeile – dort verschwimmt nur der Statusbereich wie in iOS */
@@ -1457,7 +1396,7 @@ body:has(> #update-bar:not([hidden])) #app{top:calc(env(safe-area-inset-top, 0px
 .onb-skip.is-pressed{transform:scale(1.07)}
 .onb-foot .btn.ghost{border-radius:999px}
 
-/* ---------- Zeile wegwischen: „Archiv“ als Glastropfen ---------- */
+/* ---------- Zeile wegwischen: „Löschen“ als Glastropfen ---------- */
 .swipe-act{background:var(--clay-tint);transition:background-color .2s}
 .swipe-act .sa-in{
   width:76px;margin:8px 10px 8px 0;border-radius:24px;color:var(--on-clay);
@@ -1652,8 +1591,7 @@ body:has(> #update-bar:not([hidden])) #app{top:calc(env(safe-area-inset-top, 0px
 }
 .pseg .pic .ic{width:19px;height:19px;stroke-width:2}
 .pseg.on{color:var(--accent-ink)}
-.pseg.add{width:40px;padding:0;justify-content:center;color:var(--accent-text)}
-.pseg.add .ic{width:20px;height:20px;stroke-width:2.2}
+
 .pseg:focus-visible{outline-offset:-3px}
 .pseg::after{
   content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
@@ -1665,46 +1603,19 @@ body:has(> #update-bar:not([hidden])) #app{top:calc(env(safe-area-inset-top, 0px
 .home-sum + .pswitch,.home-head + .pswitch{margin-top:-4px}
 
 /* Orts-Gruppen (Zuhause bei „Alle“, Tab „Räume“) */
-.pgroup + .pgroup,.room-grid + .pgroup{margin-top:24px}
-.pgroup-head{display:flex;align-items:center;gap:10px;min-height:44px;margin:0 2px 10px;padding:0;min-width:0}
-button.pgroup-head{width:calc(100% - 4px);border:0;background:none;color:inherit;text-align:left;border-radius:var(--r-md);transition:opacity .15s}
-button.pgroup-head:active{opacity:.6}
-.pgroup-name{margin:0;min-width:0;font-family:var(--font-round);font-size:20px;font-weight:720;letter-spacing:-.012em;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pgroup-head .sec-n{flex:none;color:var(--fg2);font-size:12px;font-weight:650}
-.pgroup-head .go{margin-left:auto;width:18px;height:18px;color:var(--fg3);stroke-width:2.2}
+
 .pgroup-more{
   flex:none;margin-left:auto;width:40px;height:40px;padding:0;border:0;border-radius:50%;display:grid;place-items:center;
   background:var(--lite);box-shadow:var(--lite-rim);color:var(--accent-text);transition:transform var(--spring-pop-dur) var(--spring-pop);
 }
 .pgroup-more .ic{width:24px;height:24px}
-.pgroup-head.pressing{opacity:.6;transition:opacity .45s}
-#home-rooms > .pgroup:first-child,#places-grid > :first-child{margin-top:0}
 
 /* „Ohne Ort“ allein in seiner Reihe: breites Band statt einer halb leeren Zeile */
-.room-grid > .rt-noroom:only-child{grid-column:1 / -1;aspect-ratio:auto;height:92px}
-.room-grid > .rt-noroom:only-child .rt-pin{top:23px}
-.room-grid > .rt-noroom:only-child .rt-txt{left:76px;top:0;bottom:0;justify-content:center}
-.room-grid > .rt-noroom:only-child::before{
-  content:"";position:absolute;right:16px;top:50%;width:20px;height:20px;margin-top:-10px;background:var(--clay);
-  -webkit-mask:var(--m-chev) center/contain no-repeat;mask:var(--m-chev) center/contain no-repeat;
-}
 
 /* Kachel für den Ort selbst (was direkt dort liegt) */
-.rt-place{background:var(--pc-tint);color:var(--pc-ink)}
-.rt-place .rt-badge{position:absolute;left:14px;top:14px;width:46px;height:46px;border-radius:var(--r-md)}
-.rt-place .rt-badge .ic{width:25px;height:25px}
-.rt-place.has-pic{color:#fff}
 
 /* „Ort hinzufügen“ am Ende des Tabs „Räume“ */
-.place-add{
-  display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;margin:26px 0 0;padding:16px 16px 14px;
-  border:2px dashed var(--line-strong);border-radius:var(--r-xl);background:transparent;color:var(--accent-text);
-  font-size:16px;font-weight:650;transition:transform .12s ease;
-}
-.place-add .ic{width:26px;height:26px;stroke-width:2.2}
-.place-add small{font-size:13px;font-weight:500;color:var(--fg3)}
-.place-add:active{transform:scale(.985)}
+
 .topbar.large #places-add{padding:0 14px 0 10px}
 .topbar.large #places-add .ic{width:20px;height:20px;margin-left:-2px;stroke-width:2.2}
 
@@ -1807,9 +1718,6 @@ button.pgroup-head:active{opacity:.6}
 .onb-rtab .ic{width:19px;height:19px;stroke-width:2}
 .onb-rtab.on{background:var(--accent-tint);color:var(--accent-ink);box-shadow:inset 0 0 0 1.5px var(--accent-text)}
 
-@media (prefers-reduced-motion: reduce){
-  .place-add:active,button.pgroup-head:active{transform:none}
-}
 @media (prefers-reduced-transparency: reduce){
   .pswitch-track{background:var(--surface-2)}
 }
@@ -1837,32 +1745,15 @@ button.pgroup-head:active{opacity:.6}
 .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
 /* Zuhause mit nur einem Ort: statt des Umschalters ein leiser Hinweis auf weitere Orte */
-.place-hint{
-  display:inline-flex;align-items:center;gap:8px;min-height:40px;margin:-6px 0 12px;padding:0 14px 0 10px;
-  border:0;border-radius:999px;background:var(--lite);box-shadow:var(--lite-rim);color:var(--accent-text);
-  font-size:15px;font-weight:650;transition:transform var(--spring-pop-dur) var(--spring-pop);
-}
-.place-hint .ic{width:18px;height:18px;stroke-width:2.2}
-.place-hint small{font-size:14px;font-weight:500;color:var(--fg3)}
-.place-hint:active{transform:scale(.97)}
 
 /* Orts-Gruppe auf Zuhause: Überschrift plus Aktion „Nur … zeigen“ */
-.pgroup-go{
-  flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:2px;min-height:40px;padding:0 6px 0 12px;
-  border:0;border-radius:999px;background:none;color:var(--accent-text);font-size:14px;font-weight:650;
-}
-.pgroup-go .go{margin-left:0}
-.pgroup-go:active{opacity:.6}
-.pgroup-head.home{cursor:pointer}
 
 /* Tab „Räume“: Räume, deren Ort fehlt */
-.pgroup-lost .pgroup-name{color:var(--fg2)}
-.pgroup-lost .pbadge{background:var(--fill-strong);color:var(--fg2)}
+
 .pgroup-assign{
   flex:none;margin-left:auto;min-height:40px;padding:0 14px;border:0;border-radius:999px;
   background:var(--accent-tint);color:var(--accent-ink);font-size:14px;font-weight:650;
 }
-@media (prefers-reduced-motion: reduce){ .place-hint:active{transform:none} }
 
 /* =========================== 1.8.0 ===========================
    Unterwegs/verliehen, Checkliste, „Habe ich das schon?“, Duplikat-Hinweis, Bestand + / −,
@@ -1875,7 +1766,7 @@ button.pgroup-head:active{opacity:.6}
 }
 .have-btn .ic{width:22px;height:22px;stroke-width:2}
 .have-btn:active{background:var(--press)}
-.have-add{margin-top:10px}
+
 .topbar .link.sel-toggle{min-width:0;justify-content:flex-end;padding:0 4px}
 .topbar.large .link.sel-toggle{margin-left:auto}
 
@@ -1941,7 +1832,7 @@ body.selecting #nav{visibility:hidden}
 
 /* Checkliste je Ort */
 .room-check{margin-top:10px}
-.pgroup-check + .pgroup-more{margin-left:4px}
+
 .ck-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
 .ck-sum{margin:0;font-weight:650;color:var(--fg2);font-variant-numeric:tabular-nums}
 .ck-list{display:flex;flex-direction:column;max-height:46vh;overflow:auto;margin-bottom:12px}
@@ -1963,25 +1854,10 @@ body.selecting #nav{visibility:hidden}
 .have-list{max-height:40vh;overflow:auto;margin-bottom:12px;border-radius:var(--r-md);background:var(--fill)}
 
 /* Sicherungs-Erinnerung auf Zuhause */
-.backup-card .bk-row{display:flex;align-items:center;gap:12px}
-.backup-card .todo-txt{display:flex;flex-direction:column;min-width:0}
-.backup-card .todo-txt small{color:var(--fg2);font-size:14px}
-.backup-card .row-btns .btn{flex:1}
 
 /* ================= 1.9.0: Dokumente & Google-Sicherung ================= */
 /* Zuhause: Einstieg „Dokumente“ und Statuszeile der Google-Sicherung */
-.home-docs{
-  display:flex;align-items:center;gap:12px;width:100%;min-height:62px;margin:-8px 0 16px;padding:10px 12px 10px 12px;
-  border:0;border-radius:var(--r-lg);background:var(--surface);color:inherit;text-align:left;box-shadow:var(--sh-1);
-  transition:transform .12s ease;
-}
-.home-docs:active{transform:scale(.985)}
-.hd-ic{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--accent-tint);color:var(--accent-text)}
-.hd-ic .ic{width:22px;height:22px;stroke-width:2}
-.hd-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.hd-txt b{font-size:16px;font-weight:650;letter-spacing:-.01em}
-.hd-txt small{font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.home-docs .go{width:18px;height:18px;color:var(--fg3);stroke-width:2.2}
+
 .home-sync{
   display:flex;align-items:center;gap:8px;width:100%;min-height:36px;margin:-8px 0 16px;padding:6px 12px;
   border:0;border-radius:999px;background:var(--fill);color:var(--fg2);font-size:13px;text-align:left;
@@ -2015,8 +1891,7 @@ body.selecting #nav{visibility:hidden}
 .d-item .ic{width:13px;height:13px}
 .d-due{display:block;margin-top:4px;font-size:13px;color:var(--fg2);font-variant-numeric:tabular-nums}
 .d-due.soon{color:var(--clay-ink);font-weight:600}
-.docs-foot{margin:16px 0 0}
-.docs-foot .btn{flex:1}
+
 .da-suggest{display:grid;grid-template-columns:1fr;margin:4px 0 10px}
 .da-suggest .check{margin:0}
 
@@ -2055,7 +1930,7 @@ body.selecting #nav{visibility:hidden}
 .gd-status.warn{background:var(--clay-tint);color:var(--clay-ink)}
 .hint.warn{color:var(--clay-ink)}
 @media (prefers-reduced-motion: reduce){
-  .home-docs:active,.da-btn:active{transform:none}
+  .da-btn:active{transform:none}
 }
 
 /* ================= 1.10.0: aufgeräumt & schneller ================= */
@@ -2088,3 +1963,81 @@ body.selecting #nav{visibility:hidden}
 .sec-note{margin:8px 20px 0}
 .link.inline{display:inline;min-height:0;padding:0;border:0;background:none;color:var(--accent-text);font:inherit;font-weight:600}
 .docs-suggest{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;color:var(--fg2);font-size:15px;border-bottom:1px solid var(--line)}
+
+/* =================== 2.0: Start · Alles · Kamera · Orte · Dokumente =================== */
+
+/* Start: ⚙ oben rechts (Einstellungen als Push-Ansicht) */
+.home-head{position:relative}
+.home-gear{
+  position:absolute;top:4px;right:0;width:44px;height:44px;padding:0;border:0;border-radius:999px;
+  display:grid;place-items:center;color:var(--accent-text);background:var(--lite);box-shadow:var(--lite-rim);
+  transition:transform var(--spring-pop-dur) var(--spring-pop);
+}
+.home-gear .ic{width:24px;height:24px;stroke-width:1.8}
+.home-gear:active{transform:scale(1.08)}
+
+/* „Wichtig“: höchstens drei Zeilen, darunter „Alle anzeigen“ */
+.todo-ic.calm{background:var(--accent-tint);color:var(--accent-text)}
+.todo-split{padding:0 12px 0 0}
+.todo-hit{
+  flex:1;min-width:0;display:flex;align-items:center;gap:12px;min-height:62px;padding:8px 0 8px 14px;
+  border:0;background:none;color:inherit;text-align:left;
+}
+.todo-hit:active{opacity:.6}
+.todo-hit[disabled]{opacity:1}
+.todo-later{
+  flex:none;min-height:34px;padding:0 13px;border:0;border-radius:999px;background:var(--fill);
+  color:var(--fg2);font-size:14px;font-weight:600;
+}
+.todo-later:active{background:var(--press)}
+.todo-split:active{background:none}
+.todo-more{
+  position:relative;display:flex;align-items:center;gap:8px;width:100%;min-height:48px;padding:0 14px 0 64px;
+  border:0;background:none;color:var(--accent-text);font-size:15px;font-weight:600;text-align:left;
+}
+.todo-more::before{content:"";position:absolute;top:0;left:64px;right:0;border-top:1px solid var(--line)}
+.todo-more span{margin-left:auto;color:var(--fg3);font-weight:600;font-variant-numeric:tabular-nums}
+.todo-more .go{width:18px;height:18px;color:var(--fg3);stroke-width:2.2}
+.todo-more:active{background:var(--press)}
+/* Blatt „Wichtig – alle“ */
+.sheet-list{padding-bottom:4px}
+.sheet-list .sheet-title{margin-bottom:6px}
+.todo-list{max-height:min(62vh,560px);overflow:auto;margin:0 -12px;border-radius:var(--r-lg)}
+
+/* Alles: „11 von 61“ statt Zähler-Plakette – nur beim Suchen und Filtern */
+.list-hits{margin:-2px 6px 0;font-size:13px;font-weight:550;color:var(--fg2);font-variant-numeric:tabular-nums}
+
+/* Orte: je Ort ein Kopf, darunter die Räume als kompakte Zeilen */
+.ogroup{margin-top:22px}
+#orte-list > :first-child{margin-top:0}
+.ogroup-head{display:flex;align-items:center;gap:12px;min-height:48px;margin:0 2px 8px;min-width:0}
+.ogroup-head .pbadge{width:36px;height:36px;border-radius:11px}
+.ogroup-head .pbadge .ic{width:21px;height:21px}
+.ogroup-head.pressing{opacity:.6;transition:opacity .45s}
+.ogroup-name{margin:0;font-family:var(--font-round);font-size:20px;font-weight:720;letter-spacing:-.012em;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ogroup-head .o-txt small{font-size:13px;color:var(--fg2);font-variant-numeric:tabular-nums}
+.ogroup-head .pgroup-more,.ogroup-head .pgroup-assign{margin-left:auto}
+.ogroup-empty{margin:0 4px}
+.ogroup-lost .pbadge{background:var(--fill-strong);color:var(--fg2)}
+.olist{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);overflow:hidden}
+.orow{
+  position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:60px;padding:8px 14px;
+  border:0;background:none;color:inherit;text-align:left;transition:background-color .15s,transform .45s ease;
+}
+.orow + .orow::before{content:"";position:absolute;top:0;left:70px;right:0;border-top:1px solid var(--line)}
+.orow:active{background:var(--press)}
+.orow.pressing{transform:scale(.975)}
+.orow .go{flex:none;width:18px;height:18px;color:var(--fg3);stroke-width:2.2}
+.o-pic{flex:none;width:44px;height:44px;border-radius:12px;object-fit:cover;display:grid;place-items:center;font-size:20px}
+.o-pic .ic{width:22px;height:22px;stroke-width:1.9}
+.o-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.o-txt b{font-size:17px;font-weight:620;letter-spacing:-.012em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.o-txt small{font-size:13px;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.o-noplace{border-radius:var(--r-lg);background:var(--clay-tint);box-shadow:inset 0 0 0 1px var(--clay-line)}
+.o-noplace .o-pic{background:var(--clay);color:var(--on-clay)}
+.o-noplace b,.o-noplace small{color:var(--clay-ink)}
+.o-n{display:inline-block;margin-left:4px;padding:0 8px;border-radius:999px;background:var(--clay);color:var(--on-clay);font-size:13px;font-weight:700;vertical-align:2px}
+@media (prefers-reduced-motion: reduce){
+  .home-gear:active,.orow.pressing{transform:none}
+}

@@ -1,4 +1,4 @@
-// Aktionen an Einträgen: Kontextmenü, Archivieren mit Rückgängig, Unterwegs/verliehen,
+// Aktionen an Einträgen: Kontextmenü, Löschen (in den Papierkorb) mit Rückgängig, Unterwegs/verliehen,
 // Mehrfachauswahl, Bestand ± in der Zeile, Checkliste je Ort, „Habe ich das schon?“.
 import * as db from './db.js';
 import * as img from './img.js';
@@ -36,7 +36,7 @@ export function itemMenu(id) {
       { id: 'rename', label: it.name ? 'Umbenennen' : 'Benennen', icon: 'pencil' },
       cleanOut(it.out) ? { id: 'back', label: 'Wieder da', icon: 'undo' } : { id: 'out', label: 'Unterwegs / verliehen', icon: 'out' },
       ...(state.view === 'list' || state.view === 'room' ? [{ id: 'select', label: 'Mehrere auswählen', icon: 'done' }] : []),
-      { id: 'archive', label: 'Archivieren', icon: 'archive', danger: true },
+      { id: 'archive', label: 'Löschen', icon: 'trash', danger: true },
     ],
     onAction: (a) => {
       if (a === 'room') whereSheet(it);
@@ -67,8 +67,8 @@ export function itemMenu(id) {
   });
 }
 
-// Ins Archiv – mit „Rückgängig“ im Toast statt einer Rückfrage vorher. Wischt man
-// mehrere nacheinander weg, sammelt der Toast sie („3 archiviert“), jedes Wischen startet
+// Löschen = in den Papierkorb (Feld `archived`) – mit „Rückgängig“ im Toast statt einer Rückfrage
+// vorher. Wischt man mehrere nacheinander weg, sammelt der Toast sie („3 gelöscht“), jedes Wischen startet
 // die 5 s neu, und Rückgängig holt alle zurück.
 let undoBatch = null;   // { ids: [] } – gehört zum gerade stehenden Rückgängig-Toast
 export async function archiveWithUndo(id) {
@@ -83,7 +83,7 @@ export async function archiveWithUndo(id) {
     if (!batch.ids.includes(id)) batch.ids.push(id);
     undoBatch = batch;
     const n = batch.ids.length;
-    const msg = n > 1 ? `${n} archiviert` : it.name ? `„${it.name}“ archiviert.` : 'Ins Archiv verschoben.';
+    const msg = n > 1 ? `${n} gelöscht` : it.name ? `„${it.name}“ gelöscht.` : 'Gelöscht.';
     sound.play('swipe');
     toast(msg, false, {
       label: 'Rückgängig',
@@ -226,7 +226,7 @@ async function archiveMany(ids) {
     updateStorageInfo();
     haptic();
     sound.play('swipe');
-    toast(`${ids.length} archiviert`, false, {
+    toast(`${ids.length} gelöscht`, false, {
       label: 'Rückgängig',
       run: async () => {
         try {
@@ -349,7 +349,6 @@ export function init() {
   $('#sel-bar').addEventListener('click', (e) => { const b = e.target.closest('[data-sel]'); if (b && !b.disabled) onSelAction(b.dataset.sel); });
   const haveOpen = () => $('#have-input').click();
   $('#have-btn').addEventListener('click', haveOpen);
-  $('#cap-have').addEventListener('click', haveOpen);
   $('#have-input').addEventListener('change', (e) => {
     const f = e.target.files?.[0];
     haveCheck(f).finally(() => { e.target.value = ''; });

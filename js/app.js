@@ -15,22 +15,23 @@ import * as itemView from './view-item.js';
 import * as roomView from './view-room.js';
 import * as addView from './view-add.js';
 import * as noplaceView from './view-noplace.js';
+import * as orteView from './view-orte.js';
 import * as settingsView from './view-settings.js';
 import * as backupView from './settings-backup.js';
 import { initCombos } from './combo.js';
-import { docCount, dueSoon as docsDueSoon } from './docs.js';
+import { dueSoon as docsDueSoon } from './docs.js';
 import { edgeSwipe, longPress, swipeRows } from './gestures.js';
 import { $, icon } from './ui.js';
 import { APP_VERSION } from './version.js';
-import { cabinet, gdrive, gdStatus, gdStatusText, gdWanted, onbM, onboarding, openCabinet, preloadCabinet, wireDocs } from './lazy.js';
+import { cabinet, gdrive, gdStatus, gdStatusText, gdWanted, onbM, onboarding, preloadCabinet, wireDocs } from './lazy.js';
 import { beginSwipeBack, commitSwipeBack, navigate, onDataChanged, swipers } from './nav.js';
-import { archiveWithUndo, checkItems, checklistSheet, itemMenu, toggleSel } from './select.js';
+import { archiveWithUndo, checkItems, itemMenu, toggleSel } from './select.js';
 import { homeBackupGo, onSyncTap, snoozeBackup } from './settings-backup.js';
 import { aiBusy, aiNeedsKey, catName, comboSource, hasRoom, noRoomItems, placeById, placeOf, reloadAll, roomById, roomName, state, whereShort } from './state.js';
 import { registerSW, rescueUpdate, toast } from './toast.js';
 import { openItem } from './view-item.js';
 import { clearSearch, rowHTML } from './view-list.js';
-import { addPlaceSheet, addRoomSheet, assignLostRoomsSheet, openPlace, openRoom, placeMenu, roomMenu } from './view-room.js';
+
 import { fillSettingsForm, goToKey, requestPersist, updateStorageInfo } from './view-settings.js';
 
 // Für die Mischstand-Prüfung in index.html: gesetzt, sobald dieses Modul läuft.
@@ -72,7 +73,6 @@ async function boot() {
       checkCount: (pid) => checkItems(pid).length,
       backupState: () => state.homeBackup,
       docsDue: () => docsDueSoon(),
-      docsCount: () => docCount(),
       syncText: gdStatusText,
       syncState: gdStatus,
     });
@@ -197,40 +197,45 @@ function hideSplash() {
   intro.done().then(() => onbM?.focusStart());
 }
 
-/* =========================== Zuhause und Räume: Tipps =========================== */
+/* =========================== Start: Tipps =========================== */
 
+// Klicks auf Start – und im Blatt „Wichtig“ (dieselben Zeilen). Liefert true, wenn etwas passiert ist.
 function onHomeClick(e) {
-  if (e.target.closest('#home-docs') || e.target.closest('[data-due-more]')) { openCabinet(); return; }
-  if (e.target.closest('#home-sync')) { onSyncTap(); return; }
+  if (e.target.closest('[data-todo-all]')) { importantSheet(); return true; }
+  if (e.target.closest('#home-sync')) { onSyncTap(); return true; }
   const dd = e.target.closest('[data-due-doc]');
-  if (dd) { cabinet().then((c) => c.docSheet(dd.dataset.dueDoc)).catch((e) => toast(e.message, true)); return; }
+  if (dd) { cabinet().then((c) => c.docSheet(dd.dataset.dueDoc)).catch((e) => toast(e.message, true)); return true; }
+  const ti = e.target.closest('[data-todo-item]');
+  if (ti) { openItem(ti.dataset.todoItem); return true; }
   const todo = e.target.closest('[data-todo]');
   if (todo) {
     const k = todo.dataset.todo;
-    if (k === 'noroom') navigate('rooms');
+    if (k === 'noroom') navigate('noplace');
     else if (k === 'unnamed' || k === 'out' || k === 'warranty') { state.listFilter = k; clearSearch(); navigate('list'); }
     else if (k === 'busy') toast(queue.status().note || 'Die KI benennt die Fotos gerade im Hintergrund – du kannst einfach weitermachen.');
     else if (k === 'needkey') goToKey();
-    return;
+    return true;
   }
   const bk = e.target.closest('[data-backup]');
-  if (bk) { if (bk.dataset.backup === 'later') snoozeBackup(); else homeBackupGo(); return; }
-  const ck = e.target.closest('[data-checklist]');
-  if (ck) { checklistSheet(ck.dataset.checklist); return; }
+  if (bk) { if (bk.dataset.backup === 'later') snoozeBackup(); else homeBackupGo(); return true; }
   const hp = e.target.closest('[data-home-place]');
-  if (hp) { setHomePlace(hp.dataset.homePlace); return; }
-  if (e.target.closest('[data-place-add]')) { addPlaceSheet(); return; }
-  if (e.target.closest('[data-rooms-assign]')) { assignLostRoomsSheet(); return; }
-  const pm = e.target.closest('[data-place-menu]');
-  if (pm) { placeMenu(pm.dataset.placeMenu); return; }
-  const po = e.target.closest('[data-place-open]');
-  if (po) { openPlace(po.dataset.placeOpen); return; }
-  const ra = e.target.closest('[data-room-add]');
-  if (ra) { addRoomSheet(ra.dataset.inPlace || ''); return; }
-  const rt = e.target.closest('[data-room]');
-  if (rt) { openRoom(rt.dataset.room); return; }
+  if (hp) { setHomePlace(hp.dataset.homePlace); return true; }
   const tile = e.target.closest('.rtile');
-  if (tile) openItem(tile.dataset.id);
+  if (tile) { openItem(tile.dataset.id); return true; }
+  return false;
+}
+
+// „Alle anzeigen“ in „Wichtig“: alle Zeilen in einem Blatt; ein Tipp schließt es und führt hin.
+function importantSheet() {
+  sheet.list({
+    title: 'Wichtig',
+    html: `<div class="todo-list">${home.importantAllHTML()}</div>`,
+    onClick: (e) => {
+      if (!e.target.closest('button')) return;
+      sheet.close();
+      onHomeClick(e);
+    },
+  });
 }
 
 // Umschalter auf Zuhause: Ort wählen ('' = alle) und merken.
@@ -256,26 +261,22 @@ function wire() {
   select.init();
   itemView.initExtras();
 
-  // --- Zuhause, Räume & Raum ---
+  // --- Start, Orte & Raum ---
   $('#view-home').addEventListener('click', onHomeClick);
-  $('#view-places').addEventListener('click', onHomeClick);
+  orteView.init();
   // Direkt im Tipp fokussieren, sonst öffnet iOS die Tastatur nicht.
   $('#home-search').addEventListener('click', () => { navigate('list'); $('#q').focus(); });
   roomView.init();
   $('#onb-again').addEventListener('click', () => onboarding().then((m) => m.show()).catch((e) => toast(e.message, true)));
 
   // --- Gesten ---
-  const archiveAct = `<span class="sa-in">${icon('archive')}<span>Archiv</span></span>`;
+  // Wischen = Löschen (2.0): in den Papierkorb, mit „Rückgängig“.
+  const archiveAct = `<span class="sa-in">${icon('trash')}<span>Löschen</span></span>`;
   for (const root of [$('#list'), $('#room-list')]) {
     swipers.push(swipeRows(root, '.row', archiveAct, (row) => { if (!state.sel) archiveWithUndo(row.dataset.id); }));
     longPress(root, '.row', (row) => (state.sel ? toggleSel(row.dataset.id) : itemMenu(row.dataset.id)));
   }
   longPress($('#home-recent'), '.rtile', (el) => itemMenu(el.dataset.id));
-  for (const root of [$('#home-rooms'), $('#places-grid')]) {
-    longPress(root, '.rt[data-room]', (el) => roomMenu(el.dataset.room));
-    longPress(root, '.rt[data-place-open]', (el) => placeMenu(el.dataset.placeOpen));
-    longPress(root, '.pgroup-head[data-place-head]', (el) => placeMenu(el.dataset.placeHead));
-  }
   edgeSwipe($('#edge'), beginSwipeBack, commitSwipeBack);
 
   itemView.initLightbox();

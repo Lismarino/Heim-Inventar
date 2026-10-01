@@ -9,7 +9,7 @@ import { haptic } from './gestures.js';
 import { placeIcon } from './places.js';
 import { $, esc, icon, isThumb, placeholderHTML, plural } from './ui.js';
 import { onDataChanged, renderCurrent } from './nav.js';
-import { aiBusy, aiNeedsKey, hasKey, noRoomItems, placeById, reloadAll, state } from './state.js';
+import { aiBusy, aiNeedsKey, hasKey, placeById, reloadAll, state } from './state.js';
 import { toast } from './toast.js';
 import { openItem } from './view-item.js';
 import { updateStorageInfo } from './view-settings.js';
@@ -121,11 +121,6 @@ export function renderCapture() {
   const note = pending ? queue.status().note : '';
   $('#cap-note').hidden = !note;
   $('#cap-note').textContent = note;
-
-  const nr = noRoomItems().length;
-  const link = $('#cap-noroom');
-  link.hidden = !nr;
-  link.textContent = `${plural(nr, 'Eintrag', 'Einträge')} ohne Ort – zuordnen`;
 }
 
 // Mehrere Auswahlen nacheinander abarbeiten, nie parallel (Speicher auf dem iPhone).
