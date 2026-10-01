@@ -1,0 +1,9 @@
+{
+  "name": "heim-inventar",
+  "private": true,
+  "description": "Privates Heim-Inventar (PWA ohne Build). Tests nutzen das global installierte Playwright.",
+  "scripts": {
+    "test": "node tests/run.js",
+    "lint": "eslint -c tests/eslint.config.mjs js sw.js tests"
+  }
+}
