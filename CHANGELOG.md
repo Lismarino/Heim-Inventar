@@ -3,6 +3,10 @@
 Versionschronik von Heim-Inventar – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
 
+## 2.0.3
+
+- Start: Datum und Begrüßung laufen nicht mehr unter den ⚙-Knopf (auch bei großer Textgröße).
+
 ## 2.0.2
 
 Nachbesserungen aus einer unabhängigen Prüfung – Daten bleiben, wie sie sind.

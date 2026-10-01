@@ -1990,6 +1990,8 @@ body.selecting #nav{visibility:hidden}
 
 /* Start: ⚙ oben rechts (Einstellungen als Push-Ansicht) */
 .home-head{position:relative}
+/* Platz für den ⚙-Knopf, damit Datum und Begrüßung nie darunter laufen */
+.home-head > .home-date,.home-head > .home-hello{padding-right:52px}
 .home-gear{
   position:absolute;top:4px;right:0;width:44px;height:44px;padding:0;border:0;border-radius:999px;
   display:grid;place-items:center;color:var(--accent-text);background:var(--lite);box-shadow:var(--lite-rim);
