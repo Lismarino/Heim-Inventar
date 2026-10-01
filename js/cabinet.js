@@ -144,7 +144,7 @@ export function render() {
   const at = cab.at;
   if (at && at !== ITEM_DOCS && at !== TRASH && !folderById(at)) cab.at = null;
   const f = folderById(cab.at);
-  const title = cab.at === ITEM_DOCS ? 'Belege zu Einträgen' : cab.at === TRASH ? 'Papierkorb' : f ? f.name : 'Dokumente';
+  const title = cab.at === ITEM_DOCS ? 'Belege an Dingen' : cab.at === TRASH ? 'Papierkorb' : f ? f.name : 'Dokumente';
   $('#docs-title').textContent = q ? 'Suche' : title;
   // Oben: großer Titel wie die anderen Tabs; in einem Ordner (oder einer Suche) schmale Leiste mit „Zurück“.
   const sub = !!cab.at;
@@ -178,7 +178,7 @@ export function render() {
     if (!cab.at) {
       const nItem = live().filter(d => d.itemId && !d.folderId).length;
       const nTrash = ix.docs.filter(d => d.trashedAt).length;
-      if (nItem) virt += `<button type="button" class="row drow" data-folder="${ITEM_DOCS}"><span class="d-ic sage">${icon('box')}</span><span class="body"><span class="name">Belege zu Einträgen</span><span class="meta">${plural(nItem, 'Dokument', 'Dokumente')}</span></span>${icon('chev-r', 'go')}</button>`;
+      if (nItem) virt += `<button type="button" class="row drow" data-folder="${ITEM_DOCS}"><span class="d-ic sage">${icon('box')}</span><span class="body"><span class="name">Belege an Dingen</span><span class="meta">${plural(nItem, 'Dokument', 'Dokumente')}</span></span>${icon('chev-r', 'go')}</button>`;
       if (nTrash) virt += `<button type="button" class="row drow" data-folder="${TRASH}"><span class="d-ic muted">${icon('trash')}</span><span class="body"><span class="name">Papierkorb</span><span class="meta">${plural(nTrash, 'Dokument', 'Dokumente')}</span></span>${icon('chev-r', 'go')}</button>`;
     }
     const docs = live().filter(d => (d.folderId || null) === (cab.at || null) && (cab.at || !d.itemId)).sort(byDate).map(d => docRow(d)).join('');
@@ -323,10 +323,10 @@ export async function docSheet(id) {
     ? [{ id: 'view', label: 'Ansehen', icon: 'expand' }, { id: 'restore', label: 'Wiederherstellen', icon: 'undo' }, { id: 'purge', label: 'Endgültig löschen', icon: 'trash', danger: true }]
     : [
       { id: 'view', label: 'Ansehen', icon: 'expand' },
-      { id: 'share', label: 'Teilen / Sichern', icon: 'share' },
+      { id: 'share', label: 'Teilen', icon: 'share' },
       // 2.0: Titel und Ordner ändert „Bearbeiten“ (früher zusätzlich „Umbenennen“ und „Verschieben“).
       { id: 'edit', label: 'Bearbeiten', icon: 'pencil' },
-      ...(item ? [{ id: 'item', label: `Zum Eintrag „${item.name || 'Eintrag'}“`, icon: 'box' }] : []),
+      ...(item ? [{ id: 'item', label: `Zum Ding „${item.name || 'Eintrag'}“`, icon: 'box' }] : []),
       { id: 'trash', label: 'In den Papierkorb', icon: 'trash', danger: true },
     ];
   sheet.open({
@@ -569,7 +569,7 @@ export async function save() {
   } finally {
     cab.saving = false;
     btn.disabled = false;
-    btn.textContent = 'Sichern';
+    btn.textContent = 'Fertig';
   }
 }
 

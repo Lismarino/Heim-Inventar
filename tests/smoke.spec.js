@@ -86,5 +86,6 @@ module.exports = async (t) => {
     await page.waitForFunction(() => /home\.js/.test(document.getElementById('boot-error-detail').textContent), null, { timeout: 8000 }).catch(() => {});
     const detail = await page.textContent('#boot-error-detail').catch(() => '');
     t.ok('Startfehler-Seite nennt die fehlende Datei', (await page.isVisible('#boot-error')) && /home\.js/.test(detail), detail);
+    t.ok('Startfehler-Seite: Knopf „Erneut versuchen“', await page.isVisible('#boot-retry'));
   }
 };

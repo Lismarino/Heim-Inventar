@@ -3,6 +3,25 @@
 Versionschronik von Heim-Inventar – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
 
+## 2.0.0
+
+Fertig gemacht (Bildschirme, Sprache, Hilfe) – Daten bleiben, wie sie sind (Datenbank Version 4).
+
+- **„Was ist neu“** erscheint einmal nach dem Update (nicht bei einer Neuinstallation).
+- **Alles:** ein **Filter-Knopf** neben der Suche statt drei Auswahllisten – Blatt mit Ort, Raum,
+  Kategorie und Status; aktive Filter als Chips mit ×, dazu „11 von 61“. Zeilen ohne Datum; Bestand
+  rechts als Zahl (− / + nach einem Tipp darauf), damit der Ort lesbar bleibt; Kategorie-Etikett nur
+  noch, wenn kein Ort dasteht.
+- **Einstellungen neu geordnet** (gut ein Bildschirm): Sicherung mit „Zuletzt gesichert …“ und
+  **Jetzt sichern** · KI-Erkennung (An/Aus, Key, Testen) · Kategorien › · Töne · **Über & Hilfe** › ·
+  **Erweitert** › (Google Drive, KI-Modell, Bildgröße, Datenbank prüfen, Einführung erneut zeigen).
+- **Über & Hilfe:** Version, Datenschutz in einem Absatz, Kurzhilfe mit sechs Fragen, Feedback per E-Mail.
+- **Begriffe vereinheitlicht:** Dinge statt Einträge, Formulare enden mit **Fertig** (statt
+  Speichern/Sichern), „Belege an Dingen“, Papierkorb.
+- **Dynamic Type:** Schriftgrößen in rem; auf dem iPhone folgt die Schrift der eingestellten Textgröße.
+  Schriftgrößen und Radien auf eine kleinere Skala zusammengeführt.
+- **Startfehler-Seite:** „Deine Daten sind sicher“ und Knopf **Erneut versuchen**; Technik eingeklappt.
+
 ## 2.0.0-beta.1
 
 Neue Ordnung (Informationsarchitektur 2.0) – Daten bleiben, wie sie sind (Datenbank weiter

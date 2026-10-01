@@ -1,12 +1,14 @@
-// Einstellungen: API-Key und Modell, Töne, Bildgröße, Kategorien, Speicherinfo, Datenbank prüfen.
+// Einstellungen (2.0): Sicherung · KI-Erkennung · Kategorien › · Töne · Über & Hilfe › · Erweitert ›
+// (Google Drive, Modell, Bildgröße, Datenbank prüfen, Einführung). Unterseiten liegen in derselben Ansicht.
 import * as db from './db.js';
 import * as ai from './gemini.js';
 import * as queue from './queue.js';
 import * as sound from './sound.js';
-import { $, esc, icon, plural } from './ui.js';
+import { $, $$, esc, icon, plural } from './ui.js';
+import { APP_VERSION } from './version.js';
 import { navigate, renderCurrent } from './nav.js';
 import { renderGdSettings } from './settings-backup.js';
-import { refreshItems, reloadAll, state } from './state.js';
+import { hasKey, refreshItems, reloadAll, state } from './state.js';
 import { toast } from './toast.js';
 import { dropNamed, labelOf, renameNamed } from './view-room.js';
 
@@ -57,9 +59,37 @@ export async function applyKey(key) {
   return marked;
 }
 
+/** Unterseite der Einstellungen zeigen ('' = Hauptseite). */
+let spage = '';
+export function settingsPage(name = '') {
+  spage = name;
+  let title = 'Einstellungen';
+  $$('#view-settings .spage').forEach((p) => {
+    const on = p.dataset.spage === name;
+    p.hidden = !on;
+    if (on && p.dataset.title) title = p.dataset.title;
+  });
+  $('#view-settings h1').textContent = title;
+  const sc = $('#view-settings .scroll');
+  if (sc) sc.scrollTop = 0;
+}
+
+/** „Zuletzt gesichert …“ und „KI-Erkennung: An/Aus“ oben in den Einstellungen. */
+export function renderSettingsStatus() {
+  const s = state.settings;
+  const last = Math.max(Number(s.lastBackupAt) || 0, s.gdEnabled ? Number(s.gdLastSync) || 0 : 0);
+  const days = last ? Math.floor((Date.now() - last) / 864e5) : 0;
+  const el = $('#bk-last');
+  el.textContent = !last ? 'Noch nie gesichert'
+    : `Zuletzt gesichert ${days === 0 ? 'heute' : days === 1 ? 'gestern' : `vor ${days} Tagen`}`;
+  el.classList.toggle('due', !last || days >= 7);
+  $('#ai-state').textContent = hasKey() ? 'An – neue Fotos werden automatisch erkannt.' : 'Aus – ohne Key bleiben neue Fotos unbenannt.';
+}
+
 /** Zum API-Key in den Einstellungen springen (Feld mittig, fokussiert – iOS öffnet dann die Tastatur). */
 export function goToKey() {
   navigate('settings');
+  settingsPage('');
   const key = $('#set-key');
   key.scrollIntoView({ block: 'center' });
   key.focus({ preventScroll: true });
@@ -95,6 +125,7 @@ async function loadModelList() {
 
 // Einstellungen: nur noch Kategorien – Orte und Räume verwaltet der Tab „Räume“ (1.10.0).
 export function renderManagers() {
+  renderSettingsStatus();
   const usedCat = new Map();
   for (const it of state.items) {
     if (it.categoryId) usedCat.set(it.categoryId, (usedCat.get(it.categoryId) || 0) + 1);
@@ -178,6 +209,7 @@ export function init() {
     if (key === (state.settings.apiKey || '')) return;
     const n = await applyKey(key);   // liegen gebliebene Fotos jetzt erkennen
     toast(key ? 'API-Key gespeichert.' + markedMsg(n) : 'API-Key entfernt.');
+    renderSettingsStatus();
   });
   $('#set-key-show').addEventListener('change', (e) => {
     $('#set-key').type = e.target.checked ? 'text' : 'password';
@@ -210,7 +242,7 @@ export function init() {
     try {
       await ai.testConnection(state.settings);
       out.className = 'hint ok';
-      out.textContent = `Verbindung steht – ${state.settings.model} antwortet.`;
+      out.textContent = 'Verbindung steht – die KI antwortet.';
     } catch (e) {
       out.className = 'hint err';
       out.textContent = e.message;
@@ -233,6 +265,18 @@ export function init() {
     });
   };
   mgrHandler($('#cat-mgr'));
+
+  // Unterseiten: Zeile öffnet, „Zurück“ führt erst zur Hauptseite der Einstellungen.
+  $('#view-settings').addEventListener('click', (e) => {
+    const go = e.target.closest('[data-spage-go]');
+    if (go) settingsPage(go.dataset.spageGo);
+  });
+  $('#view-settings [data-nav="back"]').addEventListener('click', (e) => {
+    if (!spage) return;
+    e.stopPropagation();
+    settingsPage('');
+  });
+  $('#feedback').href = `mailto:?subject=${encodeURIComponent(`Heim-Inventar ${APP_VERSION} – Feedback`)}`;
 
   $('#cat-add').addEventListener('click', () => addNamed('categories', $('#cat-new')));
 }

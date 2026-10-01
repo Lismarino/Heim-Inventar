@@ -139,7 +139,7 @@ export async function setOut(ids, out) {
     haptic();
     const one = ids.length === 1 ? state.items.find(x => x.id === ids[0]) : null;
     toast(!clean ? (one?.name ? `„${one.name}“ ist wieder da.` : 'Wieder da.')
-      : one ? `${one.name ? `„${one.name}“: ` : ''}${outText(one)}.` : `${plural(ids.length, 'Eintrag', 'Einträge')} ${clean.type}.`);
+      : one ? `${one.name ? `„${one.name}“: ` : ''}${outText(one)}.` : `${plural(ids.length, 'Ding', 'Dinge')} ${clean.type}.`);
   } catch (e) { toast(e.message, true); }
   return true;
 }
@@ -175,7 +175,7 @@ function renderSelBar() {
   for (const b of $$('[data-select-toggle]')) { b.textContent = on ? 'Fertig' : 'Auswählen'; b.classList.toggle('strong', on); }
   if (!on) return;
   const n = state.sel.size;
-  $('#sel-n').textContent = n ? `${plural(n, 'Eintrag', 'Einträge')} ausgewählt` : 'Einträge antippen zum Auswählen';
+  $('#sel-n').textContent = n ? `${plural(n, 'Ding', 'Dinge')} ausgewählt` : 'Dinge antippen zum Auswählen';
   for (const b of $$('#sel-bar [data-sel]')) b.disabled = !n;
 }
 const selIds = () => [...(state.sel || [])].filter(id => state.items.some(x => x.id === id && !x.archived));
@@ -189,7 +189,7 @@ export async function moveSelected(ids, pid, name) {
     hideCombo();
     endSelect();
     haptic();
-    toast(`${plural(ids.length, 'Eintrag', 'Einträge')} → ${whereText(where.placeId, where.roomId)}`);
+    toast(`${plural(ids.length, 'Ding', 'Dinge')} → ${whereText(where.placeId, where.roomId)}`);
   } catch (e) { toast('Verschieben fehlgeschlagen: ' + e.message, true); }
   return true;
 }
@@ -197,7 +197,7 @@ export async function moveSelected(ids, pid, name) {
 function onSelAction(a) {
   const ids = selIds();
   if (!ids.length) return;
-  const head = `<span class="sh-txt"><b>${esc(plural(ids.length, 'Eintrag', 'Einträge'))}</b><small>ausgewählt</small></span>`;
+  const head = `<span class="sh-txt"><b>${esc(plural(ids.length, 'Ding', 'Dinge'))}</b><small>ausgewählt</small></span>`;
   if (a === 'where') whereSheet(state.items.find(x => x.id === ids[0]), ids);
   else if (a === 'out') outSheet(ids, head);
   else if (a === 'cat') {
@@ -210,7 +210,7 @@ function onSelAction(a) {
           await refreshItems();
           endSelect();
           haptic();
-          toast(`${plural(ids.length, 'Eintrag', 'Einträge')}: ${v || 'ohne Kategorie'}`);
+          toast(`${plural(ids.length, 'Ding', 'Dinge')}: ${v || 'ohne Kategorie'}`);
         } catch (e) { toast(e.message, true); }
         return true;
       },

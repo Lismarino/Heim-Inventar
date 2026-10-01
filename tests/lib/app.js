@@ -63,7 +63,7 @@ async function ready(page, timeout = 20000) {
 }
 
 /** Öffnet die App (leer, mit Einführung); seed: 'none' (leer, eingerichtet) | 'mini' | 'full' – dann neu laden. */
-async function start(t, page, { seed = null, key = '', photoW = 320 } = {}) {
+async function start(t, page, { seed = null, key = '', photoW = 320, whatsNew = false } = {}) {
   await page.goto(t.url);
   await ready(page);
   if (seed) {
@@ -72,6 +72,8 @@ async function start(t, page, { seed = null, key = '', photoW = 320 } = {}) {
     else if (seed === 'mini') await S.seedMini(page, { key });
     else await dbq(page, (db) => db.setSetting('onboarded', true));
     if (key && seed === 'full') await dbq(page, (db, k) => db.setSetting('apiKey', k), key);
+    // „Was ist neu“ (einmal nach dem Update auf 2.0) nur dort, wo eine Prüfung es ausdrücklich will.
+    if (!whatsNew) await dbq(page, (db) => db.setSetting('seenNew', '2.0'));
     await page.reload();
     await ready(page);
   }

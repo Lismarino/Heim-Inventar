@@ -15,7 +15,7 @@ import { closeLightbox, leaveItem, syncItemAi } from './view-item.js';
 import { renderArchive, renderList } from './view-list.js';
 import { renderNoPlace, resetRoomSel } from './view-noplace.js';
 import { renderOrte } from './view-orte.js';
-import { renderManagers, updateStorageInfo } from './view-settings.js';
+import { renderManagers, settingsPage, updateStorageInfo } from './view-settings.js';
 
 // Tabs (2.0): Start · Alles · [Kamera] · Orte · Dokumente. „orte“ verwaltet Orte und Räume,
 // „noplace“ sammelt Dinge ohne Ort, „room“ zeigt einen Raum oder, ohne Raum, einen Ort selbst,
@@ -147,7 +147,7 @@ export function navigate(view, { instant = false, fresh = false } = {}) {
   if (view !== from && TABS.includes(view) && !instant) sound.play('tick');
 
   renderView(view);
-  if (view === 'settings') { renderManagers(); updateStorageInfo(); }
+  if (view === 'settings') { if (from !== 'settings' && !back) settingsPage(''); renderManagers(); updateStorageInfo(); }
 
   // Scroll-Position: zurück und aus einem Eintrag dort weiter, wo man war; Tabs behalten
   // ihre Stelle; erneutes Antippen des Tabs springt nach oben; Neues beginnt oben.

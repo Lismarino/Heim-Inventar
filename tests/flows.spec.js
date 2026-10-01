@@ -41,7 +41,7 @@ module.exports = async (t) => {
   await page.fill('#it-note', 'Notiz per Speichern');
   await page.click('#item-save');
   await A.sleep(700);
-  t.ok('Bearbeiten: „Speichern“ speichert die Notiz', (await it('Teekanne')).note === 'Notiz per Speichern' && (await A.view(page)) === 'list');
+  t.ok('Bearbeiten: „Fertig“ speichert die Notiz', (await it('Teekanne')).note === 'Notiz per Speichern' && (await A.view(page)) === 'list');
 
   await A.openRow(page, 'Teekanne');
   await openMore();
@@ -169,7 +169,7 @@ module.exports = async (t) => {
     const id = (await it(n)).id;
     await page.click(`#list .row[data-id="${id}"]`);
   }
-  t.ok('Auswahl: „2 Einträge ausgewählt“', /2 Einträge/.test(await page.textContent('#sel-n')));
+  t.ok('Auswahl: „2 Dinge ausgewählt“', /2 Dinge/.test(await page.textContent('#sel-n')));
   await page.click('#sel-bar [data-sel="cat"]');
   await A.sleep(450);
   await page.fill('#sheet-input', 'Messwerkzeug');

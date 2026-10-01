@@ -6,7 +6,8 @@ import { norm } from './combo.js';
 import { aiDocs, folderPath } from './docs.js';
 import { cleanOut, outText, qtyNumber, warrantySoon } from './match.js';
 import { placeIcon } from './places.js';
-import { $, df, EMPTY_ART, esc, icon, isThumb, placeholderHTML } from './ui.js';
+import * as sheet from './sheet.js';
+import { $, EMPTY_ART, esc, icon, isThumb, placeholderHTML } from './ui.js';
 import { cabinet } from './lazy.js';
 import { stepQty, toggleSel } from './select.js';
 import { aiBusy, aiNeedsKey, catName, hasKey, multiPlaces, placeName, placeOf, roomName, roomsIn, state, whereOf } from './state.js';
@@ -14,29 +15,71 @@ import { toast } from './toast.js';
 import { openItem, openPhotoOf } from './view-item.js';
 import { keyHint } from './view-settings.js';
 
+// 2.0: ein Filter-Knopf neben der Suche öffnet ein Blatt (Ort, Raum, Kategorie, Status);
+// aktive Filter stehen als Chips mit × unter dem Suchfeld.
+const flt = { place: '', room: '', cat: '' };
+const STATUS = { out: 'Unterwegs/verliehen', unnamed: 'Unbenannt', warranty: 'Garantie läuft bald ab' };
+
+/** Nach dem Laden: Filter auf gelöschte Orte/Räume/Kategorien verwerfen. */
 export function refreshPickers() {
-  fillSelect($('#f-cat'), state.cats, 'Alle Kategorien');
-  const fp = $('#f-place');
-  fillSelect(fp, state.places, 'Alle Orte');
-  // Mit nur einem Ort wäre der Filter nutzlos.
-  fp.hidden = state.places.length < 2;
-  if (fp.hidden) fp.value = '';
-  $('#filters').classList.toggle('three', !fp.hidden);
-  fillRoomFilter();
+  if (flt.place && !state.places.some(p => p.id === flt.place)) flt.place = '';
+  if (flt.room && !state.rooms.some(r => r.id === flt.room)) flt.room = '';
+  if (flt.cat && !state.cats.some(c => c.id === flt.cat)) flt.cat = '';
 }
 
-// Raum-Filter: nur Räume des gewählten Orts; ohne Ort-Filter bei mehreren Orten mit Ortsnamen.
-function fillRoomFilter() {
-  const pid = $('#f-place').value;
-  const rows = (pid ? roomsIn(pid) : state.rooms)
-    .map(r => ({ id: r.id, name: !pid && multiPlaces() ? `${r.name} (${placeName(r.placeId)})` : r.name }));
-  fillSelect($('#f-room'), rows, 'Alle Räume');
+/** Von „Start“ aus: nur einen Status zeigen, andere Filter zurücksetzen. */
+export function showOnly(k) {
+  flt.place = flt.room = flt.cat = '';
+  state.listFilter = k;
 }
 
-function fillSelect(sel, rows, allLabel) {
-  const keep = sel.value;
-  sel.innerHTML = `<option value="">${allLabel}</option>` + rows.map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
-  if (rows.some(r => r.id === keep)) sel.value = keep;
+const opts = (rows, keep, allLabel) => `<option value="">${allLabel}</option>` +
+  rows.map(r => `<option value="${esc(r.id)}"${r.id === keep ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+const roomRows = (pid) => (pid ? roomsIn(pid) : state.rooms)
+  .map(r => ({ id: r.id, name: !pid && multiPlaces() ? `${r.name} (${placeName(r.placeId)})` : r.name }));
+
+function openFilterSheet() {
+  const many = state.places.length > 1;
+  sheet.panel({
+    title: 'Filtern',
+    submit: 'Fertig',
+    html: `${many ? `<label class="field"><span>Ort</span><select id="ff-place">${opts(state.places, flt.place, 'Alle Orte')}</select></label>` : ''}
+      <label class="field"><span>Raum</span><select id="ff-room">${opts(roomRows(flt.place), flt.room, 'Alle Räume')}</select></label>
+      <label class="field"><span>Kategorie</span><select id="ff-cat">${opts(state.cats, flt.cat, 'Alle Kategorien')}</select></label>
+      <label class="field"><span>Status</span><select id="ff-status">${opts(Object.entries(STATUS).map(([id, name]) => ({ id, name })), state.listFilter || '', 'Alle')}</select></label>`,
+    onSubmit: () => {
+      flt.place = $('#ff-place')?.value || '';
+      flt.room = $('#ff-room').value;
+      flt.cat = $('#ff-cat').value;
+      state.listFilter = $('#ff-status').value || null;
+      renderList();
+    },
+  });
+  // Ort gewechselt: nur dessen Räume anbieten.
+  $('#ff-place')?.addEventListener('change', (e) => {
+    const room = $('#ff-room');
+    room.innerHTML = opts(roomRows(e.target.value), room.value, 'Alle Räume');
+  });
+}
+
+function activeChips() {
+  return [
+    flt.place && { k: 'place', label: placeName(flt.place) },
+    flt.room && { k: 'room', label: roomName(flt.room) },
+    flt.cat && { k: 'cat', label: catName(flt.cat) },
+    state.listFilter && { k: 'status', label: STATUS[state.listFilter] },
+  ].filter(c => c && c.label);
+}
+
+function renderChips() {
+  const chips = activeChips();
+  const box = $('#filters');
+  box.hidden = !chips.length;
+  box.innerHTML = chips.map(c => `<button type="button" class="flag" data-unfilter="${c.k}" aria-label="Filter ${esc(c.label)} entfernen"><span>${esc(c.label)}</span>${icon('close')}</button>`).join('');
+  const n = $('#filter-n');
+  n.hidden = !chips.length;
+  n.textContent = chips.length || '';
+  $('#filter-btn').classList.toggle('on', chips.length > 0);
 }
 
 function haystack(it) {
@@ -45,13 +88,11 @@ function haystack(it) {
 }
 
 /** Wird gerade gesucht oder gefiltert? */
-const filtering = () => !!(state.listFilter || $('#q').value.trim() || $('#f-cat').value || $('#f-place').value || $('#f-room').value);
+const filtering = () => !!(state.listFilter || $('#q').value.trim() || flt.cat || flt.place || flt.room);
 
 function visibleItems() {
   const q = norm($('#q').value);
-  const cat = $('#f-cat').value;
-  const place = $('#f-place').value;
-  const room = $('#f-room').value;
+  const { cat, place, room } = flt;
   return state.items
     .filter(i => !i.archived)
     .filter(i => !place || placeOf(i)?.id === place)
@@ -66,18 +107,23 @@ function visibleItems() {
 
 // opts.inRoom: in der Raum-Ansicht Ort und Raum weglassen; opts.noCat: Kategorie steht schon darüber.
 // Wo: „Auto · Kofferraum · Regal 2“ mit dem Symbol des Orts.
+let qtyOpen = null;   // Zeile, deren Bestand gerade + / − zeigt
 export function rowHTML(it, why, opts = {}) {
   const thumb = isThumb(it.thumb)
     ? `<img class="thumb" src="${esc(it.thumb)}" alt="" loading="lazy" decoding="async">`
     : placeholderHTML(it, 'thumb');
-  const cat = opts.noCat ? '' : catName(it.categoryId);
+  
   const p = opts.inRoom ? null : placeOf(it);
   const place = [opts.inRoom ? '' : whereOf(it, ' · '), it.locationDetail].filter(Boolean).join(' · ');
+  // Kategorie-Etikett nur, wenn kein Ort dasteht (Zeile: Name / Ort / Bestand) und es nicht ohnehin
+  // feststeht (Raum-Gruppe nach Kategorie, Kategorie-Filter).
+  const cat = place || opts.noCat || flt.cat ? '' : catName(it.categoryId);
   const out = outText(it);
   const qn = !it.archived && !state.sel && !opts.noStep ? qtyNumber(it.quantity) : null;
-  // + / − nur bei einer Zahl; als <span role="button">, weil die Zeile selbst ein Knopf ist.
+  // + / − nur bei einer Zahl und erst nach einem Tipp auf die Zahl (2.0) – so bleibt der Ort lesbar.
+  // Als <span role="button">, weil die Zeile selbst ein Knopf ist.
   const qty = qn != null
-    ? `<span class="qty-step"><span class="qs" role="button" data-step="-1" aria-label="Bestand verringern">−</span><span class="qty">${qn}</span><span class="qs" role="button" data-step="1" aria-label="Bestand erhöhen">+</span></span>`
+    ? `<span class="qty-step${qtyOpen === it.id ? ' open' : ''}"><span class="qs" role="button" data-step="-1" aria-label="Bestand verringern">−</span><span class="qty" role="button" data-qty aria-label="Bestand ${qn} – ändern">${qn}</span><span class="qs" role="button" data-step="1" aria-label="Bestand erhöhen">+</span></span>`
     : it.quantity ? `<span class="qty">${esc(it.quantity)}</span>` : '';
   const selOn = state.sel && !it.archived;
   const title = aiBusy(it)
@@ -91,10 +137,10 @@ export function rowHTML(it, why, opts = {}) {
     ${selOn ? `<span class="row-check" aria-hidden="true">${icon('check')}</span>` : ''}${thumb}
     <div class="body">
       ${title}
-      <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${place ? `<span class="place">${p ? placeIcon(p) : icon('pin')}<span>${esc(place)}</span></span>` : ''}${qty}</div>
+      <div class="meta">${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${place ? `<span class="place">${p ? placeIcon(p) : icon('pin')}<span>${esc(place)}</span></span>` : ''}${qn == null ? qty : ''}</div>
       ${out ? `<div class="out-tag">${icon('out')}<span>${esc(out)}</span></div>` : ''}${it.dupOf && !it.archived ? '<div class="dup-tag">Ähnlicher Eintrag schon vorhanden</div>' : ''}
-      ${why ? `<div class="why">${esc(why)}</div>` : `<div class="when">${df.format(new Date(it.createdAt))}</div>`}
-    </div>
+      ${why ? `<div class="why">${esc(why)}</div>` : ''}
+    </div>${qn != null ? qty : ''}
   </button>`;
 }
 
@@ -159,15 +205,13 @@ const itemSig = (it) => [it.id, it.updatedAt, it.createdAt, it.name, it.quantity
   it.locationDetail, it.dupOf, it.archived, it.thumb ? it.thumb.length : 0, outText(it)].join('\u0001');
 const listContextSig = () => [
   state.cats.map(c => c.id + c.name).join(), state.rooms.map(r => r.id + r.name + r.placeId).join(),
-  state.places.map(p => p.id + p.name + p.icon + p.color).join(), hasKey(), state.listFilter, state.sel ? [...state.sel].join() : '-',
+  state.places.map(p => p.id + p.name + p.icon + p.color).join(), hasKey(), state.listFilter, flt.cat, state.sel ? [...state.sel].join() : '-',
 ].join('\u0002');
 
 export function renderList() {
   if (state.aiSearch) { renderAiResult(); return; }
   $('#ai-answer').hidden = true;
-  $('#filters').hidden = false;
-  $('#f-flag').hidden = !state.listFilter;
-  $('#f-flag-txt').textContent = { unnamed: 'Nur unbenannte', out: 'Nur unterwegs/verliehen', warranty: 'Garantie läuft bald ab' }[state.listFilter] || '';
+  renderChips();
   const rows = visibleItems();
   const total = state.items.filter(i => !i.archived).length;
   const sig = listContextSig() + '\u0003' + rows.map(itemSig).join('\u0004');
@@ -205,7 +249,7 @@ function renderAiResult() {
     .map(m => ({ item: state.items.find(i => i.id === m.item.id), why: m.why }))
     .filter(m => m.item && !m.item.archived);
   $('#filters').hidden = true;
-  $('#f-flag').hidden = true;
+  $('#filter-n').hidden = true;
   $('#list-hits').hidden = true;
   $('#ai-answer').hidden = false;
   $('#ai-answer-q').textContent = a.question;
@@ -307,9 +351,7 @@ export function init() {
     renderList();
     updateAskButton();
   });
-  $('#f-cat').addEventListener('change', renderList);
-  $('#f-place').addEventListener('change', () => { fillRoomFilter(); renderList(); });
-  $('#f-room').addEventListener('change', renderList);
+  $('#filter-btn').addEventListener('click', openFilterSheet);
   $('#ai-search').addEventListener('click', runAiSearch);
   $('#ai-clear').addEventListener('click', clearAiSearch);
   $('#q').addEventListener('keydown', (e) => {
@@ -324,11 +366,25 @@ export function init() {
     if (state.sel && !row.closest('#arch-list')) { toggleSel(row.dataset.id); return; }
     const step = e.target.closest('[data-step]');
     if (step) { stepQty(row.dataset.id, Number(step.dataset.step)); return; }
+    if (e.target.closest('[data-qty]')) {
+      const box = e.target.closest('.qty-step');
+      document.querySelectorAll('.qty-step.open').forEach((b) => { if (b !== box) b.classList.remove('open'); });
+      box.classList.toggle('open');
+      qtyOpen = box.classList.contains('open') ? row.dataset.id : null;
+      return;
+    }
     if (e.target.matches('img.thumb')) { openPhotoOf(row.dataset.id); return; }
     openItem(row.dataset.id);
   };
   $('#list').addEventListener('click', rowClick);
   $('#arch-list').addEventListener('click', rowClick);
   $('#room-list').addEventListener('click', rowClick);
-  $('#f-flag').addEventListener('click', () => { state.listFilter = null; renderList(); });
+  $('#filters').addEventListener('click', (e) => {
+    const k = e.target.closest('[data-unfilter]')?.dataset.unfilter;
+    if (!k) return;
+    if (k === 'status') state.listFilter = null;
+    else flt[k] = '';
+    if (k === 'place') flt.room = '';
+    renderList();
+  });
 }

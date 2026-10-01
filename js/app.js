@@ -30,7 +30,7 @@ import { homeBackupGo, onSyncTap, snoozeBackup } from './settings-backup.js';
 import { aiBusy, aiNeedsKey, catName, comboSource, hasRoom, noRoomItems, placeById, placeOf, reloadAll, roomById, roomName, state, whereShort } from './state.js';
 import { registerSW, rescueUpdate, toast } from './toast.js';
 import { openItem } from './view-item.js';
-import { clearSearch, rowHTML } from './view-list.js';
+import { clearSearch, rowHTML, showOnly } from './view-list.js';
 
 import { fillSettingsForm, goToKey, requestPersist, updateStorageInfo } from './view-settings.js';
 
@@ -82,6 +82,7 @@ async function boot() {
     $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
     // Erster Start ohne jede Spur einer Einrichtung: Begrüßung. Scheitert sie, startet die App trotzdem.
     // Nur wer noch nie eingerichtet hat, lädt das Modul überhaupt.
+    whatsNew();
     if (!state.settings.onboarded) {
       await onboarding().then((m) => m.maybeShow(state.settings, { items: state.items.length, rooms: state.rooms.length, places: state.places.length }))
         .catch((e) => console.warn('Einführung:', e));
@@ -211,7 +212,7 @@ function onHomeClick(e) {
   if (todo) {
     const k = todo.dataset.todo;
     if (k === 'noroom') navigate('noplace');
-    else if (k === 'unnamed' || k === 'out' || k === 'warranty') { state.listFilter = k; clearSearch(); navigate('list'); }
+    else if (k === 'unnamed' || k === 'out' || k === 'warranty') { showOnly(k); clearSearch(); navigate('list'); }
     else if (k === 'busy') toast(queue.status().note || 'Die KI benennt die Fotos gerade im Hintergrund – du kannst einfach weitermachen.');
     else if (k === 'needkey') goToKey();
     return true;
@@ -249,6 +250,26 @@ async function setHomePlace(id) {
 }
 
 /* =========================== Ereignisse =========================== */
+
+// „Was ist neu“ (2.0): einmal nach dem Update von einer älteren Fassung – nicht bei einer Neuinstallation.
+const NEW_IN = '2.0';
+function whatsNew() {
+  const s = state.settings;
+  if (s.seenNew === NEW_IN) return;
+  const updated = s.onboarded || state.items.length > 0;
+  s.seenNew = NEW_IN;
+  db.setSetting('seenNew', NEW_IN).catch((e) => console.warn('Was ist neu merken:', e));
+  if (!updated) return;
+  const pt = (ic, b, t) => `<div class="new-pt">${icon(ic)}<p><b>${b}</b>${t}</p></div>`;
+  sheet.list({
+    title: 'Neu in Heim-Inventar 2.0',
+    html: `<div class="whats-new">
+      ${pt('home', 'Neue Leiste.', ' Start · Alles · Kamera · Orte · Dokumente – die Einstellungen findest du über ⚙ oben auf Start.')}
+      ${pt('alert', 'Wichtig auf einen Blick.', ' Start zeigt, was ansteht: Fristen, Verliehenes, Dinge ohne Ort, fällige Sicherung.')}
+      ${pt('trash', 'Aufgeräumt.', ' Gelöschtes landet im Papierkorb, Einträge speichern von selbst, Filter sitzen hinter einem Knopf.')}
+    </div>`,
+  });
+}
 
 // Jedes Modul hängt seine eigenen Ereignisse an (init); hier nur, was mehrere verbindet.
 // Die Reihenfolge entspricht der bisherigen – bei #list zählt sie (Tipp vor Wischgeste).

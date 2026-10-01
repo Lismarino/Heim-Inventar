@@ -11,7 +11,7 @@ import { navigate, renderCurrent } from './nav.js';
 import { reloadAll, state } from './state.js';
 import { toast } from './toast.js';
 import { renderList } from './view-list.js';
-import { renderManagers, updateStorageInfo } from './view-settings.js';
+import { renderManagers, renderSettingsStatus, updateStorageInfo } from './view-settings.js';
 
 let exportFile = null;   // { blob, filename, counts }
 let importData = null;
@@ -50,7 +50,7 @@ async function buildBackup(password = '') {
     }
     const c = exportFile.counts;
     out.className = 'hint ok';
-    out.textContent = `Fertig: ${plural(c.items, 'Eintrag', 'Einträge')}, ${c.photos} Fotos, `
+    out.textContent = `Fertig: ${plural(c.items, 'Ding', 'Dinge')}, ${c.photos} Fotos, `
       + `${c.categories} Kategorien, ${plural(c.places, 'Ort', 'Orte')}, ${c.rooms} Räume, ${plural(c.docs || 0, 'Dokument', 'Dokumente')} – ${mb(exportFile.blob.size)}`
       + (password ? ', verschlüsselt.' : '.');
     $('#exp-save').hidden = false;
@@ -93,6 +93,7 @@ async function markBackedUp() {
   state.settings.lastBackupAt = Date.now();
   state.homeBackup = '';
   if (state.view === 'home') home.renderHome();
+  renderSettingsStatus();
   try { await db.setSetting('lastBackupAt', state.settings.lastBackupAt); } catch (e) { console.warn('Sicherungszeit merken:', e); }
 }
 
@@ -209,7 +210,7 @@ async function runImport(mode) {
     queue.kick();   // mitgebrachte, noch nicht erkannte Fotos jetzt abarbeiten
     out.className = 'hint ok';
     sound.play('bell');
-    out.textContent = `${plural(stats.items, 'Eintrag', 'Einträge')}, ${stats.photos} Fotos und ${plural(stats.docs || 0, 'Dokument', 'Dokumente')} eingelesen`
+    out.textContent = `${plural(stats.items, 'Ding', 'Dinge')}, ${stats.photos} Fotos und ${plural(stats.docs || 0, 'Dokument', 'Dokumente')} eingelesen`
       + (stats.skipped ? `, ${stats.skipped} waren schon vorhanden.` : '.');
   } catch (e) {
     out.className = 'hint err';
@@ -289,7 +290,7 @@ function gdRestoreClick() {
           renderCurrent();
           updateStorageInfo();
           queue.kick();
-          gdOut(`Wiederhergestellt: ${plural(st.items, 'Eintrag', 'Einträge')}, ${st.photos} Fotos, ${plural(st.docs, 'Dokument', 'Dokumente')}`
+          gdOut(`Wiederhergestellt: ${plural(st.items, 'Ding', 'Dinge')}, ${st.photos} Fotos, ${plural(st.docs, 'Dokument', 'Dokumente')}`
             + (st.missing ? ` – ${st.missing} Dateien fehlten.` : '.'), 'ok');
         })
         .catch((e) => gdOut((isWrongPw(e) ? 'Das Passwort stimmt nicht.' : e.message) + ' Es wurde nichts verändert.', 'err'))

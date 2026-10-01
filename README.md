@@ -37,7 +37,7 @@ Orten oben umschalten) und optional der **Gemini-API-Key**. Alles lässt sich ü
 **Überspringen** (oder Escape am Rechner) übernimmt nichts von dem, was du dort angetippt hast.
 **Los geht’s – erstes Foto** öffnet gleich die Kamera-Ansicht. Wer die App schon eingerichtet hat
 (Einträge, Orte, Räume oder einen API-Key), sieht die Einführung nicht – auch nicht nach dem
-Update auf 1.7.0. Erneut aufrufen: **Einstellungen → Über → Einführung erneut zeigen**.
+Update auf 1.7.0. Erneut aufrufen: **Einstellungen → Erweitert → Einführung erneut zeigen**.
 
 ---
 
@@ -58,10 +58,10 @@ locker reicht.
 
 ### In der App hinterlegen
 
-**Einstellungen** (⚙ oben rechts auf Start) → Abschnitt **Google Gemini API** → Feld **API-Key**
+**Einstellungen** (⚙ oben rechts auf Start) → Abschnitt **KI-Erkennung** → Feld **API-Key**
 → einfügen → einmal aus dem Feld tippen, damit gespeichert wird → **Verbindung testen**.
 
-### Modellwahl
+### Modellwahl (Einstellungen → Erweitert)
 
 | Modell | wofür | gemessen |
 |---|---|---|
@@ -220,7 +220,7 @@ auch im Eintrag über **Mit KI erkennen** anstoßen. Wartet ein Eintrag auf die 
 aber kein Key hinterlegt (etwa nach dem Einlesen einer Sicherung auf einem neuen Gerät),
 steht dort „Wartet auf API-Key“ statt „wird erkannt …“.
 
-**Ohne Foto eintragen** – aufklappbar unter den Foto-Knöpfen: Name, Kategorie, Speichern.
+**Ohne Foto eintragen** – aufklappbar unter den Foto-Knöpfen: Name, Kategorie, Fertig.
 Ort, Raum und genauer Platz kommen aus den Feldern ganz oben. Bestand (mit Schnellauswahl) und Notiz
 liegen hinter **Mehr Angaben**. Lässt du die Kategorie leer, schlägt die KI im Hintergrund
 eine vor.
@@ -260,11 +260,11 @@ formatfüllend, ohne den Eintrag zu öffnen; ein Tipp auf den Text daneben öffn
 den Eintrag. In der Detail-Ansicht öffnet ein Tipp auf das Bild dasselbe Vollbild. Dort noch einmal antippen zoomt auf die Originalgröße und man kann im
 Bild herumschieben; das × oben rechts oder ein Tipp neben das Bild schließt wieder.
 
-**Alles** (früher „Liste“) zeigt Vorschaubild, Name, Bestand, Ort und Raum („Auto · Kofferraum“ mit
-dem Symbol des Orts) sowie Datum und Uhrzeit. Die Suche geht über Name, Kategorie, Ort, Raum,
-genauen Platz, Bestand und Notiz – „auto“ findet also alles im Auto. Dazu kommen Filter nach Ort
-(ab zwei Orten), Kategorie und Raum; ist ein Ort gewählt, bietet der Raum-Filter nur dessen Räume
-an.
+**Alles** (früher „Liste“) zeigt je Zeile Vorschaubild, Name, Ort und Raum („Auto · Kofferraum“ mit
+dem Symbol des Orts) und rechts den Bestand – ein Tipp auf die Zahl zeigt − / +. Die Suche geht über
+Name, Kategorie, Ort, Raum, genauen Platz, Bestand und Notiz – „auto“ findet also alles im Auto. Der
+**Filter-Knopf** neben der Suche öffnet ein Blatt mit Ort, Raum, Kategorie und Status (unterwegs/verliehen,
+unbenannt, Garantie läuft ab); aktive Filter stehen als Chips mit × darunter, dazu „11 von 61“.
 
 **KI-Suche** – tippe eine ganze Frage ins Suchfeld, etwa „ich brauch irgendwas um das Ding
 zu befestigen oder zu kleben“, und nimm den Knopf **Stattdessen die KI fragen** darunter
@@ -310,7 +310,7 @@ unwiderruflich. Zu erreichen über **Papierkorb (n)** am Ende von **Alles**.
 
 ### Sichern
 
-**Einstellungen → Sicherung → Sicherung erstellen**, danach **Sichern / Teilen**. Auf dem
+**Einstellungen → Sicherung → Jetzt sichern**, danach **Sichern / Teilen**. Oben steht, wann zuletzt gesichert wurde. Auf dem
 iPhone öffnet sich das Teilen-Fenster: „In Dateien sichern“, per AirDrop an ein anderes
 Gerät oder als Mail an die Familie. Am Rechner lädt die Datei herunter.
 
@@ -332,7 +332,7 @@ für Web-Apps, iCloud ebenso wenig – eine *automatische* Sicherung gibt es des
 
 ### Automatisch in Google Drive (seit 1.9.0)
 
-Einstellungen → **Google Drive (verschlüsselt)**: OAuth-Client-ID eintragen (einmalig in der
+Einstellungen → Erweitert → **Google Drive (verschlüsselt)**: OAuth-Client-ID eintragen (einmalig in der
 Google Cloud Console anlegen – Anleitung für Laien: **[docs/GOOGLE-DRIVE.md](docs/GOOGLE-DRIVE.md)**),
 **Verbinden & einrichten**, Passwort festlegen. Danach sichert die App beim Start und etwa 30 Sekunden
 nach jeder Änderung – nur Neues, verschlüsselt, in den versteckten App-Datenordner deines Drive
@@ -345,7 +345,7 @@ Sicherungs-Erinnerung mit.
 
 ### Einlesen
 
-**Sicherung einlesen**, Datei wählen. Die App zeigt erst, was drinsteht, dann hast du
+**Aus Datei wiederherstellen**, Datei wählen. Die App zeigt erst, was drinsteht, dann hast du
 zwei Möglichkeiten:
 
 - **Hinzufügen, Vorhandenes behalten** – für den Abgleich zwischen zwei Geräten.
