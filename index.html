@@ -2,8 +2,9 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<!-- Muss zu APP_VERSION in js/app.js und VERSION in sw.js passen – sonst rettet sich die App per Update. -->
-<meta name="app-version" content="1.10.3">
+<!-- Muss zu APP_VERSION in js/version.js und VERSION in sw.js passen – sonst rettet sich die App per Update
+     (tests/consistency.spec.js prüft das; ebenso die Dateiliste des Start-Wächters unten). -->
+<meta name="app-version" content="1.11.0">
 <title>Heim-Inventar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
@@ -48,6 +49,41 @@
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-750x1334-light.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-640x1136-light.png" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="stylesheet" href="./css/app.css">
+<!-- Alle Module, die app.js beim Start lädt, gleich parallel holen – sonst entdeckt der Browser sie
+     erst Ebene für Ebene. Muss zum Import-Graphen passen (tests/consistency.spec.js prüft das). -->
+<link rel="modulepreload" href="./js/app.js">
+<link rel="modulepreload" href="./js/combo.js">
+<link rel="modulepreload" href="./js/db-core.js">
+<link rel="modulepreload" href="./js/db-places.js">
+<link rel="modulepreload" href="./js/db.js">
+<link rel="modulepreload" href="./js/docs.js">
+<link rel="modulepreload" href="./js/gemini.js">
+<link rel="modulepreload" href="./js/gestures.js">
+<link rel="modulepreload" href="./js/glass.js">
+<link rel="modulepreload" href="./js/home.js">
+<link rel="modulepreload" href="./js/img.js">
+<link rel="modulepreload" href="./js/intro.js">
+<link rel="modulepreload" href="./js/lazy.js">
+<link rel="modulepreload" href="./js/match.js">
+<link rel="modulepreload" href="./js/motion.js">
+<link rel="modulepreload" href="./js/nav.js">
+<link rel="modulepreload" href="./js/places.js">
+<link rel="modulepreload" href="./js/queue.js">
+<link rel="modulepreload" href="./js/select.js">
+<link rel="modulepreload" href="./js/settings-backup.js">
+<link rel="modulepreload" href="./js/sheet.js">
+<link rel="modulepreload" href="./js/sound.js">
+<link rel="modulepreload" href="./js/state.js">
+<link rel="modulepreload" href="./js/toast.js">
+<link rel="modulepreload" href="./js/ui.js">
+<link rel="modulepreload" href="./js/version.js">
+<link rel="modulepreload" href="./js/view-add.js">
+<link rel="modulepreload" href="./js/view-item.js">
+<link rel="modulepreload" href="./js/view-list.js">
+<link rel="modulepreload" href="./js/view-noplace.js">
+<link rel="modulepreload" href="./js/view-room.js">
+<link rel="modulepreload" href="./js/view-settings.js">
+<link rel="modulepreload" href="./js/where.js">
 </head>
 <body>
 
@@ -625,9 +661,6 @@
       <h2 class="sec">Töne</h2>
       <div class="card">
         <label class="check"><input type="checkbox" id="set-sound" checked> <span>Töne bei Aktionen</span></label>
-        <label class="field range-field"><span>Lautstärke</span>
-          <input type="range" id="set-sound-vol" min="0.05" max="0.5" step="0.05" value="0.25" aria-label="Lautstärke der Töne">
-        </label>
       </div>
 
       <h2 class="sec">Fotos &amp; Speicher</h2>
@@ -863,12 +896,15 @@ setTimeout(function watchdog() {
     if (rescuing) return;
 
     // Nachsehen, welche Datei tatsächlich fehlt – das erspart das Raten.
-    var files = ['./js/app.js', './js/db.js', './js/img.js', './js/gemini.js',
-                 './js/combo.js', './js/backup.js', './js/queue.js', './js/ui.js', './js/home.js',
-                 './js/gestures.js', './js/motion.js', './js/sheet.js', './js/onboarding.js',
-                 './js/glass.js', './js/intro.js', './js/places.js', './js/match.js', './js/docs.js',
-                 './js/cabinet.js', './js/scan.js', './js/crypto.js', './js/gdrive.js', './js/sound.js',
-                 './css/app.css', './manifest.webmanifest'];
+    var files = ['./js/app.js', './js/version.js', './js/backup.js', './js/cabinet.js', './js/combo.js',
+                 './js/crypto.js', './js/db-core.js', './js/db-places.js', './js/db.js', './js/docs.js',
+                 './js/gdrive.js', './js/gemini.js', './js/gestures.js', './js/glass.js', './js/home.js',
+                 './js/img.js', './js/intro.js', './js/lazy.js', './js/match.js', './js/motion.js',
+                 './js/nav.js', './js/onboarding.js', './js/places.js', './js/queue.js', './js/scan.js',
+                 './js/select.js', './js/settings-backup.js', './js/sheet.js', './js/sound.js',
+                 './js/state.js', './js/toast.js', './js/ui.js', './js/view-add.js', './js/view-item.js',
+                 './js/view-list.js', './js/view-noplace.js', './js/view-room.js', './js/view-settings.js',
+                 './js/where.js', './css/app.css', './manifest.webmanifest'];
     var missing = [];
     Promise.all(files.map(function (f) {
       return fetch(f, { cache: 'no-store' })

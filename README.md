@@ -417,13 +417,27 @@ Ein Datei-Update auf dem Server kann die Datenbank nicht löschen. Prüfe der Re
 
 ```
 index.html              alle Ansichten, die SVG-Symbole (Sprite ganz oben im <body>), Start-Szene,
-                        Startbild-Links und der Start-Wächter (Dateiliste bei neuen js-Dateien ergänzen!)
+                        Startbild-Links, modulepreload der Start-Module und der Start-Wächter (Dateiliste)
 manifest.webmanifest    Name, Icons, Vollbildmodus
-sw.js                   Service Worker – App offline verfügbar (VERSION hochzählen – passend
-                        zu APP_VERSION in js/app.js und <meta name="app-version"> in index.html!)
+sw.js                   Service Worker – App offline verfügbar (Dateiliste ASSETS, VERSION)
 css/app.css             Gestaltung, hell und dunkel – Farben, Radien, Schatten als Variablen oben,
                         das Glas-System (--glass-*, --lite-*) und die Start-Szene im letzten Abschnitt
-js/app.js               Ansichten, Navigation, Bedienung, Abläufe
+js/version.js           die Versionsnummer (APP_VERSION) – einzige Quelle; index.html (<meta name="app-version">)
+                        und sw.js (VERSION) ziehen gleich, tests/consistency.spec.js prüft das
+js/app.js               Start (Boot, Umstellung auf Orte, Fehlerseiten), Zuhause-Aktionen, Verdrahtung
+js/state.js             gemeinsamer Zustand, Nachschlage-Hilfen (Ort/Raum/Kategorie), reloadAll
+js/nav.js               Navigation: Stapel, Tabs, Push-Ansichten, Zurückwischen, Neuzeichnen
+js/toast.js             Meldungen (mit „Rückgängig“), Service Worker, Update-Leiste
+js/lazy.js              bei Bedarf geladene Module (Aktenschrank, Sicherung, Drive, Einführung)
+js/view-list.js         „Alles“: Liste, Suche, Filter, KI-Suche, Archiv
+js/view-item.js         Eintrag: Felder (speichert beim Verlassen), Unterwegs, Duplikat, Belege, Vollbild
+js/view-add.js          Hinzufügen: Schnellerfassung, ohne Foto
+js/view-noplace.js      „Ohne Ort“: gesammelt zuordnen
+js/view-room.js         Raum/Ort-Ansicht und ihre Menüs, Orte und Räume anlegen/verschieben/löschen
+js/where.js             Orts-Chips, Ort/Raum auflösen, Blatt „Ort ändern“
+js/select.js            Kontextmenü, Archiv mit Rückgängig, Unterwegs, Auswahl, Checkliste, Habe ich das schon?
+js/view-settings.js     Einstellungen: API-Key, Modell, Töne, Kategorien, Speicher
+js/settings-backup.js   Sicherung erstellen/einlesen, Passwort-Blatt, Google Drive
 js/home.js              Startseite (Tab „Start“, mit Orts-Umschalter), Tab „Räume“ (nach Ort gruppiert) und
                         Raum-/Orts-Ansicht (inkl. scharfer Titelbilder)
 js/places.js            Orte: Symbole, Farben, Symbol-Vorschlag aus dem Namen, Raumvorschläge je Art,
@@ -447,8 +461,9 @@ js/gestures.js          Zurückwischen, Zeile wegwischen, langes Drücken, Hapti
 js/sheet.js             Aktionsblatt von unten (Kontextmenü, kleine Eingaben)
 js/sound.js             Töne: per Web Audio erzeugt (keine Dateien), leise, abschaltbar
 js/onboarding.js        Einführung beim ersten Start
-js/db.js                IndexedDB (Version 4): Einträge, Fotos, Kategorien, Orte, Räume, Dokumente, Ordner, Einstellungen;
-                        Umstellung auf Orte (migratePlaces), Verschieben an Ort + Raum, Ort löschen, „Speicher voll“-Meldung
+js/db.js                IndexedDB (Version 4): Einträge, Dokumente, Import – und die öffentliche Schnittstelle für
+                        db-core.js (Öffnen/Aufrüsten, Transaktionen, Einstellungen, „Speicher voll“-Meldung) und
+                        db-places.js (Kategorien, Orte, Räume, Umstellung auf Orte, Verschieben, Ort löschen)
 js/img.js               Bilder dekodieren, drehen, verkleinern, kodieren
 js/gemini.js            Aufrufe an die Gemini-API
 js/queue.js             KI-Warteschlange: erkennt erfasste Fotos im Hintergrund
@@ -460,6 +475,7 @@ tools/splash.js         erzeugt die Startbilder aus der Start-Szene in index.htm
                         gehört nicht zur App) – nach Änderungen an der Szene neu ausführen
 tools/icon.svg          Vorlage des App-Symbols (Glasregal mit Büchern und Einmachglas)
 tools/icon.js           erzeugt daraus die PNGs in icons/ (Playwright; gehört nicht zur App)
+tests/                  automatische Prüfungen (Playwright, ohne Build): node tests/run.js – siehe tests/README.md
 ```
 
 Fotos werden beim Speichern auf max. 1600 px verkleinert (in den Einstellungen

@@ -7,7 +7,7 @@ import * as img from './img.js';
 import { esc, icon, plural, isThumb, placeholderHTML, toneOf, initialOf, EMPTY_ART } from './ui.js';
 import { placeBadge, placeIcon, safeColor } from './places.js';
 import { moveLens } from './glass.js';
-import { cleanOut, warrantySoon, daysSince } from './match.js';
+import { cleanOut, warrantySoon, daysSince, daysUntil } from './match.js';
 
 const $ = (s) => document.querySelector(s);
 const collator = new Intl.Collator('de', { sensitivity: 'base', numeric: true });
@@ -300,7 +300,14 @@ export function renderHome() {
   if (c.out) rows.push(todoRow('out', 'out', 'clay', `${c.out} unterwegs/verliehen`, 'Antippen für die Liste'));
   // Bald fällig (1.9.0): Garantien und Fristen aus den Dokumenten (≤ 30 Tage), zusammen.
   const due = [];
-  if (c.warranty) due.push(todoRow('warranty', 'doc', 'clay', c.warranty === 1 ? 'Garantie läuft bald ab' : `${c.warranty}× Garantie läuft bald ab`, 'In den nächsten 30 Tagen'));
+  // Die Garantie nennt das Ding (1.11.0): „Garantie: Laptop ThinkPad · läuft in 20 Tagen ab“.
+  if (c.warranty) {
+    const soon = items.filter(warrantySoon).sort((a, b) => daysUntil(a.warrantyUntil) - daysUntil(b.warrantyUntil));
+    const names = soon.map(it => String(it.name || '').trim() || 'Unbenannt');
+    due.push(c.warranty === 1
+      ? todoRow('warranty', 'doc', 'clay', `Garantie: ${names[0]}`, `Läuft ${dueDay(daysUntil(soon[0].warrantyUntil))} ab`)
+      : todoRow('warranty', 'doc', 'clay', `${c.warranty}× Garantie läuft bald ab`, names.slice(0, 3).join(', ') + (names.length > 3 ? ' …' : '')));
+  }
   const docsDue = ctx.docsDue ? ctx.docsDue() : [];
   for (const d of docsDue.slice(0, 4)) {
     due.push(`<button class="todo-row" data-due-doc="${esc(d.id)}">

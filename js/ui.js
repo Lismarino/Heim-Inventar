@@ -1,5 +1,8 @@
 // Rein darstellende Helfer, die mehrere Module brauchen (Liste, Zuhause, Einführung).
 
+export const $ = (s) => document.querySelector(s);
+export const $$ = (s) => Array.from(document.querySelectorAll(s));
+
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export const dtf = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' });

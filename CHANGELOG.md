@@ -3,6 +3,31 @@
 Versionschronik von Heim-Inventar – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
 
+## 1.11.0
+
+Fundament für 2.0 – sichtbar ändern sich nur die Fehlerbehebungen.
+
+- **Eintrag speichert beim Verlassen:** Wer im Eintrag etwas ändert (etwa eine Notiz) und dann
+  „Zurück“ tippt, zurückwischt, einen Tab wählt oder die App verlässt, verliert nichts mehr – die
+  Änderungen werden automatisch gespeichert („Gespeichert.“). Ein geleerter Name bleibt dabei,
+  wie er war; alles andere wird übernommen. „Speichern“ funktioniert weiter wie bisher.
+- **Unterwegs / verliehen:** Der gewählte Chip „Verliehen“ ist wieder deutlich zu sehen (hell und
+  dunkel).
+- **Töne:** Der Lautstärke-Regler (ohne sichtbare Schiene) ist weg; „Töne bei Aktionen“ bleibt.
+  Eine früher gewählte Lautstärke gilt weiter.
+- **Ohne API-Key** (KI-Suche, „Habe ich das schon?“, Erkennen): ein ruhiger Hinweis mit
+  **Einrichten** statt einer roten Fehlermeldung; während der Auswahl liegt er über der
+  Auswahl-Leiste statt auf ihr.
+- Meldungen wie „„Kaffeemaschine“ archiviert.“ brechen um, statt abgeschnitten zu werden.
+- Die Leiste „Neue Version verfügbar“ verdeckt Datum und Begrüßung nicht mehr.
+- **Bald fällig** nennt die Garantie beim Namen: „Garantie: Laptop ThinkPad · Läuft in 20 Tagen ab“.
+- Technik: `js/app.js` ist in Module aufgeteilt (Zustand, Navigation, je Ansicht eins, Sicherung,
+  Meldungen …), die Datenbank-Schicht in drei Dateien; die Versionsnummer steht in `js/version.js`.
+  Der Wassertropfen-Code ist entfernt, doppelte CSS-Angaben, die später ohnehin überschrieben
+  wurden, ebenso. Die Start-Module werden parallel vorgeladen. Neu: dauerhafte Tests in `tests/`
+  (`node tests/run.js`) – Start, Offline, Abläufe, Sicherungen aller Formate, Upgrade alter
+  Datenbanken, Prüfung von Version und Dateilisten.
+
 ## 1.10.3
 
 - **Tabwechsel wieder schlicht:** Statt des Wassertropfens blendet die alte Ansicht in 0,18 s
