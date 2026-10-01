@@ -3,7 +3,7 @@
 Automatische Prüfungen mit Playwright – ohne Build und ohne `npm install`.
 
 ```sh
-node tests/run.js                  # alles (≈ 2 min): smoke, flows, backup, consistency, upgrade
+node tests/run.js                  # alles (≈ 3 min): smoke, flows, ia, backup, consistency, upgrade
 node tests/run.js flows backup     # nur Dateien, deren Name das Wort enthält
 node tests/run.js screens          # Bildschirmfotos hell/dunkel nach tests/out/ (nicht eingecheckt)
 node tests/run.js screens --rev 896a46b --out /tmp/vorher   # dasselbe für einen alten Commit
@@ -22,9 +22,10 @@ Playwright seinen eigenen Browser. Nichts davon gehört zur App.
 | Datei | prüft |
 |---|---|
 | `smoke.spec.js` | Kaltstart mit Einführung, alle Ansichten ohne Konsolenfehler, Offline-Start über den Service Worker, Startfehler-Seite bei fehlender Datei |
-| `flows.spec.js` | Erfassen (Gemini vorgetäuscht), ohne Foto, Eintrag bearbeiten – auch **Speichern beim Zurück/Zurückwischen** –, Ort/Raum, Unterwegs (mit Kontrast des gewählten Chips), Wisch-Archiv + Rückgängig, Mehrfachauswahl, Dokument anlegen/ansehen, KI-Suche ohne Dokumentinhalte, Hinweis ohne API-Key |
+| `flows.spec.js` | Erfassen (Gemini vorgetäuscht), ohne Foto, Eintrag bearbeiten – auch **Speichern beim Zurück/Zurückwischen** –, Ort/Raum, Unterwegs (mit Kontrast des gewählten Chips), Wischen = Löschen (Papierkorb) + Rückgängig, Mehrfachauswahl, Dokument anlegen über „+“ im Tab Dokumente und ansehen, KI-Suche ohne Dokumentinhalte, Hinweis ohne API-Key |
 | `backup.spec.js` | Sicherung erstellen (offen/verschlüsselt), ersetzen/hinzufügen, falsches Passwort; Sicherungen aus 1.6.2, 1.7.1, 1.8.1, 1.10.3 (Format 1–4, auch verschlüsselt) aus `fixtures/` |
 | `upgrade.spec.js` | Datenbank aus 1.6.2, 1.7.1 und 1.10.3 (per `git archive` aus dem Verlauf) → aktuelle Fassung ohne Datenverlust |
+| `ia.spec.js` | Informationsarchitektur 2.0: Leiste, Start ≤ 1,1 und Orte ≤ 2 Bildschirmhöhen, „Wichtig“ + Blatt, Dokumente in einem Tipp mit richtigem Tab, keine alten Doppel-Einstiege, Papierkorb, Zurückwischen, homePlace/Papierkorb aus alten Daten |
 | `consistency.spec.js` | eine Versionsnummer (`js/version.js` = `index.html` = `sw.js` = CHANGELOG), `ASSETS` und Start-Wächter vollständig, `modulepreload` = Start-Module, keine toten Exporte, Dateigrößen, Syntax |
 | `screens.spec.js` | nur auf Wunsch: Bildschirmfotos aller Hauptansichten mit dem großen Testbestand |
 

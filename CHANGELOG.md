@@ -3,6 +3,38 @@
 Versionschronik von Heim-Inventar – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
 
+## 2.0.0-beta.1
+
+Neue Ordnung (Informationsarchitektur 2.0) – Daten bleiben, wie sie sind (Datenbank weiter
+Version 4; gemerkter Ort auf Start, Papierkorb-Einträge und Einstellungen erscheinen unverändert).
+
+- **Neue Leiste: Start · Alles · Kamera · Orte · Dokumente.** Dokumente sind ein eigener Tab
+  (ein Tipp von überall); die Leiste markiert jetzt auch in Unterseiten den richtigen Bereich –
+  Raum → Orte, Ordner und Dokument → Dokumente, Eintrag → wo er geöffnet wurde.
+- **Einstellungen** öffnet der **⚙**-Knopf oben rechts auf Start (mit „Zurück“ und Zurückwischen).
+- **Start** passt auf einen Bildschirm: Begrüßung, Orts-Umschalter (ab zwei Orten, ohne „+“), Suche,
+  **eine** Karte **Wichtig** mit höchstens drei Zeilen – Fristen, Garantien (mit Namen), Sicherung,
+  ohne Ort, unbenannt, unterwegs – nach Dringlichkeit; **Alle anzeigen** zeigt alles in einem Blatt.
+  Die Raum-Kacheln, die Dokumente-Karte, der Hinweis „Ort hinzufügen“ und die eigene
+  Sicherungs-Karte sind weg.
+- **Orte** (bisher „Räume“): je Ort ein Kopf mit Symbol, Anzahl und ⋯, die Räume als kompakte
+  Zeilen; oben **Ohne Ort (n)**; **+** oben rechts für **Neuer Ort / Neuer Raum in …**. Die
+  gestrichelten Hinzufügen-Kacheln sind weg – 3 Orte mit 11 Räumen brauchen 1,3 statt 5 Bildschirme.
+- **Dokumente:** **+** oben rechts (Scannen, Aus Fotos, PDF oder Datei, Neuer Ordner) statt der
+  Knöpfe unten; in Ordnern „Zurück“ und Zurückwischen eine Ebene hoch, Tab erneut antippen führt
+  ganz nach oben. Im Dokument-Blatt ändert „Bearbeiten“ Titel und Ordner (ohne eigene
+  „Umbenennen“/„Verschieben“).
+- **Archiv heißt jetzt Papierkorb.** Wischen und „Löschen“ legen ein Ding in den Papierkorb, mit
+  **Rückgängig**; endgültig löschen nur dort. Erreichbar am Ende von **Alles**: „Papierkorb (n)“.
+- Weniger doppelte Wege: kein Ohne-Ort-Banner mehr in Alles und Hinzufügen, „Habe ich das schon?“
+  nur noch neben der Suche in Alles, keine Zähler-Plaketten in den Kopfzeilen – beim Suchen oder
+  Filtern steht „11 von 61“ unter dem Suchfeld. Neue Orte entstehen im Tab Orte, beim Hinzufügen
+  und in der Einführung; „Hier fotografieren“ steht im Raum und im Ort-⋯.
+- Einführung nennt die neuen Tabs (Dokumente, Orte, ⚙ für die Einstellungen).
+- Technik: Tab „Orte“ in `js/view-orte.js`; interne Namen `rooms` → `noplace`, `places` → `orte`;
+  neue Prüfungen in `tests/ia.spec.js` (Bildschirmhöhen, Einstiege, aktiver Tab, Zurückwischen,
+  alte Daten). Versionsnummer `2.0.0-beta.1` (wird nur auf Gleichheit geprüft).
+
 ## 1.11.0
 
 Fundament für 2.0 – sichtbar ändern sich nur die Fehlerbehebungen.

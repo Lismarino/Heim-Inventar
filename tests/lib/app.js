@@ -87,7 +87,16 @@ const items = (page) => dbq(page, (db) => db.getAll('items'));
 const byName = async (page, name) => (await items(page)).find((i) => i.name === name);
 
 const view = (page) => page.evaluate(() => document.body.dataset.view);
+/** Welcher Platz der Leiste ist markiert? (data-nav des aktiven Knopfs) */
+const activeTab = (page) => page.evaluate(() => document.querySelector('#nav button.active')?.dataset.nav || '');
+/** Tab antippen. 'settings' (seit 2.0 kein Tab): über Start und den ⚙-Knopf oben rechts. */
 async function tab(page, v) {
+  if (v === 'settings') {
+    await tab(page, 'home');
+    await page.evaluate(() => document.getElementById('home-settings').click());
+    await sleep(550);
+    return;
+  }
   await page.evaluate((v) => document.querySelector(`#nav [data-nav="${v}"]`).click(), v);
   await sleep(450);
 }
@@ -182,6 +191,6 @@ function contrast(fg, bg, under = 'rgb(255,255,255)') {
 }
 
 module.exports = {
-  sleep, MOBILE, open, ready, start, dbq, items, byName, view, tab, back, openRow, search,
+  sleep, MOBILE, open, ready, start, dbq, items, byName, view, activeTab, tab, back, openRow, search,
   sheetAction, sheetSubmit, closeSheet, ctxmenu, touch, swipe, swipeBack, swipeRowAway, jpeg, contrast,
 };

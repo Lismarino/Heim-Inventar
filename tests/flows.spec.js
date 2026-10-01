@@ -1,6 +1,7 @@
 // Abläufe: Erfassen (mit vorgetäuschter Erkennung), ohne Foto, Eintrag bearbeiten (auch Speichern
-// beim Verlassen), Ort/Raum, Unterwegs, Wisch-Archiv + Rückgängig, Mehrfachauswahl, Dokument
-// anlegen/ansehen, KI-Suche (ohne Dokumentinhalte), Hinweise ohne API-Key.
+// beim Verlassen), Ort/Raum (Tab „Orte“ mit „+“), Unterwegs, Wischen = Löschen (Papierkorb) +
+// Rückgängig, Mehrfachauswahl, Dokument anlegen (Tab „Dokumente“, „+“) und ansehen, KI-Suche
+// (ohne Dokumentinhalte), Hinweise ohne API-Key.
 'use strict';
 const A = require('./lib/app.js');
 
@@ -86,23 +87,30 @@ module.exports = async (t) => {
   const zs2 = await it('Zollstock');
   t.ok('Ort ändern: Zollstock → Auto › Kofferraum', zs2.placeId === autoId && rooms.find(r => r.id === zs2.roomId)?.name === 'Kofferraum');
 
-  await A.tab(page, 'places');
-  await page.click('#places-add');
+  await A.tab(page, 'orte');
+  await page.click('#orte-add');
   await A.sleep(450);
+  await A.sheetAction(page, 'Neuer Ort');
   await page.fill('#sheet-input', 'Gartenhaus');
   await A.sheetSubmit(page);
   const gh = (await A.dbq(page, (db) => db.getAll('places'))).find(p => p.name === 'Gartenhaus');
   t.ok('Neuer Ort angelegt (mit Symbol)', gh && gh.icon === 'garten', JSON.stringify(gh));
-  await page.click(`#places-grid [data-place-menu="${gh.id}"]`);
+  await page.click('#orte-add');
   await A.sleep(450);
-  await A.sheetAction(page, 'Raum hinzufügen');
+  await A.sheetAction(page, 'Neuer Raum in Gartenhaus');
   await page.fill('#sheet-input', 'Werkbank');
   await A.sheetSubmit(page);
   const wb = (await A.dbq(page, (db) => db.getAll('rooms'))).find(r => r.name === 'Werkbank');
   t.ok('Neuer Raum im Ort angelegt', wb && wb.placeId === gh.id);
-  await page.locator(`#places-grid [data-room="${wb.id}"]`).click();
+  await page.click(`#orte-list [data-place-menu="${gh.id}"]`);
+  await A.sleep(450);
+  await A.sheetAction(page, 'Raum hinzufügen');
+  await page.fill('#sheet-input', 'Schuppen');
+  await A.sheetSubmit(page);
+  t.ok('Ort-⋯ „Raum hinzufügen“ legt ebenfalls einen Raum an', (await A.dbq(page, (db) => db.getAll('rooms'))).some(r => r.name === 'Schuppen' && r.placeId === gh.id));
+  await page.locator(`#orte-list [data-room="${wb.id}"]`).click();
   await A.sleep(600);
-  t.ok('Raum öffnet sich (leer)', (await A.view(page)) === 'room');
+  t.ok('Raum öffnet sich (leer), Tab „Orte“ bleibt markiert', (await A.view(page)) === 'room' && (await A.activeTab(page)) === 'orte');
   await A.back(page);
 
   /* ---------- Unterwegs / verliehen ---------- */
@@ -142,14 +150,14 @@ module.exports = async (t) => {
   t.ok('Wieder da: Status gelöscht', !wd.out);
   await A.back(page);
 
-  /* ---------- Wegwischen ins Archiv + Rückgängig ---------- */
+  /* ---------- Wischen = Löschen (in den Papierkorb) + Rückgängig ---------- */
   await A.search(page, '');
   const wid = wd.id;
   await A.swipeRowAway(page, `#list .row[data-id="${wid}"]`);
   await A.sleep(300);
-  t.ok('Wischen: Eintrag archiviert', (await it('Warndreieck')).archived === 1);
+  t.ok('Wischen: Eintrag liegt im Papierkorb (archived)', (await it('Warndreieck')).archived === 1);
   const msg = await page.evaluate(() => { const m = document.querySelector('#toast .toast-msg'); return m ? { txt: m.textContent, cut: m.scrollWidth > m.clientWidth + 1 || m.scrollHeight > m.clientHeight + 1 } : null; });
-  t.ok('Wischen: Toast „archiviert“ vollständig lesbar', msg && /archiviert/.test(msg.txt) && !msg.cut, JSON.stringify(msg));
+  t.ok('Wischen: Toast „gelöscht“ vollständig lesbar, mit Rückgängig', msg && /gelöscht/.test(msg.txt) && !msg.cut && /Rückgängig/.test(await page.textContent('#toast .toast-act')), JSON.stringify(msg));
   await page.click('#toast .toast-act');
   await A.sleep(700);
   t.ok('Rückgängig holt ihn zurück', (await it('Warndreieck')).archived === 0);
@@ -171,15 +179,21 @@ module.exports = async (t) => {
   t.ok('Auswahl: Kategorie für beide geändert', mw && (await it('Akkuschrauber')).categoryId === mw.id && (await it('Zollstock')).categoryId === mw.id);
   t.ok('Auswahl endet danach', !(await page.isVisible('#sel-bar')));
 
-  /* ---------- Dokument anlegen und ansehen ---------- */
-  await A.tab(page, 'home');
-  await page.click('#home-docs');
-  await A.sleep(900);
+  /* ---------- Dokument anlegen („+“ → PDF oder Datei) und ansehen ---------- */
+  await A.tab(page, 'docs');
+  await A.sleep(500);
+  t.ok('Dokumente: eigener Tab, markiert', (await A.view(page)) === 'docs' && (await A.activeTab(page)) === 'docs');
   await page.click('#docs-new');
-  await A.sleep(700);
+  await A.sleep(500);
   const pdf = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
-  await page.setInputFiles('#da-file-input', { name: 'garantie.pdf', mimeType: 'application/pdf', buffer: pdf });
-  await A.sleep(400);
+  const chooser = page.waitForEvent('filechooser', { timeout: 5000 }).catch(() => null);
+  await A.sheetAction(page, 'PDF oder Datei');
+  const fc = await chooser;
+  t.ok('„+“ → „PDF oder Datei“ öffnet die Dateiauswahl direkt', !!fc);
+  if (fc) await fc.setFiles({ name: 'garantie.pdf', mimeType: 'application/pdf', buffer: pdf });
+  else await page.setInputFiles('#da-file-input', { name: 'garantie.pdf', mimeType: 'application/pdf', buffer: pdf });
+  await A.sleep(700);
+  t.ok('Nach der Wahl: Formular mit der Datei, Tab „Dokumente“ markiert', (await A.view(page)) === 'docadd' && (await A.activeTab(page)) === 'docs' && await page.isVisible('#da-filecard'));
   await page.fill('#da-title', 'Garantieschein Bohrhammer');
   await page.click('#da-save');
   await A.sleep(1200);

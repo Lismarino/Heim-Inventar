@@ -17,7 +17,7 @@ module.exports = async (t) => {
     await page.click('#onb-skip');
     await A.sleep(900);
     t.ok('Einführung überspringen → Start', !(await page.isVisible('#onboarding')) && (await A.view(page)) === 'home');
-    for (const v of ['list', 'places', 'add', 'settings', 'home']) await A.tab(page, v);
+    for (const v of ['list', 'orte', 'add', 'docs', 'settings', 'home']) await A.tab(page, v);
     t.ok('Leer: alle Tabs ohne Konsolenfehler', errs.length === 0, errs.join(' | '));
   }
 
@@ -26,23 +26,24 @@ module.exports = async (t) => {
     const { page, errs } = await A.open(t);
     await A.start(t, page, { seed: 'mini' });
     const seen = [];
-    for (const v of ['list', 'places', 'add', 'settings', 'home']) { await A.tab(page, v); seen.push(await A.view(page)); }
+    for (const v of ['list', 'orte', 'add', 'docs', 'settings', 'home']) { await A.tab(page, v); seen.push(await A.view(page)); }
     await A.tab(page, 'list');
     await A.openRow(page, 'Teekanne'); seen.push(await A.view(page));
     await A.back(page);
-    await A.tab(page, 'places');
-    await page.locator('#places-grid [data-room]').first().click(); await A.sleep(600); seen.push(await A.view(page));
+    await A.tab(page, 'orte');
+    await page.locator('#orte-list [data-room]').first().click(); await A.sleep(600); seen.push(await A.view(page));
     await A.back(page);
-    await page.locator('#places-grid .rt', { hasText: 'Ohne Ort' }).first().click(); await A.sleep(600); seen.push(await A.view(page));
+    await page.locator('#orte-list [data-nav="noplace"]').first().click(); await A.sleep(600); seen.push(await A.view(page));
     await A.tab(page, 'list');
     await page.evaluate(() => { const s = document.querySelector('#view-list .scroll'); s.scrollTop = s.scrollHeight; });
     await A.sleep(300);
     await page.click('#list-archive'); await A.sleep(600); seen.push(await A.view(page));
-    await A.tab(page, 'home');
-    await page.click('#home-docs'); await A.sleep(900); seen.push(await A.view(page));
-    await page.click('#docs-new'); await A.sleep(700); seen.push(await A.view(page));
-    await A.back(page);
-    t.ok('Mit Daten: alle Ansichten erreichbar', seen.join() === 'list,places,add,settings,home,item,room,rooms,archive,docs,docadd', seen.join());
+    await A.tab(page, 'docs'); await A.sleep(500);
+    await page.click('#docs-new'); await A.sleep(500);
+    await A.sheetAction(page, 'Neuer Ordner');
+    await page.fill('#sheet-input', 'Steuer'); await A.sheetSubmit(page);
+    await page.locator('#docs-list [data-folder]').first().click(); await A.sleep(400); seen.push(await A.view(page) + ':' + await page.textContent('#docs-title'));
+    t.ok('Mit Daten: alle Ansichten erreichbar', seen.join() === 'list,orte,add,docs,settings,home,item,room,noplace,archive,docs:Steuer', seen.join());
     t.ok('Mit Daten: ohne Konsolenfehler', errs.length === 0, errs.join(' | '));
   }
 
@@ -68,10 +69,10 @@ module.exports = async (t) => {
     let up = true;
     try { await A.ready(page, 15000); } catch (_) { up = false; }
     t.ok('Offline: App startet aus dem Cache', up);
-    for (const v of ['list', 'places', 'settings', 'home']) await A.tab(page, v);
+    for (const v of ['list', 'orte', 'settings', 'home']) await A.tab(page, v);
     // Bei Bedarf geladene Module (Aktenschrank) kommen offline ebenfalls aus dem Cache.
-    await page.click('#home-docs'); await A.sleep(900);
-    t.ok('Offline: Dokumente (bei Bedarf geladen) öffnen', (await A.view(page)) === 'docs');
+    await A.tab(page, 'docs'); await A.sleep(900);
+    t.ok('Offline: Dokumente (bei Bedarf geladen) öffnen', (await A.view(page)) === 'docs' && await page.isVisible('#docs-list .row, #docs-empty'));
     t.ok('Offline: ohne Konsolenfehler', errs.length === 0, errs.join(' | '));
     await ctx.setOffline(false);
   }
