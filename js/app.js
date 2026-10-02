@@ -79,7 +79,7 @@ async function boot() {
     queue.initQueue({ settings: () => state.settings, onChange: onDataChanged });
     fillSettingsForm();
     navigate('home', { instant: true });
-    $('#ver-info').textContent = `Heim-Inventar ${APP_VERSION}`;
+    $('#ver-info').textContent = `Keepsy ${APP_VERSION}`;
     // Erster Start ohne jede Spur einer Einrichtung: Begrüßung. Scheitert sie, startet die App trotzdem.
     // Nur wer noch nie eingerichtet hat, lädt das Modul überhaupt.
     whatsNew();
@@ -251,8 +251,8 @@ async function setHomePlace(id) {
 
 /* =========================== Ereignisse =========================== */
 
-// „Was ist neu“ (2.0): einmal nach dem Update von einer älteren Fassung – nicht bei einer Neuinstallation.
-const NEW_IN = '2.0';
+// „Was ist neu“: einmal nach dem Update von einer älteren Fassung – nicht bei einer Neuinstallation.
+const NEW_IN = '2.1';
 function whatsNew() {
   const s = state.settings;
   if (s.seenNew === NEW_IN) return;
@@ -262,11 +262,11 @@ function whatsNew() {
   if (!updated) return;
   const pt = (ic, b, t) => `<div class="new-pt">${icon(ic)}<p><b>${b}</b>${t}</p></div>`;
   sheet.list({
-    title: 'Neu in Heim-Inventar 2.0',
+    title: 'Neu: Keepsy 2.1',
     html: `<div class="whats-new">
-      ${pt('home', 'Neue Leiste.', ' Start · Alles · Kamera · Orte · Dokumente – die Einstellungen findest du über ⚙ oben auf Start.')}
-      ${pt('alert', 'Wichtig auf einen Blick.', ' Start zeigt, was ansteht: Fristen, Verliehenes, Dinge ohne Ort, fällige Sicherung.')}
-      ${pt('trash', 'Papierkorb statt Archiv.', ' Dein Archiv heißt jetzt Papierkorb – nichts wird automatisch gelöscht. Änderungen speichern von selbst.')}
+      ${pt('sparkle', 'Neuer Look.', ' Ruhiger, flacher, besser lesbar – Glas nur noch dort, wo etwas schwebt.')}
+      ${pt('gear', 'Deine Farbe.', ' Einstellungen → Darstellung: acht Akzentfarben zur Wahl.')}
+      ${pt('home', 'Neuer Name: Keepsy.', ' Name und Symbol auf dem Home-Bildschirm ändern sich erst, wenn du die App neu hinzufügst – vorher unbedingt sichern (Einstellungen → Jetzt sichern) und danach wiederherstellen.')}
     </div>`,
   });
 }

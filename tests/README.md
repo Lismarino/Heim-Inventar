@@ -27,7 +27,9 @@ Playwright seinen eigenen Browser. Nichts davon gehört zur App.
 | `upgrade.spec.js` | Datenbank aus 1.6.2, 1.7.1 und 1.10.3 (per `git archive` aus dem Verlauf) → aktuelle Fassung ohne Datenverlust |
 | `ia.spec.js` | Informationsarchitektur 2.0: Leiste, Start ≤ 1,1 und Orte ≤ 2 Bildschirmhöhen, „Wichtig“ + Blatt, Dokumente in einem Tipp mit richtigem Tab, keine alten Doppel-Einstiege, Papierkorb, Zurückwischen, homePlace/Papierkorb aus alten Daten |
 | `a11y.spec.js` | Barrierefreiheit (eigene Regeln, hell und dunkel) auf allen Hauptansichten, Blättern, Einstellungs-Unterseiten und der Einführung: zugängliche Namen, Tippflächen ≥ 44 × 44 (Treffer-Test), Textkontrast ≥ 4,5 : 1 bzw. 3 : 1, eine h1 ohne übersprungene Ebenen, Bilder/Symbole; Dialoge (role, aria-modal, Fokus hinein/zurück, Escape, Hintergrund inert); Tab-Leiste mit aria-current und Fokusrahmen |
-| `consistency.spec.js` | eine Versionsnummer (`js/version.js` = `index.html` = `sw.js` = CHANGELOG), `ASSETS` und Start-Wächter vollständig, `modulepreload` = Start-Module, keine toten Exporte, Dateigrößen, Syntax |
+| `consistency.spec.js` | eine Versionsnummer (`js/version.js` = `index.html` = `sw.js` = CHANGELOG), `ASSETS` und Start-Wächter vollständig, `modulepreload` = Start-Module, keine toten Exporte, Dateigrößen, Syntax; Gestaltung 2.1: keine Farbliterale in `app.css`, ≤ 8 Schriftgrößen, Radien-Skala, kein Skeuomorphismus, doppelte Selektoren als Sperrklinke |
+| `accent.spec.js` | Akzentfarbe 2.1: alle 8 Farben hell/dunkel ≥ 4,5 : 1 (statisch aus `tokens.css`), Auswahl wirkt sofort, wird gespeichert und gespiegelt, steht vor dem App-Start; Kontrast auf Start, Alles, Einstellungen in jeder Farbe |
+| `keepsy.spec.js` | Umbenennung 2.1: sichtbar „Keepsy“; unverändert IndexedDB-Name, Sicherungs-Kennung (beide Kennungen lesbar), localStorage-Schlüssel, Cache-Präfix, start_url; Dateiname `keepsy-JJJJ-MM-TT.json` |
 | `screens.spec.js` | nur auf Wunsch: Bildschirmfotos aller Hauptansichten mit dem großen Testbestand |
 
 Gemini wird nie wirklich aufgerufen (`lib/app.js` → `mockGemini`), andere Adressen als der

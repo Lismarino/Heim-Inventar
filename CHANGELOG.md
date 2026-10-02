@@ -1,7 +1,26 @@
 # Änderungen
 
-Versionschronik von Heim-Inventar – was neu ist und was beim Update passiert. Bedienung,
+Versionschronik von Keepsy (bis 2.0 „Heim-Inventar“) – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
+
+## 2.1.0
+
+Neuer Look, Farbe nach Wahl, neuer Name: **Keepsy**. Deine Daten bleiben, wie sie sind.
+
+- **Neuer Look „Warm minimal“:** flach und ruhig statt Leinen und Glanz. Glas nur noch dezent
+  (Tönung, Unschärfe, Haarlinie) für Tab-Leiste, Kopfzeilen beim Scrollen und Blätter; keine
+  Verläufe, Lichtkanten oder schweren Schatten mehr. Einheitliche Skala: 8 Schriftgrößen,
+  Radien 8/12/16/22. Alle Farben stehen als Tokens in `css/tokens.css`.
+- **Akzentfarbe wählbar:** Einstellungen → **Darstellung** – Tannengrün (Standard), Blau, Indigo,
+  Lila, Himbeere, Orange, Senfgelb, Graphit; je hell und dunkel mit Kontrast ≥ 4,5 : 1. Wirkt sofort
+  und steht schon beim Start (kein Aufblitzen). Terrakotta bleibt die Farbe für Hinweise.
+- **Neuer Name und neues Symbol:** Keepsy – eine schlichte Box mit Deckel in Tannengrün. Neue
+  Start-Szene (Symbol federt, Schriftzug blendet ein, unter 1 s, ohne Ton) und neue Startbilder.
+  **Name und Symbol auf dem Home-Bildschirm ändern sich erst, wenn du die App neu hinzufügst –
+  vorher unbedingt sichern** (Entfernen löscht die Daten), danach wiederherstellen.
+- Sicherungen heißen jetzt `keepsy-JJJJ-MM-TT.json`. Das Format bleibt gleich: alte Sicherungen
+  lassen sich weiter einlesen, neue auch in älteren Fassungen. Datenbank, Speicherort und Adresse
+  der App ändern sich nicht.
 
 ## 2.0.3
 

@@ -70,7 +70,7 @@ export const decryptText = async (key, data) => dec.decode(await decrypt(key, da
 
 /* ---------- Verschlüsselte Sicherungsdatei (JSON-Hülle um die normale Sicherung) ---------- */
 
-export const isEncryptedBackup = (o) => !!(o && o.app === 'heim-inventar' && o.encrypted === true);
+export const isEncryptedBackup = (o) => !!(o && (o.app === 'heim-inventar' || o.app === 'keepsy') && o.encrypted === true);
 
 /** Blob der normalen Sicherung → verschlüsselte Hülle (Blob, JSON). */
 export async function sealBackup(blob, password) {

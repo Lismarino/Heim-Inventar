@@ -3,22 +3,19 @@
 //   node tools/splash.js
 // Braucht Playwright mit Chromium (CHROMIUM=/pfad/zu/chrome für ein eigenes Binary).
 //
-// Seit 1.6.0 wird kein eigenes Bild mehr nachgebaut: das Skript öffnet index.html direkt
-// von der Platte und fotografiert die Start-Szene #splash in ihrem Ruhezustand (leeres
-// Glasregal auf dem Hintergrund). Genau das ist der erste Frame der Start-Animation
-// (js/intro.js) – das iOS-Startbild geht deshalb nahtlos in die Animation über. Über
-// file:// laufen die Module nicht, die Szene bleibt also sicher im Ruhezustand.
-// Wer die Szene in css/app.css oder index.html ändert, erzeugt die Bilder neu.
+// Es wird kein eigenes Bild nachgebaut: das Skript öffnet index.html direkt von der Platte und
+// fotografiert die Start-Szene #splash in ihrem Ruhezustand – seit 2.1 nur das Keepsy-Symbol
+// mittig auf dem Hintergrund. Genau das ist der erste Frame der Start-Szene (js/intro.js) – das
+// iOS-Startbild geht deshalb nahtlos in sie über. Über file:// laufen die Module nicht, die Szene
+// bleibt also sicher im Ruhezustand. Wer die Szene in css/app.css oder index.html ändert (oder
+// das Symbol in tools/icon.svg), erzeugt die Bilder neu.
 //
-// Seit 1.6.1 steht im Startbild keine Schrift: Die runde Systemschrift des iPhones (SF Pro
-// Rounded) gibt es hier nicht, ein Schriftzug im Bild sähe also anders aus als der, den das
-// iPhone gleich danach zeichnet. Der Schriftzug „Inventar“ ist im Ruhezustand unsichtbar und
-// wird erst von der Start-Szene eingeblendet – Bild und erster Frame bleiben deckungsgleich.
-// Chromium läuft mit SwiftShader, damit backdrop-filter (die leichte Unschärfe im Glasbrett)
-// wie auf dem Gerät gezeichnet wird – ohne GPU lässt Headless-Chromium sie sonst weg.
+// Im Startbild steht keine Schrift: Die runde Systemschrift des iPhones (SF Pro Rounded) gibt es
+// hier nicht. Der Schriftzug „Keepsy“ ist im Ruhezustand unsichtbar und wird erst von der
+// Start-Szene eingeblendet – Bild und erster Frame bleiben deckungsgleich.
 //
 // Danach werden die PNGs, falls Python mit Pillow da ist, auf eine 256-Farben-Palette
-// gebracht (die sanften Verläufe vertragen das) – Ziel: höchstens ~60 KB je Bild, denn iOS
+// gebracht (flache Flächen vertragen das) – Ziel: höchstens ~60 KB je Bild, denn iOS
 // lädt sie beim Hinzufügen zum Home-Bildschirm alle. Ohne Pillow bleiben sie größer.
 // In index.html stehen die dunklen Varianten (mit prefers-color-scheme: dark) vor den
 // hellen, die ohne Farbschema-Bedingung als Standard gelten.

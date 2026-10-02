@@ -1,6 +1,6 @@
-# Heim-Inventar
+# Keepsy
 
-Privates Haushalts-Inventar als installierbare PWA. Alle Einträge und Fotos liegen
+**Keepsy** (bis 2.0 „Heim-Inventar“) – privates Haushalts-Inventar als installierbare PWA. Alle Einträge und Fotos liegen
 ausschließlich lokal auf dem Gerät (IndexedDB) – kein Server, kein Konto, kein Login.
 Nach außen geht nur, was du selbst an Google Gemini schickst: das Foto beim Erkennen,
 und die Liste als Text, wenn du die KI-Suche benutzt.
@@ -18,17 +18,12 @@ Was sich von Version zu Version geändert hat: **[CHANGELOG.md](CHANGELOG.md)**.
 
 Beim ersten Start braucht sie Internet, danach funktioniert sie offline –
 nur die KI-Bilderkennung braucht weiterhin eine Verbindung. Beim Öffnen zeigt iOS kurz ein
-Startbild (ein leeres gläsernes Regalbrett auf Leinen), bis die App steht; daraus wird nahtlos
-die Start-Animation (siehe **Aussehen und Bewegung** in Abschnitt 3). Eine dunkle Fassung auf
-Espresso ist hinterlegt; ob iOS sie im Dunkelmodus auch nimmt, entscheidet iOS selbst – sonst
-erscheint die helle. iOS holt die Startbilder nur beim Hinzufügen zum Home-Bildschirm: Wer die
-App schon vor Version 1.6.0 installiert hat, sieht noch das alte Startbild (Einmachglas) und
-danach einen kleinen Sprung zum Glasregal – das neue Bild kommt erst, nachdem man die App einmal
-vom Home-Bildschirm entfernt und neu hinzugefügt hat – **vorher eine Sicherung machen**, denn
-das Entfernen löscht die Daten (siehe Abschnitt 4). Seit 1.6.1 steht im Startbild kein Schriftzug
-mehr (die runde iPhone-Schrift lässt sich nicht ins Bild übernehmen); die Start-Szene blendet
-„Inventar“ in der echten Systemschrift ein. Mit einem Startbild aus 1.6.0 verschwindet der
-Schriftzug deshalb beim Übergang kurz und taucht dann wieder auf – harmlos.
+Startbild (seit 2.1: das Keepsy-Symbol auf warmem Grund), bis die App steht; daraus wird nahtlos
+die Start-Animation (Symbol federt kurz, „Keepsy“ blendet ein). Hell und dunkel sind hinterlegt.
+iOS holt Startbild, Symbol und Namen nur beim Hinzufügen zum Home-Bildschirm: Wer die App vor
+2.1 installiert hat, sieht dort weiter „Inventar“ und das alte Symbol, bis die App einmal entfernt
+und neu hinzugefügt wird – **vorher eine Sicherung machen**, denn das Entfernen löscht die Daten
+(siehe Abschnitt 4).
 
 **Erster Start:** Eine kurze Einführung – Willkommen, **Wo hast du Sachen?** (Orte wie Zuhause –
 schon vorgewählt –, Auto, Betrieb, Garten, Ferienhaus, Lager oder eigene), **Welche Räume …?**
@@ -141,43 +136,14 @@ Kategorie gruppiert und **Hier fotografieren** (öffnet Hinzufügen mit Ort und 
 Ansichten gleiten von rechts herein, Hinzufügen kommt von unten; bei „Bewegung reduzieren“ in
 den iOS-Einstellungen springt alles ohne Animation.
 
-**Aussehen und Bewegung (Liquid Glass, seit 1.6.0).** Die Bedienelemente schweben wie in iOS 26
-als Glas über dem Inhalt: die Tab-Leiste als Kapsel mit etwas Abstand zum Rand, der Kamera-Knopf
-als grüner Glastropfen, Aktionsblatt, Hinweise („Rückgängig“), der Update-Hinweis, die
-Zuweisen-Leiste in **Ohne Ort** und die Knöpfe oben. Kopfzeilen sind zunächst klar und werden zu
-Glas, sobald Inhalt darunter durchscrollt. Karten, Listen und Fotos bleiben bewusst solide, damit
-alles gut lesbar ist.
-- **Start:** Beim Öffnen fallen Bücher und ein Einmachglas federnd ins Glasregal, der Schriftzug
-  „Inventar“ taucht auf, ein Lichtreflex wischt darüber, dann öffnet sich die Szene in die
-  Startseite – meist ist die App nach gut einer Sekunde bedienbar, ein Tipp nach dem Laden
-  überspringt den Rest. Kommt die App nur aus dem Hintergrund zurück, gibt es keine Szene. Hat iOS
-  sie im Hintergrund beendet, blendet sie beim nächsten Öffnen in der Regel nur kurz über; je nach
-  iOS-Version und wie lange sie beendet war, kann dann aber auch die volle Szene laufen. Sie hält
-  den Start nicht auf: Die App lädt währenddessen im Hintergrund, und dauert schon das Laden lange,
-  wird nur noch übergeblendet. Solange die Szene steht, springt die Tab-Taste (Tastatur,
-  Schaltersteuerung) nicht unsichtbar in die App dahinter.
-- **Tab-Leiste:** Die Markierung des aktiven Tabs ist eine Glas-Linse, die beim Wechsel federnd
-  hinübergleitet. Beim Runterscrollen gleitet die Leiste nach unten weg, damit mehr Platz für die
-  Liste bleibt; beim Hochscrollen, ganz oben oder am Ende der Liste ist sie sofort wieder da.
-  Mit „Bewegung reduzieren“ bleibt sie stehen.
-- **Knöpfe aus Glas** (Tabs, Kamera-Knopf, Knöpfe oben, „Rückgängig“, „Abbrechen“ im Blatt)
-  quellen beim Drücken leicht auf, ein Glanzlicht folgt dem Finger, solange er auf dem Knopf
-  bleibt.
-- **Aktionsblatt** (langes Drücken, ⋯) wächst aus der Zeile oder dem Knopf heraus und schrumpft beim
-  Schließen dorthin zurück; **Hinzufügen** quillt als Tropfen aus dem Kamera-Knopf. Hinweise fließen
-  als Glas-Kapsel herein, **Löschen** hinter einer weggewischten Zeile ist ein Glastropfen.
-- **„Bewegung reduzieren“** (Einstellungen → Bedienungshilfen → Bewegung): keine Start-Szene
-  (nur kurzes Überblenden), keine Federn, nichts quillt oder gleitet.
-- **„Transparenz reduzieren“** bzw. **„Kontrast erhöhen“** (Bedienungshilfen → Anzeige & Textgröße):
-  alle Glasflächen werden solide, getönte Flächen ohne Unschärfe. Ob Safari „Transparenz
-  reduzieren“ an Web-Apps weitergibt, hängt von der iOS-Version ab – „Kontrast erhöhen“ wirkt
-  in jedem Fall. Browser ohne Unschärfe-Effekt bekommen ebenfalls solide Flächen.
-
-Glas mit Unschärfe ist für das iPhone rechenintensiv; deshalb liegt es nur auf den wenigen
-schwebenden Elementen (höchstens etwa fünf gleichzeitig), nie auf Listenzeilen; Orts-Umschalter und
-Orts-Chips sind nur getöntes Glas ohne Unschärfe. Echte
-Lichtbrechung an den Glaskanten gibt es nur in Chrome-basierten Browsern – Safari kann das für
-Web-Apps nicht, dort bleibt es bei Unschärfe, Tönung und Lichtkante. Beim Speichern eines Fotos, beim Zuweisen,
+**Aussehen (seit 2.1 „Warm minimal“).** Flach und ruhig: warme Grautöne, solide Karten und Listen,
+eine Akzentfarbe (Einstellungen → **Darstellung**: Tannengrün, Blau, Indigo, Lila, Himbeere, Orange,
+Senfgelb oder Graphit – je hell und dunkel mit Kontrast ≥ 4,5 : 1). Terrakotta ist für Hinweise
+reserviert (Fristen, ohne Ort, fällige Sicherung). Glas gibt es nur noch dezent – Tönung, Unschärfe
+und eine Haarlinie – für Schwebendes: Tab-Leiste, Kopfzeile beim Scrollen, Blätter, Hinweise. Bei
+„Transparenz reduzieren“ oder „Kontrast erhöhen“ werden diese Flächen solide; bei „Bewegung
+reduzieren“ springt alles ohne Animation. Alle Farben, Schriftgrößen (8) und Radien (8/12/16/22)
+stehen als Tokens in `css/tokens.css`. Beim Speichern eines Fotos, beim Zuweisen,
 Wegwischen, langen Drücken und beim Wählen eines Orts gibt es ein leichtes Tippen als Rückmeldung – sofern iOS das für
 Web-Apps unterstützt (das ist nicht dokumentiert und klappt womöglich nicht auf jedem iPhone).
 
@@ -397,8 +363,8 @@ index.html              alle Ansichten, die SVG-Symbole (Sprite ganz oben im <bo
                         Startbild-Links, modulepreload der Start-Module und der Start-Wächter (Dateiliste)
 manifest.webmanifest    Name, Icons, Vollbildmodus
 sw.js                   Service Worker – App offline verfügbar (Dateiliste ASSETS, VERSION)
-css/app.css             Gestaltung, hell und dunkel – Farben, Radien, Schatten als Variablen oben,
-                        das Glas-System (--glass-*, --lite-*) und die Start-Szene im letzten Abschnitt
+css/tokens.css          alle Farben (hell/dunkel, 8 Akzentfarben), Schriftgrößen, Radien, Schatten
+css/app.css             Gestaltung – nur mit den Tokens, keine Farbwerte (tests/consistency.spec.js)
 js/version.js           die Versionsnummer (APP_VERSION) – einzige Quelle; index.html (<meta name="app-version">)
                         und sw.js (VERSION) ziehen gleich, tests/consistency.spec.js prüft das
 js/app.js               Start (Boot, Umstellung auf Orte, Fehlerseiten), Tipps auf Start und „Wichtig“, Verdrahtung
@@ -432,9 +398,10 @@ js/gdrive.js            Google-Drive-Sicherung: Anmeldung (Google Identity Servi
                         nachgeladen), Manifest + Blobs verschlüsselt, inkrementell, Wiederherstellen
 js/ui.js                gemeinsame Darstellungs-Helfer (Escapen, Symbole, Platzhalter)
 js/motion.js            Übergänge zwischen den Ansichten (nur transform/opacity) und die Federn
-js/glass.js             Liquid Glass: Tab-Linse (und Linse im Orts-Umschalter), schrumpfende Leiste, Glas-Kopfzeilen, Aufquellen,
+js/glass.js             Glas & Bewegung: Tab-Linse (und Linse im Orts-Umschalter), schrumpfende Leiste, Glas-Kopfzeilen, Aufquellen,
                         Kamera-Tropfen, Herkunft für wachsende Aktionsblätter
-js/intro.js             Start-Szene „Glasregal“ (nur beim echten Start)
+js/intro.js             Start-Szene: Symbol + „Keepsy“ (nur beim echten Start)
+js/accent.js            Akzentfarbe anwenden und im localStorage spiegeln
 js/gestures.js          Zurückwischen, Zeile wegwischen, langes Drücken, Haptik
 js/sheet.js             Aktionsblatt von unten (Kontextmenü, kleine Eingaben)
 js/sound.js             Töne: per Web Audio erzeugt (keine Dateien), leise, abschaltbar
@@ -451,7 +418,7 @@ icons/                  App-Icons
 icons/splash/           iOS-Startbilder, hell und dunkel (bewusst nicht im Service-Worker-Cache)
 tools/splash.js         erzeugt die Startbilder aus der Start-Szene in index.html (Playwright;
                         gehört nicht zur App) – nach Änderungen an der Szene neu ausführen
-tools/icon.svg          Vorlage des App-Symbols (Glasregal mit Büchern und Einmachglas)
+tools/icon.svg          Vorlage des App-Symbols (Box mit Deckel, Tannengrün auf warmem Grund)
 tools/icon.js           erzeugt daraus die PNGs in icons/ (Playwright; gehört nicht zur App)
 tests/                  automatische Prüfungen (Playwright, ohne Build): node tests/run.js – siehe tests/README.md
 ```

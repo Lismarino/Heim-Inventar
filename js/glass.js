@@ -28,16 +28,6 @@ function cssSprings() {
   set('spring-soft', { stiffness: 190, damping: 22 });    // Toast fließt herein
 }
 
-/* ---------------- Echte Lichtbrechung (nur Chromium) ----------------
-   Safari kennt backdrop-filter: url(#…) nicht – dort bleibt es bei blur() + saturate().
-   Chromium bekommt zusätzlich eine Verschiebungskarte an den Rändern (feDisplacementMap). */
-function refraction() {
-  try {
-    const chromium = 'userAgentData' in navigator && !CSS.supports('-webkit-backdrop-filter', 'blur(1px)');
-    if (chromium && CSS.supports('backdrop-filter', 'url(#lg-refract) blur(1px)')) document.documentElement.classList.add('refract');
-  } catch (_) { void _; }
-}
-
 /* ---------------- Tab-Linse ---------------- */
 
 let lens = null;
@@ -204,8 +194,8 @@ function measureBars() {
 
 /* ---------------- Drücken: aufquellen, Glanz folgt dem Finger ---------------- */
 
-// PRESS: quillt beim Drücken auf (Klasse .is-pressed). GLINT: davon die Glas-Knöpfe mit
-// Glanzlicht (::after in app.css, dieselbe Liste) – nur für sie wird die Fingerposition gemessen.
+// PRESS: quillt beim Drücken leicht auf (Klasse .is-pressed). GLINT: davon die Knöpfe, für die
+// die Fingerposition gemessen wird (--gx/--gy; seit 2.1 ohne sichtbaren Glanz).
 const GLINT = '#nav button, .topbar .link, .sheet-cancel, .toast-act, #update-go, .lb-close, .home-search, #onb-next, .onb-skip, .pseg';
 const PRESS = GLINT + ', .flag, .pchip';
 let pressed = null;
@@ -304,7 +294,6 @@ export function dropFromFab() {
 
 export function init() {
   cssSprings();
-  refraction();
   lens = $('#nav .lens');
   if (lens && typeof ResizeObserver === 'function') {
     new ResizeObserver(() => { if (lensTab) setTab(lensTab, { instant: true }); }).observe($('#nav'));

@@ -69,6 +69,27 @@ module.exports = async (t) => {
   const drops = [R('js/motion.js'), ...css.map(f => R('css/' + f))].join('\n').match(/ripple|(?<!back)drop-|drop-run/g) || [];
   t.ok('Kein Wassertropfen-Code mehr (motion.js, CSS)', drops.length === 0, drops.join(', '));
 
+  /* ---------- Gestaltung (2.1): Tokens statt Literale ---------- */
+  // Farbwerte nur in css/tokens.css; app.css nutzt Variablen. Kommentare und data:-URLs zählen nicht.
+  const app = R('css/app.css').replace(/\/\*[\s\S]*?\*\//g, '').replace(/url\("data:[^"]*"\)/g, 'url()');
+  const lit = app.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/g) || [];
+  t.ok('css/app.css: keine Farbliterale (alles aus css/tokens.css)', lit.length === 0, `${lit.length}: ${lit.slice(0, 10).join(' ')}`);
+  t.ok('index.html: tokens.css vor app.css', html.indexOf('css/tokens.css') > 0 && html.indexOf('css/tokens.css') < html.indexOf('css/app.css'));
+  const fsz = new Set([...app.matchAll(/font-size:([^;}]+)/g)].flatMap((m) => m[1].match(/--fs-[\w-]+/g) || [`roh:${m[1].trim()}`]));
+  t.ok('Schriftgrößen: nur Tokens, höchstens 8', [...fsz].every((f) => f.startsWith('--fs-')) && fsz.size <= 8, [...fsz].join(' '));
+  const rad = [...app.matchAll(/border-radius:([^;}]+)/g)].map((m) => m[1].trim()).filter((v) => !/^(?:(?:var\(--r-(?:xs|sm|md|lg|pill)\)|0)\s*)+$|^50%$|^inherit$/.test(v));
+  t.ok('Radien: nur 8/12/16/22/Kapsel (Tokens), Kreis oder 0', rad.length === 0, [...new Set(rad)].join(' | '));
+  const gone = (R('css/app.css') + R('css/tokens.css')).match(/--amb\b|--glass-sheen|--glass-rim|--lite-rim|--fab-top|lg-refract/g) || [];
+  t.ok('Kein Skeuomorphismus mehr (Leinen, Glanz, Lichtkanten, Verlaufs-Knöpfe, Refraktion)', gone.length === 0 && !/lg-refract/.test(html), gone.join(' '));
+  // Doppelte Selektoren (oberste Ebene) nur zählen – Sperrklinke, damit es nicht mehr werden.
+  const sels = new Map();
+  let depth = 0; let buf = '';
+  for (const ch of app) {
+    if (ch === '{') { const sel = buf.trim(); if (depth === 0 && !sel.startsWith('@')) for (const x of sel.split(',')) sels.set(x.trim(), (sels.get(x.trim()) || 0) + 1); depth++; buf = ''; } else if (ch === '}') { depth--; buf = ''; } else if (ch === ';' && depth > 0) buf = ''; else buf += ch;
+  }
+  const dups = [...sels].filter(([, n]) => n > 1).length;
+  t.ok('css/app.css: doppelte Selektoren nicht mehr als bisher (≤ 68)', dups <= 68, String(dups));
+
   /* ---------- Syntax ---------- */
   // Module als .mjs prüfen (unabhängig davon, wie Node .js gerade auslegt), sw.js als klassisches Skript.
   const bad = [];

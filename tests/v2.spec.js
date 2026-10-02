@@ -123,6 +123,6 @@ module.exports = async (t) => {
   const fresh = await A.open(t);
   await A.start(t, fresh.page);
   await A.sleep(400);
-  const freshNew = await fresh.page.evaluate(() => /Neu in Heim-Inventar/.test(document.getElementById('sheet-body')?.textContent || ''));
+  const freshNew = await fresh.page.evaluate(() => /Neu: Keepsy/.test(document.getElementById('sheet-body')?.textContent || ''));
   t.ok('Neuinstallation: kein „Was ist neu“', !freshNew);
 };
