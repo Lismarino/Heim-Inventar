@@ -72,8 +72,12 @@ export function unlock() {
   } catch (_) { void _; }
 }
 
-/** Einmal beim Start: die erste Geste weckt den Ton. */
+/** Beim Start: die erste Geste weckt den Ton. Schon von der Start-Szene gerufen (2.1.1), damit
+ *  ein Tippen mitten in die Szene den Rest hörbar macht; ein zweiter Aufruf tut nichts. */
+let inited = false;
 export function init() {
+  if (inited) return;
+  inited = true;
   const wake = () => unlock();
   for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, wake, { capture: true, passive: true });
 }
@@ -158,5 +162,48 @@ export function play(name) {
     last.set(name, now);
     if (ac.state !== 'running') ac.resume().catch(() => {});
     SOUNDS[name]();
+  } catch (_) { void _; }
+}
+
+/* ---------------- Start-Szene: Landetöne (2.1.1) ---------------- */
+
+// Jedes Buch klingt eine Spur anders – wie verschieden dicke Bände.
+const PITCH = [1, 0.9, 1.08, 0.95, 1.13, 0.86];
+function landSound(kind, at, n) {
+  if (kind === 'jar') {
+    // helles „Tink“: Glas auf Holz
+    tone(2217, at, 0.16, { gain: 0.07, attack: 0.002 });
+    tone(3520, at, 0.09, { gain: 0.025, attack: 0.002, wet: false });
+    noise(at, 0.03, { from: 6000, to: 4000, gain: 0.05, q: 2 });
+  } else if (kind === 'lid') {
+    // kleines Klappen: der Deckel schließt die Box
+    noise(at, 0.05, { from: 2200, to: 700, gain: 0.15, q: 1.2 });
+    tone(330, at, 0.07, { type: 'triangle', gain: 0.1, to: 220, attack: 0.003, wet: false });
+    tone(659.3, at + 0.03, 0.12, { gain: 0.05 });
+  } else {
+    // dumpfes „Tock“: ein Buch setzt auf
+    const k = PITCH[n % PITCH.length];
+    noise(at, 0.045, { from: 1100 * k, to: 380 * k, gain: 0.16, q: 1.1 });
+    tone(210 * k, at, 0.085, { type: 'triangle', gain: 0.14, to: 140 * k, attack: 0.003, wet: false });
+  }
+}
+
+/**
+ * Ein Gegenstand der Start-Szene setzt in `inMs` Millisekunden auf ('book' | 'jar' | 'lid',
+ * n = Nummer). Vor der ersten Berührung entsteht hier kein AudioContext (iOS spielt ohnehin
+ * nichts, Browser warnen sonst) – dann bleibt es still. Nie ein Fehler, nie ein Warten.
+ */
+export function land(kind, inMs = 0, n = 0) {
+  if (!enabled || !ac) return;
+  try {
+    const due = performance.now() + inMs;
+    const go = () => {
+      const left = due - performance.now();
+      if (ac.state !== 'running' || left < -25) return;   // zu spät – dann lieber keinen Ton
+      landSound(kind, Math.max(0, left) / 1000, n);
+    };
+    if (ac.state === 'running') { go(); return; }
+    const r = ac.resume();
+    if (r && typeof r.then === 'function') r.then(() => { try { go(); } catch (_) { void _; } }, () => {});
   } catch (_) { void _; }
 }

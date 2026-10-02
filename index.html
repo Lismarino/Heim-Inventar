@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/version.js und VERSION in sw.js passen – sonst rettet sich die App per Update
      (tests/consistency.spec.js prüft das; ebenso die Dateiliste des Start-Wächters unten). -->
-<meta name="app-version" content="2.1.0">
+<meta name="app-version" content="2.1.1">
 <title>Keepsy</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Keepsy – dein privates Zuhause-Inventar. Alle Daten bleiben auf diesem Gerät.">
@@ -145,11 +145,19 @@
   <symbol id="i-pl-lager" viewBox="0 0 24 24"><rect x="3.75" y="12.25" width="7.75" height="7.75" rx="1.25"/><rect x="12.5" y="12.25" width="7.75" height="7.75" rx="1.25"/><rect x="8.1" y="4" width="7.75" height="7.75" rx="1.25"/><path d="M6.4 14.9h2.45M15.15 14.9h2.45M10.75 6.65h2.45"/></symbol>
 </svg>
 
-<!-- Start-Szene (2.1): liegt über allem, bis die App bereit ist. Ihr Ruhezustand (nur das Symbol)
-     ist zugleich das iOS-Startbild – tools/splash.js fotografiert genau dieses Markup. -->
+<!-- Start-Szene (2.1.1 „Regal“): liegt über allem, bis die App bereit ist. Ihr Ruhezustand (das
+     leere, flache Regalbrett) ist zugleich das iOS-Startbild – tools/splash.js fotografiert
+     genau dieses Markup. Bücher, Glas, Box und Deckel sind darin unsichtbar (js/intro.js). -->
 <div id="splash" class="splash" aria-hidden="true">
   <div class="intro">
-    <img class="i-mark" src="./icons/icon-512.png" alt="" width="104" height="104" draggable="false">
+    <div class="i-stage">
+      <div class="i-row">
+        <i class="i-item i-book i-b1"></i><i class="i-item i-book i-b2"></i><i class="i-item i-book i-b3"></i><span class="i-item i-jar"><i class="i-jar-lid"></i><i class="i-label"></i></span><i class="i-item i-book i-b4"></i><i class="i-item i-book i-b5"></i>
+      </div>
+      <i class="i-shelf"></i>
+      <i class="i-box"></i>
+      <i class="i-lid"></i>
+    </div>
     <b class="i-name">Keepsy</b>
   </div>
 </div>
