@@ -268,3 +268,34 @@
 @supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
   :root{--glass-tint:var(--glass-solid);--glass-tint-strong:var(--glass-solid);--nav-tint:var(--glass-solid)}
 }
+
+/* =====================================================================
+   Start-Szene „Regal“ (2.1.1, js/intro.js): Buchrücken in Tönen der gewählten Akzentfarbe,
+   dazu warme Neutraltöne; das Regalbrett bleibt neutral (das statische Startbild kennt die
+   Akzentfarbe noch nicht). Ohne color-mix (iOS < 16.2) einfachere Ersatztöne.
+   ===================================================================== */
+:root{
+  --i-shelf:var(--surface-2);
+  --i-b1:var(--accent);
+  --i-b2:var(--accent-tint);
+  --i-b3:var(--wood);
+  --i-b4:var(--accent-press);
+  --i-b5:var(--wood-dark);
+  --i-jar:var(--accent-tint);
+  --i-jar-line:var(--accent-text);
+  --i-jar-lid:var(--wood-dark);
+  --i-band:rgba(255,255,255,.32);
+}
+@supports (color: color-mix(in srgb, red, blue)){
+  :root{
+    --i-shelf:color-mix(in oklab, var(--fg) 15%, var(--bg));
+    --i-b2:color-mix(in oklab, var(--accent) 52%, var(--bg));
+    --i-b4:color-mix(in oklab, var(--accent) 68%, var(--fg));
+    --i-b5:color-mix(in oklab, var(--accent) 30%, var(--wood));
+    --i-jar:color-mix(in oklab, var(--accent) 14%, var(--bg));
+    --i-jar-line:color-mix(in oklab, var(--accent) 55%, var(--bg));
+  }
+}
+@media (prefers-color-scheme: dark){
+  :root{ --i-band:rgba(255,255,255,.18); }
+}

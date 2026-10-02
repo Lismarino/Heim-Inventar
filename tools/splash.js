@@ -4,11 +4,11 @@
 // Braucht Playwright mit Chromium (CHROMIUM=/pfad/zu/chrome für ein eigenes Binary).
 //
 // Es wird kein eigenes Bild nachgebaut: das Skript öffnet index.html direkt von der Platte und
-// fotografiert die Start-Szene #splash in ihrem Ruhezustand – seit 2.1 nur das Keepsy-Symbol
-// mittig auf dem Hintergrund. Genau das ist der erste Frame der Start-Szene (js/intro.js) – das
+// fotografiert die Start-Szene #splash in ihrem Ruhezustand – seit 2.1.1 das leere, flache
+// Regalbrett (neutral, passt zu jeder Akzentfarbe; Bücher, Box und Deckel sind noch unsichtbar). Genau das ist der erste Frame der Start-Szene (js/intro.js) – das
 // iOS-Startbild geht deshalb nahtlos in sie über. Über file:// laufen die Module nicht, die Szene
 // bleibt also sicher im Ruhezustand. Wer die Szene in css/app.css oder index.html ändert (oder
-// das Symbol in tools/icon.svg), erzeugt die Bilder neu.
+// die Farben --i-* in css/tokens.css), erzeugt die Bilder neu.
 //
 // Im Startbild steht keine Schrift: Die runde Systemschrift des iPhones (SF Pro Rounded) gibt es
 // hier nicht. Der Schriftzug „Keepsy“ ist im Ruhezustand unsichtbar und wird erst von der

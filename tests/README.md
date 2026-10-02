@@ -22,6 +22,7 @@ Playwright seinen eigenen Browser. Nichts davon gehört zur App.
 | Datei | prüft |
 |---|---|
 | `smoke.spec.js` | Kaltstart mit Einführung, alle Ansichten ohne Konsolenfehler, Offline-Start über den Service Worker, Startfehler-Seite bei fehlender Datei |
+| `intro.spec.js` | Start-Szene „Regal“: volle Szene beim Kaltstart, 7 Landetöne bei erlaubtem Audio, still ohne Geste / ohne Web Audio / mit „Töne“ aus, „Bewegung reduzieren“ = Überblenden, Akzentfarbe in Büchern und Box, Regal neutral |
 | `flows.spec.js` | Erfassen (Gemini vorgetäuscht), ohne Foto, Eintrag bearbeiten – auch **Speichern beim Zurück/Zurückwischen** –, Ort/Raum, Unterwegs (mit Kontrast des gewählten Chips), Wischen = Löschen (Papierkorb) + Rückgängig, Mehrfachauswahl, Dokument anlegen über „+“ im Tab Dokumente und ansehen, KI-Suche ohne Dokumentinhalte, Hinweis ohne API-Key |
 | `backup.spec.js` | Sicherung erstellen (offen/verschlüsselt), ersetzen/hinzufügen, falsches Passwort; Sicherungen aus 1.6.2, 1.7.1, 1.8.1, 1.10.3 (Format 1–4, auch verschlüsselt) aus `fixtures/` |
 | `upgrade.spec.js` | Datenbank aus 1.6.2, 1.7.1 und 1.10.3 (per `git archive` aus dem Verlauf) → aktuelle Fassung ohne Datenverlust |

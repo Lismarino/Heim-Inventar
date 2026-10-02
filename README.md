@@ -400,7 +400,7 @@ js/ui.js                gemeinsame Darstellungs-Helfer (Escapen, Symbole, Platzh
 js/motion.js            Übergänge zwischen den Ansichten (nur transform/opacity) und die Federn
 js/glass.js             Glas & Bewegung: Tab-Linse (und Linse im Orts-Umschalter), schrumpfende Leiste, Glas-Kopfzeilen, Aufquellen,
                         Kamera-Tropfen, Herkunft für wachsende Aktionsblätter
-js/intro.js             Start-Szene: Symbol + „Keepsy“ (nur beim echten Start)
+js/intro.js             Start-Szene „Regal“: Bücher fallen ins Regal, daraus wird das Symbol (nur beim echten Start)
 js/accent.js            Akzentfarbe anwenden und im localStorage spiegeln
 js/gestures.js          Zurückwischen, Zeile wegwischen, langes Drücken, Haptik
 js/sheet.js             Aktionsblatt von unten (Kontextmenü, kleine Eingaben)

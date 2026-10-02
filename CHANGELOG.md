@@ -3,6 +3,17 @@
 Versionschronik von Keepsy (bis 2.0 „Heim-Inventar“) – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
 
+## 2.1.1
+
+- **Start-Szene „Regal“ ist zurück – flach neu gemacht:** Fünf Bücher und ein Einmachglas fallen
+  wieder federnd ins Regal, kippen, richten sich auf, das letzte lehnt schräg. Ohne Glas-Look,
+  Verläufe oder Schatten; die Buchrücken in Tönen deiner Akzentfarbe (hell und dunkel). Zum
+  Schluss wird aus dem Regal das Keepsy-Symbol: die Dinge sinken in die Box, der Deckel klappt zu,
+  „Keepsy“ blendet ein – rund 1,3 s, Tippen überspringt, „Bewegung reduzieren“ blendet nur über.
+- **Landetöne wieder da:** „Tock“ je Buch, „Tink“ beim Glas, ein kleines Klappen beim Deckel –
+  nur mit „Töne“ an (vor der ersten Berührung bleibt es still, wie iOS es verlangt).
+- Neue Startbilder: das leere, neutrale Regalbrett (passt zu jeder Akzentfarbe).
+
 ## 2.1.0
 
 Neuer Look, Farbe nach Wahl, neuer Name: **Keepsy**. Deine Daten bleiben, wie sie sind.
@@ -15,7 +26,7 @@ Neuer Look, Farbe nach Wahl, neuer Name: **Keepsy**. Deine Daten bleiben, wie si
   Lila, Himbeere, Orange, Senfgelb, Graphit; je hell und dunkel mit Kontrast ≥ 4,5 : 1. Wirkt sofort
   und steht schon beim Start (kein Aufblitzen). Terrakotta bleibt die Farbe für Hinweise.
 - **Neuer Name und neues Symbol:** Keepsy – eine schlichte Box mit Deckel in Tannengrün. Neue
-  Start-Szene (Symbol federt, Schriftzug blendet ein, unter 1 s, ohne Ton) und neue Startbilder.
+  Start-Szene (Symbol federt, Schriftzug blendet ein, unter 1 s, ohne Ton; seit 2.1.1 wieder das Regal) und neue Startbilder.
   **Name und Symbol auf dem Home-Bildschirm ändern sich erst, wenn du die App neu hinzufügst –
   vorher unbedingt sichern** (Entfernen löscht die Daten), danach wiederherstellen.
 - Sicherungen heißen jetzt `keepsy-JJJJ-MM-TT.json`. Das Format bleibt gleich: alte Sicherungen

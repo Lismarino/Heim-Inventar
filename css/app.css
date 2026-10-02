@@ -1096,17 +1096,41 @@ body:has(> #update-bar:not([hidden])) #app{top:calc(env(safe-area-inset-top, 0px
 /* ---------- Tropfen, der aus dem Kamera-Knopf quillt (js/glass.js) ---------- */
 .drop{position:fixed;z-index:6;border-radius:50%;pointer-events:none;background:var(--accent);opacity:.35}
 
-/* ---------- Start-Szene ----------
-   Ruhezustand (nur das Symbol) = erster Frame = iOS-Startbild (tools/splash.js).
-   js/intro.js lässt das Symbol leicht federn und den Schriftzug „Keepsy“ einblenden. */
+/* ---------- Start-Szene „Regal“ (2.1.1) ----------
+   Ruhezustand (leeres Regalbrett) = erster Frame = iOS-Startbild (tools/splash.js).
+   js/intro.js lässt Bücher und Glas federnd ins Regal fallen; dann wird daraus das Keepsy-Symbol
+   (Box wächst aus dem Brett, Deckel klappt zu) und der Schriftzug blendet ein. Flach: keine
+   Verläufe, kein Glanz, keine Schatten. Farben: --i-* in css/tokens.css (folgen dem Akzent). */
 .splash{
   position:fixed;inset:0;z-index:150;
   display:flex;align-items:center;justify-content:center;overflow:hidden;
   background:var(--bg);
 }
 .intro{position:relative;display:flex;flex-direction:column;align-items:center;margin-top:-8px}
-.i-mark{width:104px;height:104px;border-radius:var(--r-lg);display:block;box-shadow:0 0 0 .5px var(--line),var(--sh-2)}
-.i-name{margin-top:18px;font-family:var(--font-round);font-size:var(--fs-title2);font-weight:700;letter-spacing:-.01em;color:var(--fg);opacity:0}
+.i-stage{position:relative;width:220px;height:170px}
+.i-stage i,.i-stage span{position:absolute;display:block}
+.i-shelf{left:10px;right:10px;bottom:20px;height:8px;border-radius:var(--r-pill);background:var(--i-shelf)}
+.i-row{position:absolute;left:0;right:0;bottom:28px;display:flex;align-items:flex-end;justify-content:center;gap:3px;transform-origin:50% 100%}
+.i-stage .i-item{position:relative;opacity:0;transform-origin:50% 100%}
+.i-book::before,.i-book::after{content:"";position:absolute;left:0;right:0;height:3px;background:var(--i-band);top:12px}
+.i-stage .i-book::after{top:auto;bottom:12px}
+.i-b1{width:22px;height:78px;background:var(--i-b1)}
+.i-b2{width:18px;height:92px;background:var(--i-b2)}
+.i-b3{width:26px;height:70px;background:var(--i-b3)}
+.i-b3::before{top:auto;bottom:30px;height:10px;left:6px;right:6px}
+.i-b3::after{display:none}
+.i-b4{width:20px;height:86px;background:var(--i-b4)}
+.i-b5{width:24px;height:74px;background:var(--i-b5)}
+.i-stage .i-b5{transform-origin:0 100%}
+.i-b5::after{display:none}
+.i-stage .i-jar{width:34px;height:44px;margin:0 2px;border-radius:var(--r-xs);background:var(--i-jar);box-shadow:inset 0 0 0 2px var(--i-jar-line)}
+.i-stage .i-jar-lid{left:4px;right:4px;top:-5px;height:8px;border-radius:var(--r-pill);background:var(--i-jar-lid)}
+.i-stage .i-label{left:8px;right:8px;top:17px;height:12px;background:var(--i-jar-line);opacity:.55}
+/* Das Keepsy-Symbol (Maße wie tools/icon.svg): Box wächst aus dem Brett, Deckel fällt darauf. */
+.i-stage .i-box{left:62px;width:96px;bottom:20px;height:66px;border-radius:var(--r-xs);background:var(--accent);opacity:0;transform-origin:50% 100%}
+.i-box::after{content:"";position:absolute;left:32px;top:14px;width:32px;height:8px;border-radius:var(--r-pill);background:var(--bg)}
+.i-stage .i-lid{left:55px;width:110px;bottom:91px;height:19px;border-radius:var(--r-xs);background:var(--accent);opacity:0;transform-origin:50% 100%}
+.i-name{margin-top:10px;font-family:var(--font-round);font-size:var(--fs-title2);font-weight:700;letter-spacing:-.01em;color:var(--fg);opacity:0}
 
 /* ---------- Bewegung reduzieren ---------- */
 @media (prefers-reduced-motion: reduce){
