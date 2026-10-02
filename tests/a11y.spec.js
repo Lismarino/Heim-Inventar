@@ -260,7 +260,7 @@ module.exports = async (t) => {
     /* ---------- Einstellungen + Unterseiten ---------- */
     await A.tab(page, 'settings');
     report(t, `Einstellungen ${mode}`, await audit(page, { scope: V('settings'), contrastOnly: co }), { contrastOnly: co });
-    for (const [sp, name] of [['cats', 'Kategorien'], ['about', 'Über & Hilfe'], ['adv', 'Erweitert']]) {
+    for (const [sp, name] of [['look', 'Darstellung'], ['cats', 'Kategorien'], ['about', 'Über & Hilfe'], ['adv', 'Erweitert']]) {
       await page.evaluate((sp) => document.querySelector(`[data-spage-go="${sp}"]`).click(), sp);
       await A.sleep(300);
       // Hilfe-Abschnitte aufklappen, damit ihr Text mitgeprüft wird.
@@ -271,3 +271,7 @@ module.exports = async (t) => {
     t.ok(`Barrierefreiheit ${mode}: keine Fehler auf der Seite`, errs.length === 0, errs.join(' | '));
   }
 };
+
+// Für tests/accent.spec.js (Kontrast in allen Akzentfarben).
+module.exports.audit = audit;
+module.exports.report = report;

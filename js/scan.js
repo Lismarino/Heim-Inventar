@@ -99,7 +99,7 @@ export function makePdf(pages, { title = '' } = {}) {
   const infoN = 3 + pages.length * 3;
   // Titel nur als ASCII (PDF-Strings brauchen sonst Kodierung); Klammern und \\ maskieren.
   const t = String(title).replace(/[^\x20-\x7e]/g, '_').replace(/[()\\]/g, '\\$&').slice(0, 100);
-  obj(infoN, `<< /Producer (Heim-Inventar)${t ? ` /Title (${t})` : ''} >>`);
+  obj(infoN, `<< /Producer (Keepsy)${t ? ` /Title (${t})` : ''} >>`);
   const xref = pos;
   let x = `xref\n0 ${infoN + 1}\n0000000000 65535 f \n`;
   for (let i = 1; i <= infoN; i++) x += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';

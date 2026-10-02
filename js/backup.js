@@ -14,7 +14,10 @@ import { DOC_TYPES, DOC_MAX, docMeta, cleanDocMeta } from './docs.js';
 import { blobToBase64 } from './img.js';
 import { DEFAULT_PLACE, PLACE_ICONS, PLACE_COLORS, suggestIcon, colorFor } from './places.js';
 
+// Kennung im Feld „app“: bleibt auch nach der Umbenennung in Keepsy (2.1) „heim-inventar“, damit
+// ältere Fassungen neue Sicherungen weiter lesen. Gelesen werden beide Schreibweisen.
 const FORMAT = 'heim-inventar';
+const isBackupApp = (app) => app === FORMAT || app === 'keepsy';
 export const FORMAT_VERSION = 4;
 
 /* ---------------- Export ---------------- */
@@ -71,7 +74,7 @@ export async function buildExport({ withPhotos = true, onProgress } = {}) {
 
   const blob = new Blob(parts, { type: 'application/json' });
   const stamp = localDay();
-  return { blob, filename: `heim-inventar-${stamp}.json`, counts: head.counts };
+  return { blob, filename: `keepsy-${stamp}.json`, counts: head.counts };
 }
 
 /* ---------------- Import ---------------- */
@@ -85,7 +88,7 @@ export function parseBackup(text) {
     if (e instanceof SyntaxError) throw new Error('Die Datei ist kein gültiges JSON.');
     throw new Error('Die Datei konnte nicht verarbeitet werden (zu groß?). Es wurde nichts verändert.');
   }
-  if (!data || data.app !== FORMAT) throw new Error('Das ist keine Sicherung von Heim-Inventar.');
+  if (!data || !isBackupApp(data.app)) throw new Error('Das ist keine Sicherung von Keepsy (Heim-Inventar).');
   // 1.9.0: verschlüsselte Hülle – erst mit Passwort öffnen (crypto.openBackup), dann erneut hierher.
   if (data.encrypted === true) {
     if (typeof data.salt !== 'string' || typeof data.data !== 'string') throw new Error('Die verschlüsselte Sicherung ist beschädigt.');

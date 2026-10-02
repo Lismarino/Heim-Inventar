@@ -48,7 +48,7 @@ module.exports = async (t) => {
       JSON.stringify(rooms.map(r => r.name).sort()) === JSON.stringify(roomsBefore)
       && rooms.every(r => places.some(p => p.id === r.placeId))
       && items.filter(i => i.roomId).every(i => i.placeId === rooms.find(r => r.id === i.roomId)?.placeId));
-    const news = await page.evaluate(() => !document.getElementById('sheet').hidden && /Neu in Heim-Inventar 2\.0/.test(document.getElementById('sheet-body').textContent));
+    const news = await page.evaluate(() => !document.getElementById('sheet').hidden && /Neu: Keepsy 2\.1/.test(document.getElementById('sheet-body').textContent));
     t.ok(`Upgrade ${ver}: „Was ist neu“ erscheint einmal nach dem Update`, news);
     await A.closeSheet(page);
     await A.tab(page, 'list');

@@ -1,9 +1,10 @@
-// Einstellungen (2.0): Sicherung · KI-Erkennung · Kategorien › · Töne · Über & Hilfe › · Erweitert ›
+// Einstellungen (2.0, 2.1: + Darstellung): Sicherung · KI-Erkennung · Darstellung · Kategorien › · Töne · Über & Hilfe › · Erweitert ›
 // (Google Drive, Modell, Bildgröße, Datenbank prüfen, Einführung). Unterseiten liegen in derselben Ansicht.
 import * as db from './db.js';
 import * as ai from './gemini.js';
 import * as queue from './queue.js';
 import * as sound from './sound.js';
+import { ACCENTS, accentId, applyAccent } from './accent.js';
 import { $, $$, esc, icon, plural } from './ui.js';
 import { APP_VERSION } from './version.js';
 import { navigate, renderCurrent } from './nav.js';
@@ -19,7 +20,24 @@ export function fillSettingsForm() {
   $('#exp-encrypt').checked = !!state.settings.expEncrypt;
   $('#gd-client').value = state.settings.gdClientId || '';
   applySoundSettings();
+  renderAccent();
   renderGdSettings();
+}
+
+// Darstellung (2.1): Akzentfarbe als Farbmuster mit Häkchen. Jedes Muster trägt selbst
+// data-accent und zeigt so seine eigene Farbe (css/tokens.css).
+function renderAccent() {
+  const cur = applyAccent(state.settings.accent);
+  $('#acc-row').innerHTML = ACCENTS.map((a) => `<button type="button" class="acc-sw" role="radio" data-accent="${a.id}" aria-checked="${a.id === cur}" aria-label="${esc(a.name)}"><span class="acc-dot">${icon('check')}</span></button>`).join('');
+  $('#acc-name').textContent = ACCENTS.find((a) => a.id === cur).name;
+}
+async function pickAccent(id) {
+  const a = accentId(id);
+  if (a === accentId(state.settings.accent)) return;
+  state.settings.accent = a;
+  renderAccent();
+  sound.play('tick');
+  await db.setSetting('accent', a).catch((err) => console.warn('Farbe merken:', err));
 }
 
 // Töne (1.10.0): Standard an, Lautstärke 0,25. Einen Regler gibt es nicht mehr (1.11.0) – eine
@@ -221,6 +239,20 @@ export function init() {
     await db.setSetting('model', e.target.value);
     queue.kick({ reset: true });
   });
+  // --- 2.1: Akzentfarbe ---
+  $('#acc-row').addEventListener('click', (e) => {
+    const b = e.target.closest('.acc-sw');
+    if (b) pickAccent(b.dataset.accent);
+  });
+  // Pfeiltasten wie in einer Radiogruppe
+  $('#acc-row').addEventListener('keydown', (e) => {
+    const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const i = ACCENTS.findIndex((a) => a.id === accentId(state.settings.accent));
+    const next = ACCENTS[(i + d + ACCENTS.length) % ACCENTS.length].id;
+    pickAccent(next).then(() => $(`#acc-row [data-accent="${next}"]`)?.focus());
+  });
   // --- 1.10.0: Töne ---
   $('#set-sound').addEventListener('change', async (e) => {
     state.settings.sound = e.target.checked;
@@ -278,7 +310,7 @@ export function init() {
     e.stopPropagation();
     settingsPage('');
   });
-  $('#feedback').href = `mailto:?subject=${encodeURIComponent(`Heim-Inventar ${APP_VERSION} – Feedback`)}`;
+  $('#feedback').href = `mailto:?subject=${encodeURIComponent(`Keepsy ${APP_VERSION} – Feedback`)}`;
 
   $('#cat-add').addEventListener('click', () => addNamed('categories', $('#cat-new')));
 }

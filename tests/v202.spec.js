@@ -18,8 +18,9 @@ module.exports = async (t) => {
 
   /* ---------- 3. Was ist neu: Papierkorb ---------- */
   const wn = await page.evaluate(() => ({ txt: document.getElementById('sheet-body')?.textContent || '', pts: document.querySelectorAll('#sheet-body .new-pt').length }));
-  t.ok('Was ist neu: „Dein Archiv heißt jetzt Papierkorb – nichts wird automatisch gelöscht.“, höchstens 3 Punkte',
-    wn.txt.includes('Dein Archiv heißt jetzt Papierkorb – nichts wird automatisch gelöscht.') && wn.pts <= 3, `${wn.pts} ${wn.txt.replace(/\s+/g, ' ').trim().slice(0, 160)}`);
+  // 2.1: „Was ist neu“ nennt Look, Farbe und den neuen Namen – mit dem Hinweis, vor dem Neu-Hinzufügen zu sichern.
+  t.ok('Was ist neu (2.1): Keepsy, Darstellung, erst sichern – höchstens 3 Punkte',
+    /Keepsy/.test(wn.txt) && /Darstellung/.test(wn.txt) && /neu hinzufügst/.test(wn.txt) && /sichern/.test(wn.txt) && wn.pts <= 3, `${wn.pts} ${wn.txt.replace(/\s+/g, ' ').trim().slice(0, 160)}`);
   await A.closeSheet(page);
 
   /* ---------- 1. Wichtig-Karte → Alles im gewählten Ort ---------- */

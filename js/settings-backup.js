@@ -70,7 +70,7 @@ async function saveBackup() {
   const file = new File([blob], filename, { type: 'application/json' });
   try {
     if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Heim-Inventar Sicherung' });
+      await navigator.share({ files: [file], title: 'Keepsy Sicherung' });
       markBackedUp();
       return;
     }

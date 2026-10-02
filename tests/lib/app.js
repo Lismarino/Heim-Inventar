@@ -73,7 +73,7 @@ async function start(t, page, { seed = null, key = '', photoW = 320, whatsNew = 
     else await dbq(page, (db) => db.setSetting('onboarded', true));
     if (key && seed === 'full') await dbq(page, (db, k) => db.setSetting('apiKey', k), key);
     // „Was ist neu“ (einmal nach dem Update auf 2.0) nur dort, wo eine Prüfung es ausdrücklich will.
-    if (!whatsNew) await dbq(page, (db) => db.setSetting('seenNew', '2.0'));
+    if (!whatsNew) await dbq(page, (db) => db.setSetting('seenNew', '2.1'));
     await page.reload();
     await ready(page);
   }

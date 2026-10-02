@@ -4,17 +4,17 @@
 <meta charset="utf-8">
 <!-- Muss zu APP_VERSION in js/version.js und VERSION in sw.js passen – sonst rettet sich die App per Update
      (tests/consistency.spec.js prüft das; ebenso die Dateiliste des Start-Wächters unten). -->
-<meta name="app-version" content="2.0.3">
-<title>Heim-Inventar</title>
+<meta name="app-version" content="2.1.0">
+<title>Keepsy</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Privates Heim-Inventar – alle Daten bleiben auf diesem Gerät.">
-<meta name="theme-color" content="#f4eee3" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#17130f" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Keepsy – dein privates Zuhause-Inventar. Alle Daten bleiben auf diesem Gerät.">
+<meta name="theme-color" content="#F6F5F2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F0F0E" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Inventar">
+<meta name="apple-mobile-web-app-title" content="Keepsy">
 <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png">
 <link rel="icon" href="./icons/icon-192.png">
 <!-- Startbildschirm beim Öffnen vom Home-Bildschirm (iOS wählt per Media Query). Erzeugt mit tools/splash.js.
@@ -48,9 +48,14 @@
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-1242x2208-light.png" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-750x1334-light.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="apple-touch-startup-image" href="./icons/splash/splash-640x1136-light.png" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="stylesheet" href="./css/tokens.css">
 <link rel="stylesheet" href="./css/app.css">
+<!-- Akzentfarbe (2.1) vor dem ersten Zeichnen setzen – aus dem localStorage-Spiegel von js/accent.js,
+     damit schon Startbild-Übergang und erste Ansicht stimmen (kein Aufblitzen in Tannengrün). -->
+<script>try{var a=localStorage.getItem('inventar-akzent');if(a&&/^[a-z]+$/.test(a)&&a!=='tanne')document.documentElement.setAttribute('data-accent',a)}catch(e){}</script>
 <!-- Alle Module, die app.js beim Start lädt, gleich parallel holen – sonst entdeckt der Browser sie
      erst Ebene für Ebene. Muss zum Import-Graphen passen (tests/consistency.spec.js prüft das). -->
+<link rel="modulepreload" href="./js/accent.js">
 <link rel="modulepreload" href="./js/app.js">
 <link rel="modulepreload" href="./js/combo.js">
 <link rel="modulepreload" href="./js/db-core.js">
@@ -90,6 +95,7 @@
 
 <!-- Symbole: einheitlicher Strich, Farbe über currentColor. Verwendung: <svg class="ic"><use href="#i-…"/></svg> -->
 <svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.1 0 1.75-.8 1.75-1.7 0-.5-.2-.9-.5-1.25s-.5-.75-.5-1.25c0-.95.8-1.7 1.75-1.7h2.05a3.95 3.95 0 0 0 3.95-3.9c0-4-3.8-7.2-8.5-7.2z"/><circle cx="7.6" cy="11.4" r="1.15"/><circle cx="10.3" cy="7.4" r="1.15"/><circle cx="15" cy="7.6" r="1.15"/></symbol>
   <symbol id="i-shelf" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M3.5 12h17M9.5 7.75h5M9.5 16.25h5"/></symbol>
   <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3.5 9A2.5 2.5 0 0 1 6 6.5h1.7l1.2-1.8a1.6 1.6 0 0 1 1.33-.7h3.54a1.6 1.6 0 0 1 1.33.7l1.2 1.8H18A2.5 2.5 0 0 1 20.5 9v8a2.5 2.5 0 0 1-2.5 2.5H6A2.5 2.5 0 0 1 3.5 17z"/><circle cx="12" cy="12.75" r="3.6"/></symbol>
   <symbol id="i-photos" viewBox="0 0 24 24"><rect x="3.5" y="7" width="13.5" height="13.5" rx="2.5"/><path d="M7 3.5h10.5A3 3 0 0 1 20.5 6.5V17"/><path d="m3.75 17.5 3.6-3.6a1.2 1.2 0 0 1 1.7 0l4.9 4.9M12 16l1.3-1.3a1.2 1.2 0 0 1 1.7 0l1.8 1.8"/><circle cx="12.4" cy="11" r="1.2"/></symbol>
@@ -137,30 +143,19 @@
   <symbol id="i-pl-werkstatt" viewBox="0 0 24 24"><path d="M14.9 4.4a4.3 4.3 0 0 0-5.3 5.5l-5.35 5.35a1.95 1.95 0 0 0 2.75 2.75l5.35-5.35a4.3 4.3 0 0 0 5.5-5.3l-2.5 2.5-2.6-.35-.35-2.6z"/></symbol>
   <symbol id="i-pl-garten" viewBox="0 0 24 24"><path d="M12 20.5v-8.25"/><path d="M12 12.25C12 8.6 9.6 6 5.25 6c0 3.65 2.4 6.25 6.75 6.25z"/><path d="M12 14.75c0-3.4 2.3-5.75 6.75-5.75 0 3.4-2.3 5.75-6.75 5.75z"/><path d="M6 20.5h12"/></symbol>
   <symbol id="i-pl-lager" viewBox="0 0 24 24"><rect x="3.75" y="12.25" width="7.75" height="7.75" rx="1.25"/><rect x="12.5" y="12.25" width="7.75" height="7.75" rx="1.25"/><rect x="8.1" y="4" width="7.75" height="7.75" rx="1.25"/><path d="M6.4 14.9h2.45M15.15 14.9h2.45M10.75 6.65h2.45"/></symbol>
-  <!-- Liquid Glass: Lichtbrechung an den Rändern – nur Chromium kann backdrop-filter: url(…),
-       js/glass.js schaltet sie dort per Klasse „refract“ zu. Safari bleibt bei blur() + saturate(). -->
-  <filter id="lg-refract" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
-    <feImage result="map" preserveAspectRatio="none" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3ClinearGradient id='x'%3E%3Cstop offset='0' stop-color='%23f00'/%3E%3Cstop offset='.16' stop-color='%23800'/%3E%3Cstop offset='.84' stop-color='%23800'/%3E%3Cstop offset='1' stop-color='%23000'/%3E%3C/linearGradient%3E%3ClinearGradient id='y' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%230f0'/%3E%3Cstop offset='.3' stop-color='%23080'/%3E%3Cstop offset='.7' stop-color='%23080'/%3E%3Cstop offset='1' stop-color='%23000'/%3E%3C/linearGradient%3E%3Crect width='100' height='100' fill='url(%23x)'/%3E%3Crect width='100' height='100' fill='url(%23y)' style='mix-blend-mode:screen'/%3E%3C/svg%3E"/>
-    <feDisplacementMap in="SourceGraphic" in2="map" scale="22" xChannelSelector="R" yChannelSelector="G"/>
-  </filter>
 </svg>
 
-<!-- Start-Szene „Glas-Regal“: liegt über allem, bis die App bereit ist. Ihr Ruhezustand
-     (leeres Glasregal) ist zugleich das iOS-Startbild – tools/splash.js fotografiert genau
-     dieses Markup. js/intro.js lässt dann Bücher und ein Einmachglas hineinfallen. -->
+<!-- Start-Szene (2.1): liegt über allem, bis die App bereit ist. Ihr Ruhezustand (nur das Symbol)
+     ist zugleich das iOS-Startbild – tools/splash.js fotografiert genau dieses Markup. -->
 <div id="splash" class="splash" aria-hidden="true">
   <div class="intro">
-    <span class="i-caustic"></span>
-    <div class="i-row">
-      <i class="i-item i-book i-b1"></i><i class="i-item i-book i-b2"></i><i class="i-item i-book i-b3"></i><span class="i-item i-jar"><i class="i-lid"></i><i class="i-label"></i></span><i class="i-item i-book i-b4"></i><i class="i-item i-book i-b5"></i>
-    </div>
-    <div class="i-shelf"></div>
-    <b class="i-name">Inventar</b>
+    <img class="i-mark" src="./icons/icon-512.png" alt="" width="104" height="104" draggable="false">
+    <b class="i-name">Keepsy</b>
   </div>
 </div>
 
 <div id="boot-error" class="boot-error" hidden>
-  <h2>Die App lädt gerade nicht</h2>
+  <h2>Keepsy lädt gerade nicht</h2>
   <p>Vermutlich fehlt eine Datei auf dem Server oder ein Update kam nur halb an.</p>
   <p><b>Deine Daten sind sicher.</b> Sie liegen weiterhin in der lokalen Datenbank dieses
      Geräts und erscheinen wieder, sobald die App startet. Lösche die App jetzt nicht vom
@@ -601,11 +596,21 @@
       </div>
 
       <div class="card list-card set-links">
+        <button class="set-link" data-spage-go="look"><svg class="ic" aria-hidden="true"><use href="#i-palette"/></svg><span>Darstellung<i class="acc-cur" aria-hidden="true"></i></span><svg class="ic go" aria-hidden="true"><use href="#i-chev-r"/></svg></button>
         <button class="set-link" data-spage-go="cats"><svg class="ic" aria-hidden="true"><use href="#i-shelf"/></svg><span>Kategorien</span><svg class="ic go" aria-hidden="true"><use href="#i-chev-r"/></svg></button>
         <label class="check set-link set-sw"><input type="checkbox" id="set-sound" checked><span><svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg>Töne</span></label>
         <button class="set-link" data-spage-go="about"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><span>Über &amp; Hilfe</span><svg class="ic go" aria-hidden="true"><use href="#i-chev-r"/></svg></button>
         <button class="set-link" data-spage-go="adv"><svg class="ic" aria-hidden="true"><use href="#i-gear"/></svg><span>Erweitert</span><svg class="ic go" aria-hidden="true"><use href="#i-chev-r"/></svg></button>
       </div>
+     </div>
+
+     <div class="spage" data-spage="look" data-title="Darstellung" hidden>
+      <h2 class="sec">Akzentfarbe</h2>
+      <div class="card acc-card">
+        <p class="acc-head"><span id="acc-label">Farbe der App</span><span class="acc-name" id="acc-name"></span></p>
+        <div class="acc-row" id="acc-row" role="radiogroup" aria-labelledby="acc-label"></div>
+      </div>
+      <p class="hint sec-note">Terrakotta bleibt für Hinweise reserviert. Das Symbol auf dem Home-Bildschirm bleibt grün.</p>
      </div>
 
      <div class="spage" data-spage="cats" data-title="Kategorien" hidden>
@@ -631,7 +636,7 @@
         <details class="help"><summary>Wie sichere ich meine Daten?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary><p>Einstellungen → <b>Jetzt sichern</b> und die Datei z. B. in „Dateien“ oder iCloud ablegen. Wiederherstellen über „Aus Datei wiederherstellen“ – auch auf einem neuen iPhone.</p></details>
         <details class="help"><summary>Update, neues iPhone, neu installieren?<svg class="ic chev" aria-hidden="true"><use href="#i-chev-d"/></svg></summary><p>Updates kommen von selbst („Neue Version verfügbar“). Die Daten hängen an dieser Installation: Wer die App vom Home-Bildschirm löscht oder die Website-Daten in Safari löscht, verliert sie. Vorher also sichern und danach wiederherstellen.</p></details>
       </div>
-      <a class="btn block" id="feedback" href="mailto:?subject=Heim-Inventar%20Feedback"><svg class="ic" aria-hidden="true"><use href="#i-share"/></svg>Feedback per E-Mail</a>
+      <a class="btn block" id="feedback" href="mailto:?subject=Keepsy%20Feedback"><svg class="ic" aria-hidden="true"><use href="#i-share"/></svg>Feedback per E-Mail</a>
      </div>
 
      <div class="spage" data-spage="adv" data-title="Erweitert" hidden>
@@ -736,10 +741,9 @@
   <div class="onb-pages" id="onb-pages">
     <section class="onb-page onb-1">
       <div class="onb-art">
-        <span class="onb-glow" aria-hidden="true"></span>
         <img src="./icons/icon-512.png" alt="" width="132" height="132" draggable="false">
       </div>
-      <p class="onb-eyebrow">Heim-Inventar</p>
+      <p class="onb-eyebrow">Keepsy</p>
       <h1>Alles, was du besitzt – schnell gefunden.</h1>
       <p class="onb-lead">Fotografiere Stück für Stück, was du aufbewahrst. Die App merkt sich, was es ist und wo es liegt. Verträge und Rechnungen haben ihren eigenen Tab: <b>Dokumente</b>.</p>
       <p class="onb-private"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>Deine Daten bleiben auf diesem iPhone.</p>
@@ -842,7 +846,7 @@
     }).then(function (w) {
       if (!w || !allowed()) return false;
       try { sessionStorage.setItem(KEY, String(Date.now())); } catch (_) { void _; return false; }
-      console.warn('Heim-Inventar: neue Version wird übernommen (' + why + ').');
+      console.warn('Keepsy: neue Version wird übernommen (' + why + ').');
       var done = false;
       var reload = function () { if (!done) { done = true; location.reload(); } };
       navigator.serviceWorker.addEventListener('controllerchange', reload);
@@ -898,7 +902,7 @@ setTimeout(function watchdog() {
     if (rescuing) return;
 
     // Nachsehen, welche Datei tatsächlich fehlt – das erspart das Raten.
-    var files = ['./js/app.js', './js/version.js', './js/backup.js', './js/cabinet.js', './js/combo.js',
+    var files = ['./js/app.js', './js/version.js', './js/accent.js', './js/backup.js', './js/cabinet.js', './js/combo.js',
                  './js/crypto.js', './js/db-core.js', './js/db-places.js', './js/db.js', './js/docs.js',
                  './js/gdrive.js', './js/gemini.js', './js/gestures.js', './js/glass.js', './js/home.js',
                  './js/img.js', './js/intro.js', './js/lazy.js', './js/match.js', './js/motion.js',
@@ -906,7 +910,7 @@ setTimeout(function watchdog() {
                  './js/select.js', './js/settings-backup.js', './js/sheet.js', './js/sound.js',
                  './js/state.js', './js/toast.js', './js/ui.js', './js/view-add.js', './js/view-item.js',
                  './js/view-list.js', './js/view-noplace.js', './js/view-orte.js', './js/view-room.js',
-                 './js/view-settings.js', './js/where.js', './css/app.css', './manifest.webmanifest'];
+                 './js/view-settings.js', './js/where.js', './css/tokens.css', './css/app.css', './manifest.webmanifest'];
     var missing = [];
     Promise.all(files.map(function (f) {
       return fetch(f, { cache: 'no-store' })

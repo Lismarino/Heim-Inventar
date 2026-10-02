@@ -1,0 +1,270 @@
+/* Keepsy – Gestaltungs-Tokens (2.1 „Warm minimal“).
+   Einzige Stelle mit Farbwerten: css/app.css nutzt nur diese Variablen
+   (tests/consistency.spec.js zählt Farbliterale außerhalb dieser Datei).
+   Flach, ein Hauch Wärme, Glas nur dezent (Tönung + Unschärfe + Haarlinie).
+   Akzentfarbe wählbar (Einstellungen → Darstellung): <html data-accent="…">, gesetzt schon
+   vom Inline-Skript in index.html aus dem localStorage-Spiegel – kein Aufblitzen.
+   Terrakotta (--clay) bleibt Warnfarbe, unabhängig vom Akzent. */
+
+:root{
+  color-scheme: light dark;
+
+  /* ---------- Flächen ---------- */
+  --bg:#F6F5F2;
+  --surface:#FFFFFF;
+  --surface-2:#ECEAE5;
+  --field:#FFFFFF;
+  --search:#ECEAE5;
+  --fill:rgba(110,100,85,.09);
+  --fill-strong:rgba(110,100,85,.15);
+  --press:rgba(60,50,30,.05);
+
+  /* ---------- Schrift ---------- */
+  --fg:#1C1B19;
+  --fg2:#57544E;
+  --fg3:#66625B;
+  --ph-text:#66625B;
+  --line:rgba(60,50,35,.11);
+  --line-strong:rgba(60,50,35,.2);
+
+  /* ---------- Warnung (Terrakotta), Fehler, Erfolg ---------- */
+  --clay:#B5532E;
+  --clay-tint:#F6E6DE;
+  --clay-ink:#7F361A;
+  --clay-line:rgba(181,83,46,.2);
+  --on-clay:#FFFFFF;
+  --danger:#B3261E;
+  --danger-tint:#F7E0DB;
+  --danger-fill:#A3271D;
+  --on-danger:#FFFFFF;
+  --ok:#2E6B4F;
+
+  /* ---------- Illustrationen (Leerzustände) ---------- */
+  --wood:#C9B79E;
+  --wood-dark:#8F7A5E;
+  --sand:#ECE4D6;
+
+  /* ---------- Toast, Abdunkeln, Fotos ---------- */
+  --toast-bg:#1C1B19;
+  --toast-fg:#FFFFFF;
+  --shade:rgba(20,18,14,.36);
+  --scrim:rgba(0,0,0,.55);
+  --scrim-2:rgba(0,0,0,.36);
+  --scrim-3:rgba(0,0,0,.24);
+  --on-photo:#FFFFFF;
+  --on-photo-2:rgba(255,255,255,.7);
+  --on-photo-fill:rgba(255,255,255,.18);
+  --lightbox-bg:#0B0B0A;
+  --knob:#FFFFFF;
+
+  /* ---------- Glas: nur Tönung + Unschärfe + Haarlinie ---------- */
+  --glass-blur:blur(22px) saturate(180%);
+  --glass-tint:rgba(250,249,246,.8);
+  --glass-tint-strong:rgba(250,249,246,.92);
+  --glass-solid:#FAF9F6;
+  --nav-tint:rgba(251,250,248,.84);
+
+  /* ---------- Schatten (wenige) ---------- */
+  --hair:inset 0 0 0 .5px var(--line);
+  --sh-knob:0 1px 3px rgba(0,0,0,.18),0 0 0 .5px rgba(0,0,0,.04);
+  --sh-2:0 8px 24px rgba(40,35,25,.08);
+  --sh-3:0 12px 32px rgba(40,35,25,.16);
+  --glass-shadow:0 4px 18px rgba(40,35,25,.07);
+  --edge-shadow:-12px 0 30px -10px rgba(40,35,25,.22);
+
+  /* ---------- Orte: Farbpalette (Plakette, Chips) ---------- */
+  --on-pc:#FFFFFF;
+
+  /* ---------- Skala ---------- */
+  /* Schrift: 8 Größen, 1rem = Grundschrift (Dynamic Type) */
+  --fs-xs:.7059rem;       /* 12 */
+  --fs-caption:.7647rem;  /* 13 – Abschnittsköpfe, Meta */
+  --fs-sub:.8824rem;      /* 15 */
+  --fs-body:1rem;         /* 17 */
+  --fs-title3:1.1765rem;  /* 20 */
+  --fs-title2:1.2941rem;  /* 22 */
+  --fs-title:1.7647rem;   /* 30 */
+  --fs-large:2.2941rem;   /* 39 – große Titel */
+  /* Radien: 8 / 12 / 16 / 22 / Kapsel */
+  --r-xs:8px; --r-sm:12px; --r-md:16px; --r-lg:22px; --r-pill:999px;
+  --r-tile:22px;
+
+  --font-text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-round:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --nav-h: 64px;                                            /* Höhe der Tab-Leiste */
+  --nav-x: max(10px, calc((100% - 520px) / 2));             /* Abstand zum Seitenrand */
+  --nav-y: max(10px, calc(var(--safe-b) - 12px));           /* Abstand zum unteren Rand */
+  /* Seitenrand: 16 px, am Desktop so viel, dass der Inhalt 640 px breit bleibt */
+  --gut: max(16px, calc((100% - 640px) / 2));
+
+  /* Federn – js/glass.js ersetzt sie durch echte Federkurven linear(…), wo der Browser das kann. */
+  --spring:cubic-bezier(.3,1.25,.45,1);       --spring-dur:.5s;
+  --spring-pop:cubic-bezier(.3,1.6,.5,1);     --spring-pop-dur:.42s;
+  --spring-soft:cubic-bezier(.22,1.2,.36,1);  --spring-soft-dur:.6s;
+
+  /* Pfeil für Auswahlfelder (Farbe muss fest im SVG stehen) */
+  --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2357544E' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9.5 6 6 6-6'/%3E%3C/svg%3E");
+  /* Masken für Symbole an Elementen, deren Text das Skript ersetzt */
+  --m-pin:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20.75s-6.5-5.5-6.5-10.9a6.5 6.5 0 0 1 13 0c0 5.4-6.5 10.9-6.5 10.9z'/%3E%3Ccircle cx='12' cy='9.85' r='2.35'/%3E%3C/svg%3E");
+  --m-chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9.5 5.5 6.5 6.5-6.5 6.5'/%3E%3C/svg%3E");
+  --m-spark:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.5 3.5c.55 3.9 2.6 5.95 6.5 6.5-3.9.55-5.95 2.6-6.5 6.5-.55-3.9-2.6-5.95-6.5-6.5 3.9-.55 5.95-2.6 6.5-6.5zM18 14.5c.25 1.75 1.1 2.6 2.75 2.75-1.65.25-2.5 1.1-2.75 2.75-.25-1.65-1.1-2.5-2.75-2.75 1.65-.15 2.5-1 2.75-2.75z'/%3E%3C/svg%3E");
+  --m-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-2.8 5.8L12 10.6l2.8-2.8 1.4 1.4-2.8 2.8 2.8 2.8-1.4 1.4-2.8-2.8-2.8 2.8-1.4-1.4 2.8-2.8-2.8-2.8z'/%3E%3C/svg%3E");
+  --m-info:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8.5'/%3E%3Cpath d='M12 11v5.25M12 7.9v.1'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0F0F0E;
+    --surface:#1B1B19;
+    --surface-2:#272724;
+    --field:#1B1B19;
+    --search:#232321;
+    --fill:rgba(255,250,240,.07);
+    --fill-strong:rgba(255,250,240,.12);
+    --press:rgba(255,250,240,.05);
+
+    --fg:#F3F2EF;
+    --fg2:#B8B5AE;
+    --fg3:#93908A;
+    --ph-text:#93908A;
+    --line:rgba(255,250,240,.09);
+    --line-strong:rgba(255,250,240,.16);
+
+    --clay:#E0895F;
+    --clay-tint:#33231A;
+    --clay-ink:#F2B791;
+    --clay-line:rgba(224,137,95,.25);
+    --on-clay:#2A160B;
+    --danger:#FF8A7A;
+    --danger-tint:#3B201B;
+    --danger-fill:#A3271D;
+    --ok:#7CC9A0;
+
+    --wood:#5E5446;
+    --wood-dark:#8C7E6A;
+    --sand:#2E2A24;
+
+    --toast-bg:#272724;
+    --toast-fg:#F3F2EF;
+    --shade:rgba(0,0,0,.55);
+    --knob:#F3F2EF;
+
+    --glass-tint:rgba(27,27,25,.74);
+    --glass-tint-strong:rgba(27,27,25,.9);
+    --glass-solid:#1B1B19;
+    --nav-tint:rgba(30,30,28,.8);
+
+    --sh-2:0 8px 24px rgba(0,0,0,.4);
+    --sh-3:0 12px 32px rgba(0,0,0,.6);
+    --glass-shadow:0 4px 18px rgba(0,0,0,.35);
+    --edge-shadow:-12px 0 30px -10px rgba(0,0,0,.7);
+
+    --chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23B8B5AE' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9.5 6 6 6-6'/%3E%3C/svg%3E");
+  }
+}
+
+/* =====================================================================
+   Akzentfarben – je hell und dunkel: Fläche (--accent, --accent-press), Schrift/Linie
+   (--accent-text), Tönung (--accent-tint) mit Schrift darauf (--accent-ink), Schrift auf der
+   Fläche (--on-accent), Fokusring. Alle Paare ≥ 4,5 : 1 (tests/accent.spec.js).
+   Selektor auch ohne :root, damit die Farbmuster in den Einstellungen ihre eigene Farbe zeigen.
+   Reihenfolge zählt: erst alle hellen, dann alle dunklen Fassungen.
+   ===================================================================== */
+:root,[data-accent="tanne"]{
+  --accent:#2E6B4F;--accent-press:#255A42;--accent-text:#2E6B4F;--accent-tint:#E6EFE9;--accent-ink:#245640;--on-accent:#FFFFFF;--ring:rgba(46,107,79,.3);
+}
+[data-accent="blau"]{
+  --accent:#1F62B0;--accent-press:#195294;--accent-text:#1F5FAD;--accent-tint:#E3ECF7;--accent-ink:#184C8A;--on-accent:#FFFFFF;--ring:rgba(31,98,176,.3);
+}
+[data-accent="indigo"]{
+  --accent:#4B4EC0;--accent-press:#3E41A3;--accent-text:#4649B8;--accent-tint:#E8E8F8;--accent-ink:#36399A;--on-accent:#FFFFFF;--ring:rgba(75,78,192,.3);
+}
+[data-accent="lila"]{
+  --accent:#7B3FAA;--accent-press:#68358F;--accent-text:#7A3FA8;--accent-tint:#F1E7F7;--accent-ink:#5E3183;--on-accent:#FFFFFF;--ring:rgba(123,63,170,.3);
+}
+[data-accent="himbeer"]{
+  --accent:#B3244F;--accent-press:#981E43;--accent-text:#B0244D;--accent-tint:#F8E1E8;--accent-ink:#8A1D3D;--on-accent:#FFFFFF;--ring:rgba(179,36,79,.3);
+}
+[data-accent="orange"]{
+  --accent:#B04D00;--accent-press:#963F00;--accent-text:#A84A00;--accent-tint:#FBE8D8;--accent-ink:#843A00;--on-accent:#FFFFFF;--ring:rgba(176,77,0,.3);
+}
+[data-accent="senf"]{
+  --accent:#D6A21E;--accent-press:#C29018;--accent-text:#7A5900;--accent-tint:#F7EDCF;--accent-ink:#664A00;--on-accent:#1C1B19;--ring:rgba(214,162,30,.4);
+}
+[data-accent="graphit"]{
+  --accent:#46464A;--accent-press:#37373A;--accent-text:#46464A;--accent-tint:#E9E8E6;--accent-ink:#37373A;--on-accent:#FFFFFF;--ring:rgba(70,70,74,.3);
+}
+@media (prefers-color-scheme: dark){
+  :root,[data-accent="tanne"]{
+    --accent:#2F7A57;--accent-press:#286A4B;--accent-text:#7CC9A0;--accent-tint:#18261F;--accent-ink:#9BD8B6;--on-accent:#FFFFFF;--ring:rgba(124,201,160,.35);
+  }
+  [data-accent="blau"]{
+    --accent:#2D6BC0;--accent-press:#285FAA;--accent-text:#8DB8F0;--accent-tint:#16202E;--accent-ink:#A9C9F5;--on-accent:#FFFFFF;--ring:rgba(141,184,240,.35);
+  }
+  [data-accent="indigo"]{
+    --accent:#5457CC;--accent-press:#4A4DB8;--accent-text:#ABADF3;--accent-tint:#1C1D35;--accent-ink:#C2C3F7;--on-accent:#FFFFFF;--ring:rgba(171,173,243,.35);
+  }
+  [data-accent="lila"]{
+    --accent:#8A4CBC;--accent-press:#7B43A8;--accent-text:#CFA6EF;--accent-tint:#251B30;--accent-ink:#DDBFF4;--on-accent:#FFFFFF;--ring:rgba(207,166,239,.35);
+  }
+  [data-accent="himbeer"]{
+    --accent:#C2335D;--accent-press:#AC2D52;--accent-text:#F59CB5;--accent-tint:#2E1820;--accent-ink:#F8B8CA;--on-accent:#FFFFFF;--ring:rgba(245,156,181,.35);
+  }
+  [data-accent="orange"]{
+    --accent:#E58430;--accent-press:#D17526;--accent-text:#F5AA68;--accent-tint:#2F2010;--accent-ink:#F8C292;--on-accent:#1C1B19;--ring:rgba(245,170,104,.35);
+  }
+  [data-accent="senf"]{
+    --accent:#DDB13A;--accent-press:#C99F30;--accent-text:#E7C460;--accent-tint:#2B2411;--accent-ink:#F0D58C;--on-accent:#1C1B19;--ring:rgba(231,196,96,.35);
+  }
+  [data-accent="graphit"]{
+    --accent:#A3A19C;--accent-press:#8F8D88;--accent-text:#CFCDC7;--accent-tint:#262624;--accent-ink:#DEDCD7;--on-accent:#111110;--ring:rgba(207,205,199,.35);
+  }
+}
+
+/* ---------- Platzhalter-Bilder (Initiale auf Farbe) ---------- */
+.ph-0{--ph-bg:#d2dfcb;--ph-fg:#3a5942}
+.ph-1{--ph-bg:#efcdb8;--ph-fg:#88401f}
+.ph-2{--ph-bg:#ecd8a6;--ph-fg:#6e4f0b}
+.ph-3{--ph-bg:#cfd9e6;--ph-fg:#364b64}
+.ph-4{--ph-bg:#e6cbd9;--ph-fg:#693953}
+.ph-5{--ph-bg:#ddd3bb;--ph-fg:#574b31}
+@media (prefers-color-scheme: dark){
+  .ph-0{--ph-bg:#2f4535;--ph-fg:#b0d4b9}
+  .ph-1{--ph-bg:#4d3023;--ph-fg:#f0b594}
+  .ph-2{--ph-bg:#4a3d1f;--ph-fg:#ebcb85}
+  .ph-3{--ph-bg:#2b3a4b;--ph-fg:#b5c8de}
+  .ph-4{--ph-bg:#462c3c;--ph-fg:#e2b5cd}
+  .ph-5{--ph-bg:#3e372b;--ph-fg:#d9cbad}
+}
+
+/* ---------- Farben der Orte (eigene Palette, unabhängig vom Akzent) ---------- */
+.pc-tanne{--pc:#2e5e45;--pc-tint:#dfe8dc;--pc-ink:#24503a}
+.pc-salbei{--pc:#56826a;--pc-tint:#e1ebe2;--pc-ink:#33523e}
+.pc-terrakotta{--pc:#b4532a;--pc-tint:#f6e3d3;--pc-ink:#7f361a}
+.pc-senf{--pc:#a8781a;--pc-tint:#f4e6c2;--pc-ink:#6a4c0a}
+.pc-tinte{--pc:#34475f;--pc-tint:#dde4ee;--pc-ink:#2c3d52}
+.pc-pflaume{--pc:#7a4461;--pc-tint:#efdde7;--pc-ink:#5f3149}
+.pc-holz{--pc:#855f3b;--pc-tint:#efe2d0;--pc-ink:#5c4127}
+@media (prefers-color-scheme: dark){
+  .pc-tanne{--pc:#3f7458;--pc-tint:#24342a;--pc-ink:#a9d8ba}
+  .pc-salbei{--pc:#4f7a61;--pc-tint:#26332b;--pc-ink:#b8dcc3}
+  .pc-terrakotta{--pc:#a9542c;--pc-tint:#3a261a;--pc-ink:#f2b791}
+  .pc-senf{--pc:#8f6b1c;--pc-tint:#3a3018;--pc-ink:#ebcb85}
+  .pc-tinte{--pc:#435a7c;--pc-tint:#232d3b;--pc-ink:#b5c8de}
+  .pc-pflaume{--pc:#7d4867;--pc-tint:#382431;--pc-ink:#e2b5cd}
+  .pc-holz{--pc:#7c5c3c;--pc-tint:#382c20;--pc-ink:#e0c29e}
+}
+
+/* ---------- Transparenz reduzieren / Kontrast erhöhen / kein backdrop-filter ---------- */
+@media (prefers-reduced-transparency: reduce){
+  :root{--glass-tint:var(--glass-solid);--glass-tint-strong:var(--glass-solid);--nav-tint:var(--glass-solid);--glass-blur:none}
+}
+@media (prefers-contrast: more){
+  :root{--glass-tint:var(--glass-solid);--glass-tint-strong:var(--glass-solid);--nav-tint:var(--glass-solid);--glass-blur:none;--line:var(--line-strong)}
+}
+@supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+  :root{--glass-tint:var(--glass-solid);--glass-tint-strong:var(--glass-solid);--nav-tint:var(--glass-solid)}
+}
