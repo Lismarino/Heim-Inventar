@@ -3,6 +3,112 @@
 Versionschronik von Heim-Inventar – was neu ist und was beim Update passiert. Bedienung,
 Installation und Sicherung stehen in der [README](README.md).
 
+## 2.0.3
+
+- Start: Datum und Begrüßung laufen nicht mehr unter den ⚙-Knopf (auch bei großer Textgröße).
+
+## 2.0.2
+
+Nachbesserungen aus einer unabhängigen Prüfung – Daten bleiben, wie sie sind.
+
+- **Wichtig → Alles** behält den auf Start gewählten Ort (Orts-Chip sichtbar, Zahl wie auf der Karte).
+- **Auto-Speichern** beim Verlassen eines Dings meldet „Gespeichert“ mit **Rückgängig**.
+- **Filter:** die KI-Suche beachtet aktive Filter (Chips bleiben stehen); „Filter zurücksetzen“
+  im Filter-Blatt und bei leerem Ergebnis.
+- **Große Textgröße:** Kopfzeile ohne Überlappung (Titel kürzt mit „…“, „Zurück“ notfalls nur als
+  Pfeil), Unterwegs-Etikett kürzt, Tab-Beschriftungen höchstens 12 pt, Suchfeld „Suchen …“.
+- **Sprache:** überall „Dinge“ statt „Einträge“, die Kopfzeile zeigt den Namen des Dings, Zählungen
+  mit „(davon n im Papierkorb)“; Hilfe-Texte wie in der App; „Was ist neu“ nennt den Papierkorb.
+- **Datum** neuer Dokumente und Sicherungsdateien in Ortszeit (kurz nach Mitternacht nicht mehr der Vortag).
+
+## 2.0.1
+
+Barrierefreiheit und zwei Restpunkte – Daten bleiben, wie sie sind.
+
+- **Zurückwischen** in einer Unterseite der Einstellungen (Kategorien, Über & Hilfe, Erweitert)
+  führt wie „Zurück“ zur Hauptseite der Einstellungen.
+- **„Habe ich das schon?“:** das Kamera-Symbol sitzt jetzt rechts im Suchfeld (wie das Mikrofon unter iOS).
+- **Barrierefreiheit:** Tippflächen mindestens 44 × 44 Punkte, Platzhalter und kleine Hinweise mit
+  genug Kontrast (hell und dunkel), eine Überschrift je Ansicht ohne übersprungene Ebene, Blätter
+  und das große Foto als Dialog (Fokus hinein und zurück, Escape schließt). Neue dauerhafte
+  Prüfung `tests/a11y.spec.js`.
+
+## 2.0.0
+
+Fertig gemacht (Bildschirme, Sprache, Hilfe) – Daten bleiben, wie sie sind (Datenbank Version 4).
+
+- **„Was ist neu“** erscheint einmal nach dem Update (nicht bei einer Neuinstallation).
+- **Alles:** ein **Filter-Knopf** neben der Suche statt drei Auswahllisten – Blatt mit Ort, Raum,
+  Kategorie und Status; aktive Filter als Chips mit ×, dazu „11 von 61“. Zeilen ohne Datum; Bestand
+  rechts als Zahl (− / + nach einem Tipp darauf), damit der Ort lesbar bleibt; Kategorie-Etikett nur
+  noch, wenn kein Ort dasteht.
+- **Einstellungen neu geordnet** (gut ein Bildschirm): Sicherung mit „Zuletzt gesichert …“ und
+  **Jetzt sichern** · KI-Erkennung (An/Aus, Key, Testen) · Kategorien › · Töne · **Über & Hilfe** › ·
+  **Erweitert** › (Google Drive, KI-Modell, Bildgröße, Datenbank prüfen, Einführung erneut zeigen).
+- **Über & Hilfe:** Version, Datenschutz in einem Absatz, Kurzhilfe mit sechs Fragen, Feedback per E-Mail.
+- **Begriffe vereinheitlicht:** Dinge statt Einträge, Formulare enden mit **Fertig** (statt
+  Speichern/Sichern), „Belege an Dingen“, Papierkorb.
+- **Dynamic Type:** Schriftgrößen in rem; auf dem iPhone folgt die Schrift der eingestellten Textgröße.
+  Schriftgrößen und Radien auf eine kleinere Skala zusammengeführt.
+- **Startfehler-Seite:** „Deine Daten sind sicher“ und Knopf **Erneut versuchen**; Technik eingeklappt.
+
+## 2.0.0-beta.1
+
+Neue Ordnung (Informationsarchitektur 2.0) – Daten bleiben, wie sie sind (Datenbank weiter
+Version 4; gemerkter Ort auf Start, Papierkorb-Einträge und Einstellungen erscheinen unverändert).
+
+- **Neue Leiste: Start · Alles · Kamera · Orte · Dokumente.** Dokumente sind ein eigener Tab
+  (ein Tipp von überall); die Leiste markiert jetzt auch in Unterseiten den richtigen Bereich –
+  Raum → Orte, Ordner und Dokument → Dokumente, Eintrag → wo er geöffnet wurde.
+- **Einstellungen** öffnet der **⚙**-Knopf oben rechts auf Start (mit „Zurück“ und Zurückwischen).
+- **Start** passt auf einen Bildschirm: Begrüßung, Orts-Umschalter (ab zwei Orten, ohne „+“), Suche,
+  **eine** Karte **Wichtig** mit höchstens drei Zeilen – Fristen, Garantien (mit Namen), Sicherung,
+  ohne Ort, unbenannt, unterwegs – nach Dringlichkeit; **Alle anzeigen** zeigt alles in einem Blatt.
+  Die Raum-Kacheln, die Dokumente-Karte, der Hinweis „Ort hinzufügen“ und die eigene
+  Sicherungs-Karte sind weg.
+- **Orte** (bisher „Räume“): je Ort ein Kopf mit Symbol, Anzahl und ⋯, die Räume als kompakte
+  Zeilen; oben **Ohne Ort (n)**; **+** oben rechts für **Neuer Ort / Neuer Raum in …**. Die
+  gestrichelten Hinzufügen-Kacheln sind weg – 3 Orte mit 11 Räumen brauchen 1,3 statt 5 Bildschirme.
+- **Dokumente:** **+** oben rechts (Scannen, Aus Fotos, PDF oder Datei, Neuer Ordner) statt der
+  Knöpfe unten; in Ordnern „Zurück“ und Zurückwischen eine Ebene hoch, Tab erneut antippen führt
+  ganz nach oben. Im Dokument-Blatt ändert „Bearbeiten“ Titel und Ordner (ohne eigene
+  „Umbenennen“/„Verschieben“).
+- **Archiv heißt jetzt Papierkorb.** Wischen und „Löschen“ legen ein Ding in den Papierkorb, mit
+  **Rückgängig**; endgültig löschen nur dort. Erreichbar am Ende von **Alles**: „Papierkorb (n)“.
+- Weniger doppelte Wege: kein Ohne-Ort-Banner mehr in Alles und Hinzufügen, „Habe ich das schon?“
+  nur noch neben der Suche in Alles, keine Zähler-Plaketten in den Kopfzeilen – beim Suchen oder
+  Filtern steht „11 von 61“ unter dem Suchfeld. Neue Orte entstehen im Tab Orte, beim Hinzufügen
+  und in der Einführung; „Hier fotografieren“ steht im Raum und im Ort-⋯.
+- Einführung nennt die neuen Tabs (Dokumente, Orte, ⚙ für die Einstellungen).
+- Technik: Tab „Orte“ in `js/view-orte.js`; interne Namen `rooms` → `noplace`, `places` → `orte`;
+  neue Prüfungen in `tests/ia.spec.js` (Bildschirmhöhen, Einstiege, aktiver Tab, Zurückwischen,
+  alte Daten). Versionsnummer `2.0.0-beta.1` (wird nur auf Gleichheit geprüft).
+
+## 1.11.0
+
+Fundament für 2.0 – sichtbar ändern sich nur die Fehlerbehebungen.
+
+- **Eintrag speichert beim Verlassen:** Wer im Eintrag etwas ändert (etwa eine Notiz) und dann
+  „Zurück“ tippt, zurückwischt, einen Tab wählt oder die App verlässt, verliert nichts mehr – die
+  Änderungen werden automatisch gespeichert („Gespeichert.“). Ein geleerter Name bleibt dabei,
+  wie er war; alles andere wird übernommen. „Speichern“ funktioniert weiter wie bisher.
+- **Unterwegs / verliehen:** Der gewählte Chip „Verliehen“ ist wieder deutlich zu sehen (hell und
+  dunkel).
+- **Töne:** Der Lautstärke-Regler (ohne sichtbare Schiene) ist weg; „Töne bei Aktionen“ bleibt.
+  Eine früher gewählte Lautstärke gilt weiter.
+- **Ohne API-Key** (KI-Suche, „Habe ich das schon?“, Erkennen): ein ruhiger Hinweis mit
+  **Einrichten** statt einer roten Fehlermeldung; während der Auswahl liegt er über der
+  Auswahl-Leiste statt auf ihr.
+- Meldungen wie „„Kaffeemaschine“ archiviert.“ brechen um, statt abgeschnitten zu werden.
+- Die Leiste „Neue Version verfügbar“ verdeckt Datum und Begrüßung nicht mehr.
+- **Bald fällig** nennt die Garantie beim Namen: „Garantie: Laptop ThinkPad · Läuft in 20 Tagen ab“.
+- Technik: `js/app.js` ist in Module aufgeteilt (Zustand, Navigation, je Ansicht eins, Sicherung,
+  Meldungen …), die Datenbank-Schicht in drei Dateien; die Versionsnummer steht in `js/version.js`.
+  Der Wassertropfen-Code ist entfernt, doppelte CSS-Angaben, die später ohnehin überschrieben
+  wurden, ebenso. Die Start-Module werden parallel vorgeladen. Neu: dauerhafte Tests in `tests/`
+  (`node tests/run.js`) – Start, Offline, Abläufe, Sicherungen aller Formate, Upgrade alter
+  Datenbanken, Prüfung von Version und Dateilisten.
+
 ## 1.10.3
 
 - **Tabwechsel wieder schlicht:** Statt des Wassertropfens blendet die alte Ansicht in 0,18 s

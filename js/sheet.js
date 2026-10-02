@@ -38,6 +38,9 @@ function show(html) {
   const wrap = $('#sheet');
   const sheet = wrap.querySelector('.sheet');
   $('#sheet-body').innerHTML = html;
+  // Name des Dialogs: die Überschrift des Blatts, sonst „Aktionen“.
+  if ($('#sheet-title')) { sheet.setAttribute('aria-labelledby', 'sheet-title'); sheet.removeAttribute('aria-label'); }
+  else { sheet.removeAttribute('aria-labelledby'); sheet.setAttribute('aria-label', 'Aktionen'); }
   if (!wrap.hidden && !closing) return;   // schon offen: nur Inhalt tauschen
   closing = null;
   const from = origin();   // vor modal() – danach ist der Auslöser inert
@@ -59,6 +62,8 @@ function show(html) {
     wrap.querySelector('.sheet-backdrop').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-out' });
   }
   followKeyboard(true);
+  // Fokus ins Blatt (Screenreader, Tastatur); open()/panel() setzen ihn danach ggf. genauer.
+  try { sheet.focus({ preventScroll: true }); } catch (_) { void _; }
 }
 
 /** Aktionen: [{ id, label, icon, danger }]. head: fertiges (escaptes) HTML für den Kopf. */
@@ -129,6 +134,20 @@ export function panel({ head = '', title, html, submit = 'Übernehmen', danger =
   }
   const el = focus ? $('#sheet-body ' + focus) : null;
   if (el) { try { el.focus({ preventScroll: true }); if (el.select) el.select(); } catch (_) { void _; } }
+}
+
+/** Blatt mit einer Liste (etwa „Wichtig“ – alle Zeilen): Titel, fertiges (escaptes) HTML, unten „Fertig“.
+ *  onClick(e) bekommt Klicks in der Liste. */
+export function list({ title, html, onClick }) {
+  play('pop');
+  onAction = null;
+  onSubmit = null;
+  onPanelClick = onClick || null;
+  show(`<div class="sheet-panel sheet-list">
+      <h2 class="sheet-title" id="sheet-title">${esc(title)}</h2>
+      ${html}
+    </div>
+    <button class="sheet-cancel" data-sheet-close>Fertig</button>`);
 }
 
 export function close() {

@@ -37,7 +37,7 @@ Orten oben umschalten) und optional der **Gemini-API-Key**. Alles lässt sich ü
 **Überspringen** (oder Escape am Rechner) übernimmt nichts von dem, was du dort angetippt hast.
 **Los geht’s – erstes Foto** öffnet gleich die Kamera-Ansicht. Wer die App schon eingerichtet hat
 (Einträge, Orte, Räume oder einen API-Key), sieht die Einführung nicht – auch nicht nach dem
-Update auf 1.7.0. Erneut aufrufen: **Einstellungen → Über → Einführung erneut zeigen**.
+Update auf 1.7.0. Erneut aufrufen: **Einstellungen → Erweitert → Einführung erneut zeigen**.
 
 ---
 
@@ -58,10 +58,10 @@ locker reicht.
 
 ### In der App hinterlegen
 
-**Einstellungen** (unten ganz rechts) → Abschnitt **Google Gemini API** → Feld **API-Key**
+**Einstellungen** (⚙ oben rechts auf Start) → Abschnitt **KI-Erkennung** → Feld **API-Key**
 → einfügen → einmal aus dem Feld tippen, damit gespeichert wird → **Verbindung testen**.
 
-### Modellwahl
+### Modellwahl (Einstellungen → Erweitert)
 
 | Modell | wofür | gemessen |
 |---|---|---|
@@ -88,8 +88,11 @@ noch woanders im Einsatz ist.
 
 ## 3. Bedienung
 
-Unten liegen fünf gleich breite Plätze: **Start · Alles · Kamera · Räume · Einstellungen** –
-der runde Kamera-Knopf zum Hinzufügen sitzt genau in der Mitte.
+Unten liegen fünf gleich breite Plätze: **Start · Alles · Kamera · Orte · Dokumente** (seit 2.0) –
+der runde Kamera-Knopf zum Hinzufügen sitzt genau in der Mitte. Die **Einstellungen** öffnet der
+**⚙**-Knopf oben rechts auf Start. Die Leiste markiert immer den Bereich, aus dem man gekommen ist:
+ein Raum gehört zu **Orte**, ein Ordner oder ein Dokument zu **Dokumente**, ein Eintrag zu dem Tab,
+aus dem er geöffnet wurde.
 
 **Orte (seit 1.7.0).** Über den Räumen gibt es eine Ebene **Ort** – etwa **Zuhause**, **Auto**,
 **Haus 2** oder **Betrieb**. Jeder Raum gehört zu genau einem Ort; beim Auto heißen die „Räume“
@@ -101,65 +104,39 @@ Symbol aus dem Namen vor („Auto“ → Auto, „Betrieb“/„Firma“/„Arbe
 Haus) – ändern lässt es sich jederzeit. Gibt es nur einen Ort, nennt die App ihn nicht überall
 dazu; ab zwei Orten steht er vor dem Raum („Auto · Kofferraum“).
 
-**Start** (bis 1.9 „Zuhause“ – der Ort heißt weiter so) ist die Startseite: Begrüßung und „127 Dinge an 3 Orten“ (mit nur einem Ort:
-„… in 8 Räumen“), darunter – ab zwei Orten – der **Orts-Umschalter** „Alle · Zuhause · Auto · +“.
-Gibt es erst einen Ort, steht dort stattdessen ein leiser Knopf **Ort hinzufügen (z. B. Auto)**. Der Umschalter zeigt
-zunächst alle Orte; ein Tipp auf einen Ort beschränkt die Seite darauf („12 Dinge in 3 Räumen“)
-– die Glas-Linse gleitet wie in der Tab-Leiste hinüber, und die App merkt sich die Wahl bis zum
-nächsten Mal. **+** legt einen neuen Ort an. Dann ein Suchfeld (führt in **Alles**, die KI-Suche
-funktioniert dort wie gewohnt). Die Karte **Zu erledigen** erscheint nur, wenn etwas ansteht –
-„N ohne Ort“ (öffnet **Ohne Ort**; zählt immer alle, solche Dinge gehören ja zu keinem Ort),
-„N unbenannt“ (zeigt in **Alles** nur diese; der kleine Chip oben hebt den Filter wieder auf),
-„N werden erkannt“ und „N warten auf API-Key“ (führt zum Key in den Einstellungen) – außer „ohne
-Ort“ jeweils für den gewählten Ort. Dann **Zuletzt hinzugefügt** als Streifen zum Wischen und
-die **Räume** als große Kacheln mit dem neuesten Foto des Raums: höchstens sechs – beim gewählten
-Ort nur dessen Räume, bei „Alle“ die ersten insgesamt; **Alle** führt in den Tab **Räume**, wo auch
-das Anlegen, Umbenennen und Löschen wohnt. Liegt etwas direkt an einem Ort ohne
-Raum, steht vorneweg eine Kachel in der Farbe des Orts. Ist noch nichts erfasst, steht dort ein
-großer Kamera-Knopf. Zuhause aktualisiert sich von selbst, sobald die KI etwas erkannt hat.
+**Start** ist der Überblick auf einen Blick: Begrüßung und „61 Dinge an 3 Orten“, ab zwei Orten
+der **Orts-Umschalter** „Alle · Zuhause · Auto …“ (die App merkt sich die Wahl), ein Suchfeld
+(führt in **Alles**), die Karte **Wichtig** und **Zuletzt hinzugefügt**. **Wichtig** zeigt höchstens
+drei Zeilen, die dringendsten zuerst: Fristen und Garantien der nächsten 14 Tage (mit Namen,
+„Garantie: Laptop ThinkPad · Läuft in 20 Tagen ab“), eine fällige **Sicherung** (antippen sichert,
+**Später** blendet sie drei Tage aus), Dinge **ohne Ort** (öffnet das Zuordnen-Raster),
+**unbenannte**, **unterwegs/verliehene**, Fotos, die auf den API-Key warten. **Alle anzeigen**
+öffnet ein Blatt mit allen Punkten. Ist noch nichts erfasst, steht dort ein großer Kamera-Knopf.
 
-**Räume** (Tab) zeigt alle Räume nach Ort gruppiert: je Ort eine Überschrift mit Symbol und
-**⋯**, darunter die Kachel für den Ort selbst (nur, wenn dort etwas ohne Raum liegt), die Räume
-und die gestrichelte Kachel **Raum hinzufügen** (legt den Raum in diesem Ort an). Vorneweg in
-Terrakotta **Ohne Ort**, solange es Einträge ganz ohne Ort gibt (öffnet das Zuordnen-Raster), am
-Ende und oben rechts **Ort hinzufügen**. **⋯** an einer Orts-Überschrift (oder langes Drücken
-darauf bzw. auf die Kachel des Orts) öffnet das Orts-Menü: **Hier fotografieren**, **Raum
-hinzufügen**, **Umbenennen** (auf einen vorhandenen Namen: zusammenführen), **Symbol & Farbe**,
-**Ort löschen**. Beim Löschen fragt die App, wohin Räume und Dinge sollen: in einen anderen Ort
-(gleichnamige Räume werden dort zusammengeführt) oder **Ohne Ort** (die Räume werden aufgelöst,
-die Dinge bleiben erhalten und stehen danach unter „Ohne Ort“). Verloren geht dabei nie etwas.
-Langes Drücken auf eine Raumkachel öffnet wie auf Zuhause das Raum-Menü. Räume, deren Ort fehlt
-(selten – etwa angelegt in einem noch offenen Tab der alten Version), stehen am Ende in einer
-eigenen Gruppe **Ohne Ort** mit **Einem Ort zuordnen**.
-Eine Kachel antippen öffnet den Raum: großer Titel (bei mehreren Orten mit dem Ort darüber), alle
-Dinge darin nach Kategorie gruppiert und **Hier fotografieren** – das öffnet Hinzufügen mit Ort
-und Raum schon eingetragen. Die Kachel eines Orts zeigt genauso, was dort direkt liegt. Über
-**⋯** oben rechts: Hier fotografieren, Umbenennen, **In anderen Ort verschieben**, Raum löschen
-(die Dinge bleiben – sie liegen danach direkt im Ort des Raums). Beim Verschieben wählt man den
-Ziel-Ort (oder legt ihn gleich an); alles im Raum zieht mit. Gibt es dort schon einen Raum mit
-demselben Namen, fragt die App, ob beide zusammengeführt werden sollen.
-
-Die Titelfotos der Kacheln lädt die App in einer schärferen Fassung nach – aber nur für
-Kacheln, die gerade zu sehen sind, und gibt sie wieder frei, sobald keine Kachel sie mehr zeigt.
+**Orte** (Tab, bis 1.11 „Räume“) zeigt je Ort einen Kopf mit Symbol, Anzahl und **⋯**, darunter
+die Räume als kompakte Zeilen (Foto, Name, Anzahl). Liegt etwas direkt am Ort ohne Raum, steht
+vorneweg „Direkt in …“. Ganz oben in Terrakotta **Ohne Ort (n)**, solange Dinge keinen Ort haben.
+**+** oben rechts legt einen **neuen Ort** oder einen **neuen Raum in …** an. **⋯** am Ort (oder
+langes Drücken auf den Kopf): Hier fotografieren, **Checkliste**, Raum hinzufügen, Umbenennen (auf
+einen vorhandenen Namen: zusammenführen), Symbol & Farbe, Ort löschen (Räume und Dinge ziehen in
+einen anderen Ort oder nach „Ohne Ort“ – verloren geht nichts). Langes Drücken auf einen Raum:
+Umbenennen, In anderen Ort verschieben, Raum löschen. Ein Raum zeigt alle Dinge darin nach
+Kategorie gruppiert und **Hier fotografieren** (öffnet Hinzufügen mit Ort und Raum eingetragen).
 
 **Gesten** – wie in anderen iPhone-Apps:
-- **Zurückwischen:** in Eintrag, Raum, Ohne Ort und Archiv vom linken Bildschirmrand (unterhalb
-  der Kopfzeile) nach rechts ziehen. Die Ansicht folgt dem Finger; ab gut einem Drittel oder mit
-  Schwung geht es zurück. Beginnt der Finger auf einem Eingabefeld, passiert nichts.
+- **Zurückwischen:** in Eintrag, Raum, Ohne Ort, Papierkorb, Einstellungen und in Ordnern der
+  Dokumente vom linken Bildschirmrand (unterhalb der Kopfzeile) nach rechts ziehen. Die Ansicht
+  folgt dem Finger; ab gut einem Drittel oder mit Schwung geht es zurück.
 - **Zurück** führt immer eine Ansicht zurück, auf dem Weg, den du gekommen bist; ein Tab in der
   Leiste beginnt dort neu. Eintrag → Kamera → Foto im Streifen → Zurück → **Fertig** endet also
   wieder dort, wo du angefangen hast, statt im Kreis zu laufen.
-- **Zeile nach links wischen** (in **Alles** und im Raum): dahinter erscheint **Archiv**. Weit
-  durchziehen archiviert sofort, halb aufziehen lässt den Knopf stehen. Unten erscheint 5 Sekunden
-  lang **Rückgängig**; wischst du mehrere nacheinander weg, zählt der Hinweis mit („3 archiviert“),
-  und Rückgängig holt alle zurück. Auch „Ins Archiv verschieben“ im Eintrag fragt nicht mehr nach,
-  sondern bietet Rückgängig an.
-- **Lange drücken** auf eine Zeile oder ein Bild in „Zuletzt hinzugefügt“: Menü mit **Ort ändern**
-  (erst der Ort als Chips, dann der Raum darin – Vorschläge nur aus diesem Ort, ein Tipp übernimmt;
-  leer lassen heißt „direkt am Ort“), **Umbenennen**, **Archivieren**. Auf einer Raumkachel: **Hier
-  fotografieren**, **Umbenennen**, **Raum löschen**; auf einer Orts-Überschrift das Orts-Menü. Am
-  Rechner geht das per Rechtsklick.
-- Den Tab, in dem man schon ist, noch einmal antippen: springt nach oben.
+- **Zeile nach links wischen** (in **Alles** und im Raum): dahinter erscheint **Löschen**. Weit
+  durchziehen legt das Ding in den **Papierkorb**; 5 Sekunden lang gibt es **Rückgängig** (bei
+  mehreren nacheinander: „3 gelöscht“). „Löschen“ im Eintrag macht dasselbe.
+- **Lange drücken** auf eine Zeile oder ein Bild in „Zuletzt hinzugefügt“: **Ort ändern**,
+  **Umbenennen**, **Unterwegs / verliehen**, **Mehrere auswählen**, **Löschen**.
+- Den Tab, in dem man schon ist, noch einmal antippen: springt nach oben (in **Dokumente** aus
+  einem Ordner zurück ganz nach oben).
 
 Ansichten gleiten von rechts herein, Hinzufügen kommt von unten; bei „Bewegung reduzieren“ in
 den iOS-Einstellungen springt alles ohne Animation.
@@ -188,7 +165,7 @@ alles gut lesbar ist.
   bleibt.
 - **Aktionsblatt** (langes Drücken, ⋯) wächst aus der Zeile oder dem Knopf heraus und schrumpft beim
   Schließen dorthin zurück; **Hinzufügen** quillt als Tropfen aus dem Kamera-Knopf. Hinweise fließen
-  als Glas-Kapsel herein, **Archiv** hinter einer weggewischten Zeile ist ein Glastropfen.
+  als Glas-Kapsel herein, **Löschen** hinter einer weggewischten Zeile ist ein Glastropfen.
 - **„Bewegung reduzieren“** (Einstellungen → Bedienungshilfen → Bewegung): keine Start-Szene
   (nur kurzes Überblenden), keine Federn, nichts quillt oder gleitet.
 - **„Transparenz reduzieren“** bzw. **„Kontrast erhöhen“** (Bedienungshilfen → Anzeige & Textgröße):
@@ -243,7 +220,7 @@ auch im Eintrag über **Mit KI erkennen** anstoßen. Wartet ein Eintrag auf die 
 aber kein Key hinterlegt (etwa nach dem Einlesen einer Sicherung auf einem neuen Gerät),
 steht dort „Wartet auf API-Key“ statt „wird erkannt …“.
 
-**Ohne Foto eintragen** – aufklappbar unter den Foto-Knöpfen: Name, Kategorie, Speichern.
+**Ohne Foto eintragen** – aufklappbar unter den Foto-Knöpfen: Name, Kategorie, Fertig.
 Ort, Raum und genauer Platz kommen aus den Feldern ganz oben. Bestand (mit Schnellauswahl) und Notiz
 liegen hinter **Mehr Angaben**. Lässt du die Kategorie leer, schlägt die KI im Hintergrund
 eine vor.
@@ -271,7 +248,7 @@ damit klar ist, dass gleich ein neuer Eintrag entsteht. Auswählen per Tipp, am 
 auch mit Pfeiltasten und Eingabetaste. Die KI
 schlägt bevorzugt eine bereits vorhandene Kategorie vor und erfindet nur dann eine neue,
 wenn nichts passt. Kategorien lassen sich unter Einstellungen umbenennen und löschen; Orte und
-Räume im Tab **Räume** (⋯ oder langes Drücken: Umbenennen, Symbol & Farbe, Verschieben, Löschen).
+Räume im Tab **Orte** (⋯ oder langes Drücken: Umbenennen, Symbol & Farbe, Verschieben, Löschen).
 Benennst du auf einen bereits vorhandenen Namen um, werden sie zusammengeführt – bei Räumen nur
 innerhalb desselben Orts.
 
@@ -283,11 +260,11 @@ formatfüllend, ohne den Eintrag zu öffnen; ein Tipp auf den Text daneben öffn
 den Eintrag. In der Detail-Ansicht öffnet ein Tipp auf das Bild dasselbe Vollbild. Dort noch einmal antippen zoomt auf die Originalgröße und man kann im
 Bild herumschieben; das × oben rechts oder ein Tipp neben das Bild schließt wieder.
 
-**Alles** (früher „Liste“) zeigt Vorschaubild, Name, Bestand, Ort und Raum („Auto · Kofferraum“ mit
-dem Symbol des Orts) sowie Datum und Uhrzeit. Die Suche geht über Name, Kategorie, Ort, Raum,
-genauen Platz, Bestand und Notiz – „auto“ findet also alles im Auto. Dazu kommen Filter nach Ort
-(ab zwei Orten), Kategorie und Raum; ist ein Ort gewählt, bietet der Raum-Filter nur dessen Räume
-an.
+**Alles** (früher „Liste“) zeigt je Zeile Vorschaubild, Name, Ort und Raum („Auto · Kofferraum“ mit
+dem Symbol des Orts) und rechts den Bestand – ein Tipp auf die Zahl zeigt − / +. Die Suche geht über
+Name, Kategorie, Ort, Raum, genauen Platz, Bestand und Notiz – „auto“ findet also alles im Auto. Der
+**Filter-Knopf** neben der Suche öffnet ein Blatt mit Ort, Raum, Kategorie und Status (unterwegs/verliehen,
+unbenannt, Garantie läuft ab); aktive Filter stehen als Chips mit × darunter, dazu „11 von 61“.
 
 **KI-Suche** – tippe eine ganze Frage ins Suchfeld, etwa „ich brauch irgendwas um das Ding
 zu befestigen oder zu kleben“, und nimm den Knopf **Stattdessen die KI fragen** darunter
@@ -310,22 +287,22 @@ in einem Raum. **Bestand + / −** direkt in der Zeile, wenn der Bestand eine Za
 
 **Belege** – im Eintrag unter „Mehr Angaben“: Seriennummer, Kaufdatum, Garantie bis und Belege
 (Fotos oder PDFs bis 10 MB). Läuft eine Garantie oder eine Dokument-Frist in den nächsten 30 Tagen
-ab, steht das auf **Start** unter „Bald fällig“.
+ab, steht das auf **Start** unter „Wichtig“.
 
-**Dokumente** (Aktenschrank) – Karte auf **Start** unter der Suche. Ordner (verschachtelt; auf
-Wunsch schlägt die App welche vor), **Scannen** (mehrere Seiten → PDF), Fotos oder PDF aus der
-Dateien-App, dazu Titel, Datum, Stichworte, Frist und optional ein Eintrag. Gelöschte Dokumente
-liegen im **Papierkorb**. Die KI-Suche kennt von Dokumenten nur Titel, Ordner, Stichworte und Datum.
+**Dokumente** (Aktenschrank, eigener Tab seit 2.0) – **+** oben rechts: **Scannen** (mehrere Seiten
+→ PDF), **Aus Fotos**, **PDF oder Datei** (Dateien-App) oder **Neuer Ordner**; danach Titel, Datum,
+Stichworte, Frist und optional ein Eintrag. Ordner lassen sich verschachteln (auf Wunsch schlägt die
+App welche vor). Gelöschte Dokumente liegen im **Papierkorb** der Dokumente. Die KI-Suche kennt von
+Dokumenten nur Titel, Ordner, Stichworte und Datum.
 
 **Töne** – leise, kurze Klänge bei Tab-Wechsel, Foto, Speichern, Wegwischen, Rückgängig,
 Checkliste, Aktionsblatt, Fehlern, fertiger Sicherung und KI-Erkennung. Sie werden im Gerät erzeugt
 (keine Audiodateien), folgen auf dem iPhone dem Stummschalter und lassen laufende Musik weiterspielen.
 Abschalten oder leiser stellen: Einstellungen → Töne.
 
-**Archiv** – gelöschte Einträge landen zuerst dort und bleiben wiederherstellbar.
-Erst **Endgültig löschen** entfernt Eintrag und Foto unwiderruflich.
-Zu erreichen über **Archiv ansehen** am Ende von **Alles** (nur, wenn etwas im Archiv liegt).
-Nicht zu verwechseln mit dem **Papierkorb** der Dokumente.
+**Papierkorb** (bis 1.11 „Archiv“) – gelöschte Dinge landen zuerst dort und bleiben
+wiederherstellbar; erst **Endgültig löschen** im Papierkorb entfernt Eintrag und Foto
+unwiderruflich. Zu erreichen über **Papierkorb (n)** am Ende von **Alles**.
 
 ---
 
@@ -333,11 +310,11 @@ Nicht zu verwechseln mit dem **Papierkorb** der Dokumente.
 
 ### Sichern
 
-**Einstellungen → Sicherung → Sicherung erstellen**, danach **Sichern / Teilen**. Auf dem
+**Einstellungen → Sicherung → Jetzt sichern**, danach **Sichern / Teilen**. Oben steht, wann zuletzt gesichert wurde. Auf dem
 iPhone öffnet sich das Teilen-Fenster: „In Dateien sichern“, per AirDrop an ein anderes
 Gerät oder als Mail an die Familie. Am Rechner lädt die Datei herunter.
 
-Enthalten sind alle Einträge, Kategorien, Orte, Räume, das Archiv, die Fotos, Belege und Dokumente.
+Enthalten sind alle Einträge, Kategorien, Orte, Räume, der Papierkorb, die Fotos, Belege und Dokumente.
 **Der API-Key wird bewusst nicht mitgesichert** – sonst läge er in einer Datei, die du
 per Mail verschickst. Ihn trägst du auf dem neuen Gerät einmal von Hand ein.
 
@@ -355,7 +332,7 @@ für Web-Apps, iCloud ebenso wenig – eine *automatische* Sicherung gibt es des
 
 ### Automatisch in Google Drive (seit 1.9.0)
 
-Einstellungen → **Google Drive (verschlüsselt)**: OAuth-Client-ID eintragen (einmalig in der
+Einstellungen → Erweitert → **Google Drive (verschlüsselt)**: OAuth-Client-ID eintragen (einmalig in der
 Google Cloud Console anlegen – Anleitung für Laien: **[docs/GOOGLE-DRIVE.md](docs/GOOGLE-DRIVE.md)**),
 **Verbinden & einrichten**, Passwort festlegen. Danach sichert die App beim Start und etwa 30 Sekunden
 nach jeder Änderung – nur Neues, verschlüsselt, in den versteckten App-Datenordner deines Drive
@@ -368,7 +345,7 @@ Sicherungs-Erinnerung mit.
 
 ### Einlesen
 
-**Sicherung einlesen**, Datei wählen. Die App zeigt erst, was drinsteht, dann hast du
+**Aus Datei wiederherstellen**, Datei wählen. Die App zeigt erst, was drinsteht, dann hast du
 zwei Möglichkeiten:
 
 - **Hinzufügen, Vorhandenes behalten** – für den Abgleich zwischen zwei Geräten.
@@ -417,15 +394,30 @@ Ein Datei-Update auf dem Server kann die Datenbank nicht löschen. Prüfe der Re
 
 ```
 index.html              alle Ansichten, die SVG-Symbole (Sprite ganz oben im <body>), Start-Szene,
-                        Startbild-Links und der Start-Wächter (Dateiliste bei neuen js-Dateien ergänzen!)
+                        Startbild-Links, modulepreload der Start-Module und der Start-Wächter (Dateiliste)
 manifest.webmanifest    Name, Icons, Vollbildmodus
-sw.js                   Service Worker – App offline verfügbar (VERSION hochzählen – passend
-                        zu APP_VERSION in js/app.js und <meta name="app-version"> in index.html!)
+sw.js                   Service Worker – App offline verfügbar (Dateiliste ASSETS, VERSION)
 css/app.css             Gestaltung, hell und dunkel – Farben, Radien, Schatten als Variablen oben,
                         das Glas-System (--glass-*, --lite-*) und die Start-Szene im letzten Abschnitt
-js/app.js               Ansichten, Navigation, Bedienung, Abläufe
-js/home.js              Startseite (Tab „Start“, mit Orts-Umschalter), Tab „Räume“ (nach Ort gruppiert) und
-                        Raum-/Orts-Ansicht (inkl. scharfer Titelbilder)
+js/version.js           die Versionsnummer (APP_VERSION) – einzige Quelle; index.html (<meta name="app-version">)
+                        und sw.js (VERSION) ziehen gleich, tests/consistency.spec.js prüft das
+js/app.js               Start (Boot, Umstellung auf Orte, Fehlerseiten), Tipps auf Start und „Wichtig“, Verdrahtung
+js/state.js             gemeinsamer Zustand, Nachschlage-Hilfen (Ort/Raum/Kategorie), reloadAll
+js/nav.js               Navigation: Tabs (Start, Alles, Orte, Dokumente), Push-Ansichten, Stapel, Zurückwischen, Neuzeichnen
+js/toast.js             Meldungen (mit „Rückgängig“), Service Worker, Update-Leiste
+js/lazy.js              bei Bedarf geladene Module (Aktenschrank, Sicherung, Drive, Einführung)
+js/view-list.js         „Alles“: Liste, Suche, Filter, KI-Suche, Papierkorb
+js/view-item.js         Eintrag: Felder (speichert beim Verlassen), Unterwegs, Duplikat, Belege, Vollbild
+js/view-add.js          Hinzufügen: Schnellerfassung, ohne Foto
+js/view-noplace.js      „Ohne Ort“: gesammelt zuordnen
+js/view-orte.js         Tab „Orte“: Orte mit ihren Räumen als Zeilen, „Ohne Ort“, „+“ (Neuer Ort / Neuer Raum)
+js/view-room.js         Raum/Ort-Ansicht und ihre Menüs, Orte und Räume anlegen/verschieben/löschen
+js/where.js             Orts-Chips, Ort/Raum auflösen, Blatt „Ort ändern“
+js/select.js            Kontextmenü, Löschen (Papierkorb) mit Rückgängig, Unterwegs, Auswahl, Checkliste, Habe ich das schon?
+js/view-settings.js     Einstellungen: API-Key, Modell, Töne, Kategorien, Speicher
+js/settings-backup.js   Sicherung erstellen/einlesen, Passwort-Blatt, Google Drive
+js/home.js              Startseite (Orts-Umschalter, „Wichtig“, Zuletzt hinzugefügt mit scharfen Bildern) und
+                        Raum-/Orts-Ansicht
 js/places.js            Orte: Symbole, Farben, Symbol-Vorschlag aus dem Namen, Raumvorschläge je Art,
                         Chips und Plaketten (ohne Datenbank)
 js/match.js             Namen vergleichen (Habe ich das schon?, Duplikat-Hinweis), Unterwegs-Text, Datumsangaben
@@ -447,8 +439,9 @@ js/gestures.js          Zurückwischen, Zeile wegwischen, langes Drücken, Hapti
 js/sheet.js             Aktionsblatt von unten (Kontextmenü, kleine Eingaben)
 js/sound.js             Töne: per Web Audio erzeugt (keine Dateien), leise, abschaltbar
 js/onboarding.js        Einführung beim ersten Start
-js/db.js                IndexedDB (Version 4): Einträge, Fotos, Kategorien, Orte, Räume, Dokumente, Ordner, Einstellungen;
-                        Umstellung auf Orte (migratePlaces), Verschieben an Ort + Raum, Ort löschen, „Speicher voll“-Meldung
+js/db.js                IndexedDB (Version 4): Einträge, Dokumente, Import – und die öffentliche Schnittstelle für
+                        db-core.js (Öffnen/Aufrüsten, Transaktionen, Einstellungen, „Speicher voll“-Meldung) und
+                        db-places.js (Kategorien, Orte, Räume, Umstellung auf Orte, Verschieben, Ort löschen)
 js/img.js               Bilder dekodieren, drehen, verkleinern, kodieren
 js/gemini.js            Aufrufe an die Gemini-API
 js/queue.js             KI-Warteschlange: erkennt erfasste Fotos im Hintergrund
@@ -460,6 +453,7 @@ tools/splash.js         erzeugt die Startbilder aus der Start-Szene in index.htm
                         gehört nicht zur App) – nach Änderungen an der Szene neu ausführen
 tools/icon.svg          Vorlage des App-Symbols (Glasregal mit Büchern und Einmachglas)
 tools/icon.js           erzeugt daraus die PNGs in icons/ (Playwright; gehört nicht zur App)
+tests/                  automatische Prüfungen (Playwright, ohne Build): node tests/run.js – siehe tests/README.md
 ```
 
 Fotos werden beim Speichern auf max. 1600 px verkleinert (in den Einstellungen

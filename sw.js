@@ -1,13 +1,14 @@
 // Service Worker – App-Shell offline verfügbar halten.
-// Bei jeder Änderung an den App-Dateien VERSION hochzählen, sonst sieht das
-// iPhone die neue Fassung nicht. VERSION, APP_VERSION in js/app.js und
-// <meta name="app-version"> in index.html müssen übereinstimmen.
+// Die Versionsnummer kommt aus js/version.js (APP_VERSION). Sie steht hier bewusst noch einmal
+// als Konstante: iOS erkennt ein Update nur, wenn sich sw.js selbst ändert (importScripts zählt
+// dort nicht verlässlich). tests/consistency.spec.js erzwingt, dass beide gleich sind, und dass
+// ASSETS alle Dateien aus js/ und css/ enthält.
 //
 // Aktualisiert wird NUR über einen neuen Service Worker: install holt alle Dateien
 // frisch vom Server in einen neuen Cache. Der Fetch-Handler schreibt nie in den
 // Cache – sonst landen neues index.html und (per HTTP-Cache) veraltetes app.js
 // nebeneinander, und die App startet nicht mehr.
-const VERSION = 'v1.10.3';
+const VERSION = 'v2.0.3';
 const CACHE = 'heim-inventar-' + VERSION;
 
 // Die Startbilder unter icons/splash/ stehen bewusst NICHT hier: iOS holt sie beim
@@ -18,28 +19,45 @@ const ASSETS = [
   './manifest.webmanifest',
   './css/app.css',
   './js/app.js',
-  './js/db.js',
-  './js/img.js',
-  './js/gemini.js',
-  './js/combo.js',
+  './js/version.js',
   './js/backup.js',
-  './js/queue.js',
-  './js/ui.js',
-  './js/home.js',
-  './js/gestures.js',
-  './js/motion.js',
-  './js/sheet.js',
-  './js/onboarding.js',
-  './js/glass.js',
-  './js/intro.js',
-  './js/places.js',
-  './js/match.js',
-  './js/docs.js',
   './js/cabinet.js',
-  './js/scan.js',
+  './js/combo.js',
   './js/crypto.js',
+  './js/db-core.js',
+  './js/db-places.js',
+  './js/db.js',
+  './js/docs.js',
   './js/gdrive.js',
+  './js/gemini.js',
+  './js/gestures.js',
+  './js/glass.js',
+  './js/home.js',
+  './js/img.js',
+  './js/intro.js',
+  './js/lazy.js',
+  './js/match.js',
+  './js/motion.js',
+  './js/nav.js',
+  './js/onboarding.js',
+  './js/places.js',
+  './js/queue.js',
+  './js/scan.js',
+  './js/select.js',
+  './js/settings-backup.js',
+  './js/sheet.js',
   './js/sound.js',
+  './js/state.js',
+  './js/toast.js',
+  './js/ui.js',
+  './js/view-add.js',
+  './js/view-item.js',
+  './js/view-list.js',
+  './js/view-noplace.js',
+  './js/view-orte.js',
+  './js/view-room.js',
+  './js/view-settings.js',
+  './js/where.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon-180.png',

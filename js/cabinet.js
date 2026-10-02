@@ -1,6 +1,6 @@
 // Dokumente – der digitale Aktenschrank (1.9.0).
-// Einstieg: Karte „Dokumente“ auf Zuhause (Push-Ansicht „docs“). Die fünf Tabs bleiben, wie sie
-// sind – Zuhause ist der Startbildschirm, damit ist der Aktenschrank immer einen Tipp entfernt.
+// Seit 2.0 ein eigener Tab („docs“): oben großer Titel und „+“ (Scannen, Fotos, Datei, Neuer
+// Ordner); in einem Ordner „Zurück“ eine Ebene hoch (auch per Zurückwischen, js/nav.js).
 // Ordner mit Unterordnern; Dokumente liegen im Store „docs“ (derselbe wie die Belege aus 1.8.0):
 // ein Dokument hat Ordner UND/ODER Eintrag. Virtuelle Ordner: „Belege zu Einträgen“ (nur mit
 // Eintrag verknüpft) und „Papierkorb“. Hier wird nur gezeichnet und bedient; die Daten kommen
@@ -9,7 +9,7 @@ import * as db from './db.js';
 import * as sheet from './sheet.js';
 import { esc, icon, plural } from './ui.js';
 import { norm } from './combo.js';
-import { fmtDate, daysUntil, cleanDate } from './match.js';
+import { fmtDate, daysUntil, cleanDate, localDay } from './match.js';
 import { prepareDoc, docURL, isImageDoc, docSize, DOC_MAX, FOLDER_SUGGESTIONS, DUE_KINDS, cleanTags, titleFromName, shareName, ix, loadIndex, liveDocs, folderById, folderPath } from './docs.js';
 import { renderPage, makePdf } from './scan.js';
 
@@ -77,11 +77,41 @@ const dueLine = (d) => {
 
 /* ---------------- Übersicht ---------------- */
 
-export async function open(at = null) {
-  try { await load(); } catch (e) { ctx.toast('Dokumente laden: ' + e.message, true); return; }
-  cab.at = at;
-  $('#docs-q').value = '';
-  ctx.navigate('docs');
+/** Für den Tab: Daten schon geladen? Sonst laden (reload). */
+export const ready = () => ix.loaded;
+export const reload = () => load();
+/** Steht man in einem Ordner (oder in einer Suche), aus dem „Zurück“ eine Ebene hoch führt? */
+export const canUp = () => !!cab.at || !!$('#docs-q').value.trim();
+/** Tab erneut angetippt: ganz nach oben. */
+export function toTop() { cab.at = null; $('#docs-q').value = ''; }
+
+/** „+“ oben rechts: Scannen, Fotos, Datei – oder ein neuer Ordner (nicht in „Belege“/Papierkorb). */
+export function addMenu() {
+  const inFolder = cab.at && cab.at !== ITEM_DOCS && cab.at !== TRASH ? folderById(cab.at) : null;
+  sheet.open({
+    head: `<span class="sh-pic ph ph-none">${icon('docs')}</span><span class="sh-txt"><b>${esc(inFolder ? inFolder.name : 'Dokumente')}</b><small>Neues Dokument${inFolder ? ' in diesem Ordner' : ''}</small></span>`,
+    actions: [
+      { id: 'scan', label: 'Scannen', icon: 'scan' },
+      { id: 'photos', label: 'Aus Fotos', icon: 'photos' },
+      { id: 'file', label: 'PDF oder Datei', icon: 'doc' },
+      ...(cab.at === ITEM_DOCS ? [] : [{ id: 'folder', label: inFolder ? 'Neuer Unterordner' : 'Neuer Ordner', icon: 'folder' }]),
+    ],
+    onAction: (a) => {
+      if (a === 'folder') { newFolder(); return; }
+      // Die Auswahl muss direkt im Tipp aufgehen (iOS) – das Formular folgt, sobald etwas gewählt ist.
+      // Erst schließen: solange das Blatt offen ist, ist der Rest der App inert.
+      sheet.close();
+      $(`#da-${a}-input`).click();
+    },
+  });
+}
+
+/** Aus dem „+“-Blatt gewählt: Formular öffnen (falls noch nicht offen) und Seiten/Datei übernehmen. */
+export async function addChosen(files, kind) {
+  if (!files.length) return;
+  if (ctx.state.view !== 'docadd') await openAdd();
+  if (kind === 'file' && /pdf/i.test(files[0].type || files[0].name)) setFile(files[0]);
+  else addPages(files, kind === 'scan');
 }
 
 function suggestSheet() {
@@ -114,15 +144,20 @@ export function render() {
   const at = cab.at;
   if (at && at !== ITEM_DOCS && at !== TRASH && !folderById(at)) cab.at = null;
   const f = folderById(cab.at);
-  const title = cab.at === ITEM_DOCS ? 'Belege zu Einträgen' : cab.at === TRASH ? 'Papierkorb' : f ? f.name : 'Dokumente';
+  const title = cab.at === ITEM_DOCS ? 'Belege an Dingen' : cab.at === TRASH ? 'Papierkorb' : f ? f.name : 'Dokumente';
   $('#docs-title').textContent = q ? 'Suche' : title;
-  $('#docs-back-txt').textContent = !q && f ? (folderById(f.parentId)?.name || 'Dokumente') : !q && cab.at ? 'Dokumente' : 'Zurück';
+  // Oben: großer Titel wie die anderen Tabs; in einem Ordner (oder einer Suche) schmale Leiste mit „Zurück“.
+  const sub = !!cab.at;
+  $('#docs-bar').classList.toggle('large', !sub);
+  $('#docs-back').hidden = !sub;
+  document.body.classList.toggle('docs-sub', sub);
+  const up = f ? (folderById(f.parentId)?.name || 'Dokumente') : 'Dokumente';
+  $('#docs-back-txt').textContent = up;
+  $('#docs-back').setAttribute('aria-label', `Zurück zu ${up}`);
   const path = f ? folderPath(f.parentId) : '';
   $('#docs-path').hidden = !path || !!q;
   $('#docs-path').textContent = path;
-  const inTrash = cab.at === TRASH;
-  $('#docs-folder-add').hidden = !!q || cab.at === ITEM_DOCS || inTrash;
-  $('#docs-add').hidden = inTrash;
+  $('#docs-new').hidden = cab.at === TRASH;
 
   let rows = '';
   let empty = '';
@@ -138,14 +173,14 @@ export function render() {
     empty = `<span class="empty-badge muted">${icon('trash')}</span><p>Der Papierkorb ist leer.</p>`;
   } else if (cab.at === ITEM_DOCS) {
     rows = live().filter(d => d.itemId && !d.folderId).sort(byDate).map(d => docRow(d)).join('');
-    empty = `<span class="empty-badge muted">${icon('doc')}</span><p>Noch keine Belege an Einträgen.</p>`;
+    empty = `<span class="empty-badge muted">${icon('doc')}</span><p>Noch keine Belege an Dingen.</p>`;
   } else {
     const subs = children(cab.at).map(x => folderRow(x)).join('');
     let virt = '';
     if (!cab.at) {
       const nItem = live().filter(d => d.itemId && !d.folderId).length;
       const nTrash = ix.docs.filter(d => d.trashedAt).length;
-      if (nItem) virt += `<button type="button" class="row drow" data-folder="${ITEM_DOCS}"><span class="d-ic sage">${icon('box')}</span><span class="body"><span class="name">Belege zu Einträgen</span><span class="meta">${plural(nItem, 'Dokument', 'Dokumente')}</span></span>${icon('chev-r', 'go')}</button>`;
+      if (nItem) virt += `<button type="button" class="row drow" data-folder="${ITEM_DOCS}"><span class="d-ic sage">${icon('box')}</span><span class="body"><span class="name">Belege an Dingen</span><span class="meta">${plural(nItem, 'Dokument', 'Dokumente')}</span></span>${icon('chev-r', 'go')}</button>`;
       if (nTrash) virt += `<button type="button" class="row drow" data-folder="${TRASH}"><span class="d-ic muted">${icon('trash')}</span><span class="body"><span class="name">Papierkorb</span><span class="meta">${plural(nTrash, 'Dokument', 'Dokumente')}</span></span>${icon('chev-r', 'go')}</button>`;
     }
     const docs = live().filter(d => (d.folderId || null) === (cab.at || null) && (cab.at || !d.itemId)).sort(byDate).map(d => docRow(d)).join('');
@@ -179,13 +214,13 @@ function docRow(d, withPath = false) {
   const kind = isImageDoc(d) ? 'Bild' : 'PDF';
   const where = withPath ? (folderPath(d.folderId) || (d.itemId ? 'Beleg' : '')) : '';
   const item = d.itemId ? ctx.itemById(d.itemId) : null;
-  const meta = [fmtDate(d.date) || fmtDate(new Date(d.createdAt || Date.now()).toISOString().slice(0, 10)), kind, docSize(d)].join(' · ');
+  const meta = [fmtDate(d.date) || fmtDate(localDay(d.createdAt || Date.now())), kind, docSize(d)].join(' · ');
   const tags = (d.tags || []).slice(0, 4).map(t => `<span class="tag">${esc(t)}</span>`).join('');
   return `<button type="button" class="row drow" data-doc="${esc(d.id)}">
     <span class="d-ic ${isImageDoc(d) ? 'img' : 'pdf'}">${icon(isImageDoc(d) ? 'photos' : 'doc')}</span>
     <span class="body"><span class="name">${esc(d.name)}</span>
       <span class="meta">${esc(where ? where + ' · ' + meta : meta)}</span>
-      ${tags || item ? `<span class="d-tags">${tags}${item ? `<span class="d-item">${icon('box')}${esc(item.name || 'Eintrag')}</span>` : ''}</span>` : ''}
+      ${tags || item ? `<span class="d-tags">${tags}${item ? `<span class="d-item">${icon('box')}${esc(item.name || 'Unbenannt')}</span>` : ''}</span>` : ''}
       ${dueLine(d)}</span>
   </button>`;
 }
@@ -195,8 +230,7 @@ export function up() {
   if ($('#docs-q').value.trim()) { $('#docs-q').value = ''; render(); return; }
   const f = folderById(cab.at);
   if (f) { cab.at = f.parentId || null; render(); scrollTop(); return; }
-  if (cab.at) { cab.at = null; render(); scrollTop(); return; }
-  ctx.navigate('back');
+  if (cab.at) { cab.at = null; render(); scrollTop(); }
 }
 const scrollTop = () => { const sc = $('#view-docs .scroll'); if (sc) sc.scrollTop = 0; };
 
@@ -212,7 +246,7 @@ export function onClick(e) {
 
 /* ---------------- Ordner ---------------- */
 
-export function newFolder(parentId = cab.at && cab.at !== ITEM_DOCS && cab.at !== TRASH ? cab.at : null) {
+function newFolder(parentId = cab.at && cab.at !== ITEM_DOCS && cab.at !== TRASH ? cab.at : null) {
   sheet.form({
     head: `<span class="sh-pic ph ph-none">${icon('folder')}</span><span class="sh-txt"><b>${esc(parentId ? 'In „' + (folderById(parentId)?.name || '') + '“' : 'Dokumente')}</b></span>`,
     title: 'Neuer Ordner', label: 'Name', placeholder: 'z. B. Hausrat', submit: 'Anlegen',
@@ -262,7 +296,7 @@ function folderMenu(id) {
         const n = countIn(f.id);
         const subs = descendants(f.id).size - 1;
         const what = [subs ? plural(subs, 'Unterordner', 'Unterordner') : '', n ? plural(n, 'Dokument', 'Dokumente') : ''].filter(Boolean).join(' und ');
-        if (!confirm(`Ordner „${f.name}“ löschen?${what ? `\n\nDarin: ${what}. Dokumente kommen in den Papierkorb (Belege bleiben an ihrem Eintrag).` : ''}`)) return;
+        if (!confirm(`Ordner „${f.name}“ löschen?${what ? `\n\nDarin: ${what}. Dokumente kommen in den Papierkorb (Belege bleiben an ihrem Ding).` : ''}`)) return;
         db.dropFolder(f.id).then(async () => {
           if (descendants(f.id).has(cab.at)) cab.at = f.parentId || null;
           await load(); render();
@@ -291,11 +325,10 @@ export async function docSheet(id) {
     ? [{ id: 'view', label: 'Ansehen', icon: 'expand' }, { id: 'restore', label: 'Wiederherstellen', icon: 'undo' }, { id: 'purge', label: 'Endgültig löschen', icon: 'trash', danger: true }]
     : [
       { id: 'view', label: 'Ansehen', icon: 'expand' },
-      { id: 'share', label: 'Teilen / Sichern', icon: 'share' },
+      { id: 'share', label: 'Teilen', icon: 'share' },
+      // 2.0: Titel und Ordner ändert „Bearbeiten“ (früher zusätzlich „Umbenennen“ und „Verschieben“).
       { id: 'edit', label: 'Bearbeiten', icon: 'pencil' },
-      { id: 'rename', label: 'Umbenennen', icon: 'pencil' },
-      { id: 'move', label: 'Verschieben', icon: 'folder' },
-      ...(item ? [{ id: 'item', label: `Zum Eintrag „${item.name || 'Eintrag'}“`, icon: 'box' }] : []),
+      ...(item ? [{ id: 'item', label: `Zum Ding „${item.name || 'Unbenannt'}“`, icon: 'box' }] : []),
       { id: 'trash', label: 'In den Papierkorb', icon: 'trash', danger: true },
     ];
   sheet.open({
@@ -308,26 +341,12 @@ export async function docSheet(id) {
 async function docAction(a, d) {
   // Aktionen ohne eigenes Folge-Blatt schließen das Blatt selbst (Teilen erst NACH dem Aufruf –
   // iOS lässt das Teilen-Fenster nur direkt im Tipp zu).
-  if (!['rename', 'move', 'share'].includes(a)) sheet.close();
+  if (a !== 'share') sheet.close();
   try {
     if (a === 'view') show(d);
     else if (a === 'share') { const p = share(d); sheet.close(); await p; }
     else if (a === 'edit') openEditor(d);
-    else if (a === 'rename') {
-      sheet.form({ title: 'Umbenennen', label: 'Titel', value: d.name, combo: '', onSubmit: async (v) => {
-        const name = String(v || '').trim().slice(0, 120);
-        if (!name) return false;
-        await db.patchDoc(d.id, { name });
-        await changed();
-      } });
-    } else if (a === 'move') {
-      const opts = [{ id: '', name: d.itemId ? 'Kein Ordner (nur Beleg)' : 'Dokumente (oberste Ebene)', depth: 0 }, ...folderTree()];
-      pickFolder('Verschieben', `„${d.name}“ kommt nach …`, opts, d.folderId || '', async (target) => {
-        await db.patchDoc(d.id, { folderId: target || null });
-        await changed();
-        ctx.toast(`„${d.name}“ verschoben.`);
-      });
-    } else if (a === 'item') ctx.openItem(d.itemId);
+    else if (a === 'item') ctx.openItem(d.itemId);
     else if (a === 'trash') {
       await db.patchDoc(d.id, { trashedAt: Date.now() });
       await changed();
@@ -402,7 +421,7 @@ function fillFolderSelect(value) {
 }
 
 /** Neues Dokument. opts.itemId: gleich mit einem Eintrag verknüpfen. */
-export async function openAdd({ itemId = null } = {}) {
+async function openAdd({ itemId = null } = {}) {
   if (!ix.loaded) await load();
   resetAdd();
   const inFolder = folderById(cab.at)?.id;
@@ -411,7 +430,7 @@ export async function openAdd({ itemId = null } = {}) {
   $('#da-src').hidden = false;
   fillFolderSelect(inFolder || (itemId ? '' : last) || '');
   $('#da-title').value = '';
-  $('#da-date').value = new Date().toISOString().slice(0, 10);
+  $('#da-date').value = localDay();
   $('#da-tags').value = '';
   $('#da-due-kind').value = '';
   $('#da-due').value = '';
@@ -461,11 +480,11 @@ const asPdf = () => cab.scanned || cab.pages.length > 1;
 function suggestTitle(name) {
   if ($('#da-title').value.trim()) return;
   const t = titleFromName(name);
-  $('#da-title').value = t || `Scan ${fmtDate(new Date().toISOString().slice(0, 10))}`;
+  $('#da-title').value = t || `Scan ${fmtDate(localDay())}`;
 }
 
 /** Fotos/Scans als Seiten hinzufügen. */
-export function addPages(files, scanned) {
+function addPages(files, scanned) {
   const list = [...files].filter(f => String(f.type || '').startsWith('image/') || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name || ''));
   if (!list.length) return;
   if (cab.file) { cab.file = null; }
@@ -475,7 +494,7 @@ export function addPages(files, scanned) {
   renderAdd();
 }
 
-export function setFile(file) {
+function setFile(file) {
   if (!file) return;
   for (const p of cab.pages) URL.revokeObjectURL(p.url);
   cab.pages = [];
@@ -506,7 +525,7 @@ function formMeta() {
   let itemId = null;
   if (itemName) {
     const hit = ctx.items().find(i => !i.archived && norm(i.name) === norm(itemName));
-    if (!hit) throw new Error(`Kein Eintrag „${itemName}“ gefunden – Namen aus der Vorschlagsliste wählen oder leer lassen.`);
+    if (!hit) throw new Error(`Kein Ding „${itemName}“ gefunden – Namen aus der Vorschlagsliste wählen oder leer lassen.`);
     itemId = hit.id;
   }
   const kind = $('#da-due-kind').value;
@@ -552,7 +571,7 @@ export async function save() {
   } finally {
     cab.saving = false;
     btn.disabled = false;
-    btn.textContent = 'Sichern';
+    btn.textContent = 'Fertig';
   }
 }
 
@@ -585,7 +604,7 @@ async function buildDoc(meta) {
   } else {
     throw new Error('Bitte zuerst scannen, Fotos oder eine Datei wählen.');
   }
-  const name = meta.name || (cab.file ? titleFromName(cab.file.name) : '') || `Dokument ${fmtDate(new Date().toISOString().slice(0, 10))}`;
+  const name = meta.name || (cab.file ? titleFromName(cab.file.name) : '') || `Dokument ${fmtDate(localDay())}`;
   return { id: db.uid(), ...meta, name, ...base, createdAt: now, updatedAt: now, trashedAt: null };
 }
 

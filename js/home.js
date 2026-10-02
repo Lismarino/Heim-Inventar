@@ -1,13 +1,13 @@
-// Startseite „Zuhause“, der Tab „Räume“ und die Ansicht eines Raums (oder eines Orts).
-// Die Daten kommen aus app.js (ctx) – hier wird nur gezeichnet.
-// 1.7.0: Orte. Zuhause hat oben einen Umschalter „Alle · Zuhause · Auto …“ (gemerkt in der
-// Einstellung homePlace), der Tab „Räume“ gruppiert nach Ort.
+// Startseite und die Ansicht eines Raums (oder eines Orts). Die Daten kommen aus app.js (ctx) –
+// hier wird nur gezeichnet. Start (2.0): Begrüßung, Umschalter „Alle · Zuhause · Auto …“ (ab zwei
+// Orten, gemerkt in homePlace), Suche, eine Karte „Wichtig“, „Zuletzt hinzugefügt“. Der Tab
+// „Orte“ steht in js/view-orte.js.
 import * as db from './db.js';
 import * as img from './img.js';
-import { esc, icon, plural, isThumb, placeholderHTML, toneOf, initialOf, EMPTY_ART } from './ui.js';
-import { placeBadge, placeIcon, safeColor } from './places.js';
+import { esc, icon, plural, isThumb, placeholderHTML, EMPTY_ART } from './ui.js';
+import { placeIcon } from './places.js';
 import { moveLens } from './glass.js';
-import { cleanOut, warrantySoon, daysSince } from './match.js';
+import { cleanOut, warrantySoon, daysSince, daysUntil } from './match.js';
 
 const $ = (s) => document.querySelector(s);
 const collator = new Intl.Collator('de', { sensitivity: 'base', numeric: true });
@@ -29,19 +29,6 @@ function greeting(d = new Date()) {
 const live = () => ctx.state.items.filter(i => !i.archived);
 const unnamed = (it) => !String(it.name || '').trim() && it.aiState !== 'pending';
 
-/** Zahlen für „Zu erledigen“ – auch für die Tests nützlich. pool: Einträge des gewählten Orts.
- *  „Ohne Ort“ zählt immer alle – solche Einträge gehören ja zu keinem Ort. */
-function todoCounts(pool) {
-  const items = pool || live();
-  return {
-    noRoom: ctx.noRoomItems().length,
-    unnamed: items.filter(unnamed).length,
-    busy: items.filter(ctx.aiBusy).length,
-    needKey: items.filter(ctx.aiNeedsKey).length,
-    out: items.filter(it => !!cleanOut(it.out)).length,
-    warranty: items.filter(warrantySoon).length,
-  };
-}
 export const isUnnamed = unnamed;
 
 /* ---------------- Titelbilder ----------------
@@ -151,17 +138,12 @@ function pictureHTML(it, cls) {
   return `<img class="${cls}" src="${esc(sharp || it.thumb)}" alt=""${it.photoId ? ` data-cover="${esc(it.photoId)}"` : ''} draggable="false">`;
 }
 
-/* ---------------- Zuhause ---------------- */
-
-// Auf Zuhause stehen nur die ersten Räume (1.10.0: höchstens sechs Kacheln, ohne „Raum
-// hinzufügen“) – alle weiteren und die Verwaltung im Tab „Räume“.
-export const HOME_ROOMS = 6;
+/* ---------------- Start ---------------- */
 
 const multi = () => ctx.state.places.length > 1;
-const roomsIn = (pid) => ctx.state.rooms.filter(r => r.placeId === pid);
 const inPlace = (pid) => (it) => ctx.placeOf(it)?.id === pid;
 /** Einträge, die direkt am Ort liegen – ohne (gültigen) Raum. */
-const directItems = (pid) => live().filter(it => !ctx.hasRoom(it) && it.placeId === pid && ctx.placeById(pid));
+export const directItems = (pid) => live().filter(it => !ctx.hasRoom(it) && it.placeId === pid && ctx.placeById(pid));
 
 /** Gewählter Ort im Umschalter – '' für alle (auch wenn der gemerkte Ort nicht mehr existiert
  *  oder es nur noch einen Ort gibt – dann gibt es keinen Umschalter). */
@@ -170,70 +152,13 @@ export function homePlace() {
   return id && multi() && ctx.placeById(id) ? id : '';
 }
 
-function itemsByRoom(items) {
-  const byRoom = new Map();
-  for (const it of items) {
-    if (!ctx.hasRoom(it)) continue;
-    const list = byRoom.get(it.roomId) || [];
-    list.push(it);
-    byRoom.set(it.roomId, list);
-  }
-  return byRoom;
-}
-
-const addTile = (pid) => `<button class="rt rt-add" data-room-add${pid ? ` data-in-place="${esc(pid)}"` : ''}>
-  <span class="rt-plus">${icon('plus')}</span><span class="rt-add-txt">Raum hinzufügen</span></button>`;
-
-function noPlaceTile(nr) {
-  return `<button class="rt rt-noroom" data-nav="rooms" aria-label="Ohne Ort, ${esc(plural(nr, 'Ding', 'Dinge'))}">
-      <span class="rt-pin">${icon('pin')}</span>
-      <span class="rt-txt"><b>Ohne Ort</b><small>${esc(plural(nr, 'Ding', 'Dinge'))} zuordnen</small></span></button>`;
-}
-
-// Kachel für den Ort selbst: was dort direkt liegt, ohne Raum.
-function placeTile(p, items) {
-  const withPic = items.filter(i => isThumb(i.thumb)).sort((a, b) => b.createdAt - a.createdAt)[0];
-  const count = `${plural(items.length, 'Ding', 'Dinge')} ohne Raum`;
-  const art = withPic ? `${pictureHTML(withPic, 'rt-img')}<span class="rt-shade"></span>` : '';
-  return `<button class="rt rt-place pc-${safeColor(p.color)}${withPic ? ' has-pic' : ''}" data-place-open="${esc(p.id)}" aria-label="${esc(p.name)} direkt, ${esc(count)}">
-    ${art}${placeBadge(p, 'rt-badge')}
-    <span class="rt-txt"><b>${esc(p.name)}</b><small>${esc(count)}</small></span>
-  </button>`;
-}
-
-/**
- * Kacheln eines Orts: erst der Ort selbst (falls etwas direkt dort liegt), dann seine Räume,
- * am Ende „Raum hinzufügen“ – sofern alle Räume gezeigt werden. Liefert { html, shown, total }.
- */
-function placeTiles(p, byRoom) {
-  const rooms = p ? roomsIn(p.id) : ctx.state.rooms;
-  const tiles = [];
-  const direct = p ? directItems(p.id) : [];
-  if (direct.length) tiles.push(placeTile(p, direct));
-  for (const r of rooms) tiles.push(roomTile(r, byRoom.get(r.id) || []));
-  tiles.push(addTile(p?.id));
-  return { html: tiles.join(''), total: rooms.length };
-}
-
-// Kopf einer Orts-Gruppe im Tab „Räume“: Name mit ⋯ für die Verwaltung (auch langes Drücken auf den Kopf).
-function groupHead(p, n) {
-  const count = `<span class="sec-n">${n || ''}</span>`;
-  const ck = ctx.checkCount(p.id);
-  return `<div class="pgroup-head" data-place-head="${esc(p.id)}">
-      ${placeBadge(p)}<h2 class="pgroup-name">${esc(p.name)}</h2>${count}
-      ${ck ? `<button type="button" class="pgroup-assign pgroup-check" data-checklist="${esc(p.id)}">Checkliste</button>` : ''}
-      <button type="button" class="pgroup-more" data-place-menu="${esc(p.id)}" aria-label="Ort „${esc(p.name)}“: Aktionen">${icon('more')}</button></div>`;
-}
-
 /* ---------------- Umschalter ---------------- */
 
-// Erst ab zwei Orten gibt es etwas umzuschalten. Mit genau einem Ort steht stattdessen ein
-// leiser Hinweis „Ort hinzufügen (z. B. Auto)“ da – so findet man die Orte nach dem Update.
+// Erst ab zwei Orten gibt es etwas umzuschalten. Orte angelegt werden im Tab „Orte“ (2.0: kein „+“ mehr hier).
 function renderSwitch(pid) {
   const box = $('#home-places');
   const places = ctx.state.places;
   box.hidden = places.length < 2;
-  $('#home-place-hint').hidden = places.length !== 1;
   if (box.hidden) return;
   const track = box.querySelector('.pswitch-track');
   const sig = places.map(p => [p.id, p.name, p.icon, p.color].join('\u0001')).join('\u0002');
@@ -242,8 +167,7 @@ function renderSwitch(pid) {
     box.dataset.sig = sig;
     track.innerHTML = '<span class="lens" aria-hidden="true"></span>'
       + '<button type="button" class="pseg" data-home-place=""><span>Alle</span></button>'
-      + places.map(p => `<button type="button" class="pseg" data-home-place="${esc(p.id)}">${placeIcon(p)}<span>${esc(p.name)}</span></button>`).join('')
-      + `<button type="button" class="pseg add" data-place-add aria-label="Ort hinzufügen">${icon('plus')}</button>`;
+      + places.map(p => `<button type="button" class="pseg" data-home-place="${esc(p.id)}">${placeIcon(p)}<span>${esc(p.name)}</span></button>`).join('');
   }
   let active = null;
   for (const b of track.querySelectorAll('[data-home-place]')) {
@@ -267,17 +191,14 @@ export function revealSwitch(smooth) {
 }
 
 export function renderHome() {
-  const { state } = ctx;
   const all = live();
   const pid = homePlace();
-  const place = ctx.placeById(pid);
   const items = pid ? all.filter(inPlace(pid)) : all;
-  const byRoom = itemsByRoom(items);
 
   $('#home-date').textContent = dayFmt.format(new Date());
   $('#home-hello').textContent = greeting();
   renderSwitch(pid);
-  const used = byRoom.size;
+  const used = new Set(items.map(it => (ctx.hasRoom(it) ? it.roomId : null)).filter(Boolean)).size;
   const usedPlaces = new Set(all.map(it => ctx.placeOf(it)?.id).filter(Boolean)).size;
   const n = `<span class="n">${plural(items.length, 'Ding', 'Dinge')}</span> `;
   $('#home-sum').innerHTML = !all.length
@@ -290,34 +211,15 @@ export function renderHome() {
           ? n + (usedPlaces ? `<span class="in">an ${plural(usedPlaces, 'Ort', 'Orten')}</span>` : '<span class="in">noch ohne Ort</span>')
           : n + (used ? `<span class="in">in ${plural(used, 'Raum', 'Räumen')}</span>` : '<span class="in">noch ohne Raum</span>');
 
-  // Zu erledigen – für den gewählten Ort; „ohne Ort“ gilt immer.
-  const c = todoCounts(items);
-  const rows = [];
-  if (c.noRoom) rows.push(todoRow('noroom', 'pin', 'clay', `${c.noRoom} ohne Ort`, 'Gesammelt einem Ort zuordnen'));
-  if (c.unnamed) rows.push(todoRow('unnamed', 'pencil', 'clay', `${c.unnamed} unbenannt`, 'Antippen und selbst benennen'));
-  if (c.busy) rows.push(todoRow('busy', '', 'busy', `${c.busy} ${c.busy === 1 ? 'wird' : 'werden'} erkannt`, ctx.queueNote() || 'Die KI benennt sie im Hintergrund.'));
-  if (c.needKey) rows.push(todoRow('needkey', 'sparkle', 'clay', `${c.needKey} ${c.needKey === 1 ? 'wartet' : 'warten'} auf API-Key`, 'Key in den Einstellungen eintragen'));
-  if (c.out) rows.push(todoRow('out', 'out', 'clay', `${c.out} unterwegs/verliehen`, 'Antippen für die Liste'));
-  // Bald fällig (1.9.0): Garantien und Fristen aus den Dokumenten (≤ 30 Tage), zusammen.
-  const due = [];
-  if (c.warranty) due.push(todoRow('warranty', 'doc', 'clay', c.warranty === 1 ? 'Garantie läuft bald ab' : `${c.warranty}× Garantie läuft bald ab`, 'In den nächsten 30 Tagen'));
-  const docsDue = ctx.docsDue ? ctx.docsDue() : [];
-  for (const d of docsDue.slice(0, 4)) {
-    due.push(`<button class="todo-row" data-due-doc="${esc(d.id)}">
-      <span class="todo-ic clay">${icon('doc')}</span>
-      <span class="todo-txt"><b>${esc(d.title)}</b><small>${esc(`${d.kind} ${dueDay(d.days)}`)}</small></span>
-      ${icon('chev-r', 'go')}
-    </button>`);
-  }
-  if (docsDue.length > 4) due.push(`<button class="todo-row" id="home-due-more" data-due-more><span class="todo-ic busy">${icon('more')}</span><span class="todo-txt"><b>${esc(plural(docsDue.length - 4, 'weitere Frist', 'weitere Fristen'))}</b><small>In „Dokumente“ ansehen</small></span></button>`);
-  renderBackup(all.length);
-  renderSync();
-  const docsN = ctx.docsCount ? ctx.docsCount() : 0;
-  $('#home-docs-sub').textContent = docsN ? plural(docsN, 'Dokument', 'Dokumente') + (docsDue.length ? ` · ${plural(docsDue.length, 'Frist', 'Fristen')} bald` : '') : 'Verträge, Versicherungen, Rechnungen';
+  // Wichtig (2.0): eine Karte, höchstens drei Zeilen – die dringendsten zuerst; „Alle anzeigen“ für den Rest.
+  const rows = importantRows(items, all.length);
   const todo = $('#home-todo');
-  todo.hidden = !rows.length && !due.length;
-  todo.innerHTML = (rows.length ? `<h2 class="todo-title">Zu erledigen</h2>${rows.join('')}` : '')
-    + (due.length ? `<h2 class="todo-title${rows.length ? ' sub' : ''}">Bald fällig</h2>${due.join('')}` : '');
+  todo.hidden = !rows.length;
+  todo.innerHTML = rows.length
+    ? `<h2 class="todo-title" id="home-todo-title">Wichtig</h2>${rows.slice(0, HOME_TODO).map(r => r.html).join('')}`
+      + (rows.length > HOME_TODO ? `<button type="button" class="todo-more" data-todo-all>Alle anzeigen<span>${rows.length}</span>${icon('chev-r', 'go')}</button>` : '')
+    : '';
+  renderSync();
 
   // Leer: freundlicher Einstieg statt leerer Streifen
   const empty = !all.length;
@@ -336,26 +238,63 @@ export function renderHome() {
   const recent = items.slice().sort((a, b) => b.createdAt - a.createdAt).slice(0, 14);
   $('#home-recent-sec').hidden = !items.length;
   $('#home-recent').innerHTML = recent.map(recentTile).join('');
-
-  // Räume (1.10.0): nur die des gewählten Orts – bei „Alle“ (oder nur einem Ort) die ersten
-  // insgesamt, in der Reihenfolge der Orte. Höchstens sechs Kacheln, „Alle“ führt zum Tab „Räume“.
-  const direct = place ? directItems(place.id) : [];
-  const rooms = place ? roomsIn(place.id) : state.places.flatMap(p => roomsIn(p.id));
-  const tiles = [];
-  if (direct.length) tiles.push(placeTile(place, direct));
-  for (const r of rooms.slice(0, HOME_ROOMS - tiles.length)) tiles.push(roomTile(r, byRoom.get(r.id) || []));
-  $('#home-rooms').innerHTML = tiles.length ? `<div class="room-grid">${tiles.join('')}</div>` : '';
-  $('#home-rooms-sec').hidden = !tiles.length;
-  $('#home-rooms-count').textContent = rooms.length ? String(rooms.length) : '';
-  $('#home-rooms-all').hidden = false;
   watchCovers($('#view-home'));
 }
 
-/* ---------------- Räume (Tab) ---------------- */
+/* ---------------- Wichtig ---------------- */
 
-// Sicherungs-Erinnerung: ab 7 Tagen seit der letzten Sicherung – oder nie gesichert, sobald
-// 10 Einträge da sind. „Später“ (backupSnooze) blendet sie 3 Tage aus.
-const dueDay = (n) => (n === 0 ? 'heute' : n === 1 ? 'morgen' : `in ${n} Tagen`);
+/** Höchstens so viele Zeilen stehen auf Start; „Alle anzeigen“ öffnet ein Blatt mit allen. */
+const HOME_TODO = 3;
+
+const dueDay = (n) => (n === 0 ? 'heute' : n === 1 ? 'morgen' : n < 0 ? 'vorbei' : `in ${n} Tagen`);
+// Dringlichkeit einer Frist: bis 14 Tage ganz oben (je näher, desto höher), danach weit unten.
+const dueScore = (days) => (days <= 14 ? 100 - Math.max(0, days) : 45 - days / 30);
+
+/**
+ * Alle Zeilen für „Wichtig“, nach Dringlichkeit sortiert: [{ key, score, html }].
+ * pool: Einträge des gewählten Orts (ohne Ort zählt immer alle), n: Zahl aller Einträge (Sicherung).
+ */
+function importantRows(pool, n) {
+  const rows = [];
+  const add = (key, score, html) => rows.push({ key, score, html });
+  const nr = ctx.noRoomItems().length;
+  const un = pool.filter(unnamed).length;
+  const busy = pool.filter(ctx.aiBusy).length;
+  const needKey = pool.filter(ctx.aiNeedsKey).length;
+  const out = pool.filter(it => !!cleanOut(it.out));
+  if (nr) add('noroom', 60, todoRow('noroom', 'pin', 'clay', `${plural(nr, 'Ding', 'Dinge')} ohne Ort`, 'Gesammelt einem Ort zuordnen'));
+  if (un) add('unnamed', 50, todoRow('unnamed', 'pencil', 'clay', `${un} unbenannt`, 'Antippen und selbst benennen'));
+  if (out.length) {
+    const names = out.map(it => String(it.name || '').trim() || 'Unbenannt');
+    add('out', 40, todoRow('out', 'out', 'calm', `${out.length} unterwegs oder verliehen`, names.slice(0, 3).join(', ') + (names.length > 3 ? ' …' : '')));
+  }
+  if (needKey) add('needkey', 35, todoRow('needkey', 'sparkle', 'clay', `${needKey} ${needKey === 1 ? 'wartet' : 'warten'} auf API-Key`, 'Key in den Einstellungen eintragen'));
+  if (busy) add('busy', 5, todoRow('busy', '', 'busy', `${busy} ${busy === 1 ? 'wird' : 'werden'} erkannt`, ctx.queueNote() || 'Die KI benennt sie im Hintergrund.'));
+  // Garantien (Einträge) und Fristen (Dokumente) – jede eigene Zeile mit Namen.
+  for (const it of pool.filter(warrantySoon)) {
+    const d = daysUntil(it.warrantyUntil);
+    add('warranty', dueScore(d), `<button class="todo-row" data-todo-item="${esc(it.id)}">
+      <span class="todo-ic ${d <= 14 ? 'clay' : 'calm'}">${icon('doc')}</span>
+      <span class="todo-txt"><b>Garantie: ${esc(String(it.name || '').trim() || 'Unbenannt')}</b><small>${esc(`Läuft ${dueDay(d)} ab`)}</small></span>
+      ${icon('chev-r', 'go')}</button>`);
+  }
+  for (const d of (ctx.docsDue ? ctx.docsDue() : [])) {
+    add('due', dueScore(d.days), `<button class="todo-row" data-due-doc="${esc(d.id)}">
+      <span class="todo-ic ${d.days <= 14 ? 'clay' : 'calm'}">${icon('doc')}</span>
+      <span class="todo-txt"><b>${esc(d.title)}</b><small>${esc(`${d.kind} ${dueDay(d.days)}`)}</small></span>
+      ${icon('chev-r', 'go')}</button>`);
+  }
+  const bk = backupRow(n);
+  if (bk) add('backup', bk.score, bk.html);
+  return rows.sort((a, b) => b.score - a.score);
+}
+
+/** Alle Zeilen von „Wichtig“ als HTML (für das Blatt „Alle anzeigen“). */
+export function importantAllHTML() {
+  const all = live();
+  const pid = homePlace();
+  return importantRows(pid ? all.filter(inPlace(pid)) : all, all.length).map(r => r.html).join('');
+}
 
 /** Statuszeile der Google-Drive-Sicherung (nur wenn eingerichtet). */
 export function renderSync() {
@@ -370,50 +309,27 @@ export function renderSync() {
   el.innerHTML = `${x.state === 'syncing' ? '<span class="spin"></span>' : icon(warn ? 'alert' : 'cloud')}<span>${esc(text)}</span>`;
 }
 
-// Sicherungs-Erinnerung: zählt auch die Google-Drive-Sicherung (1.9.0) als Sicherung.
-function renderBackup(n) {
-  const box = $('#home-backup');
+// Sicherung als Zeile in „Wichtig“: ab 7 Tagen seit der letzten Sicherung – oder nie gesichert,
+// sobald 10 Einträge da sind. „Später“ (backupSnooze) blendet sie 3 Tage aus. Die Google-Drive-
+// Sicherung (1.9.0) zählt mit. Während sie entsteht oder fertig zum Teilen ist, steht sie ganz oben.
+function backupRow(n) {
   const s = ctx.state.settings;
   const st = ctx.backupState();
   const last = Math.max(Number(s.lastBackupAt) || 0, s.gdEnabled ? Number(s.gdLastSync) || 0 : 0);
   const days = last ? daysSince(last) : 0;
   const due = Date.now() >= (Number(s.backupSnooze) || 0) && (last ? days >= 7 : n >= 10);
-  box.hidden = !due && !st;
-  if (box.hidden) { box.innerHTML = ''; return; }
+  if (!due && !st) return null;
   const title = st === 'ready' ? 'Sicherung ist fertig' : last ? `Letzte Sicherung vor ${plural(days, 'Tag', 'Tagen')}` : 'Noch keine Sicherung';
-  const sub = st === 'ready' ? 'Jetzt teilen – z. B. in „Dateien“ oder iCloud Drive' : 'Einträge, Fotos und Belege in einer Datei';
-  const go = st === 'building' ? '<span class="spin"></span>Wird erstellt …' : st === 'ready' ? 'Teilen' : 'Jetzt sichern';
-  box.innerHTML = `<div class="bk-row"><span class="todo-ic clay">${icon('lock')}</span><span class="todo-txt"><b>${esc(title)}</b><small>${esc(sub)}</small></span></div>
-    <div class="row-btns"><button class="btn primary pill" data-backup="go"${st === 'building' ? ' disabled' : ''}>${go}</button><button class="btn ghost pill" data-backup="later">Später</button></div>`;
-}
-
-export function renderPlaces() {
-  const { state } = ctx;
-  const byRoom = itemsByRoom(live());
-  const parts = [];
-  const nr = ctx.noRoomItems().length;
-  if (nr) parts.push(`<div class="room-grid">${noPlaceTile(nr)}</div>`);
-  for (const p of state.places) {
-    const t = placeTiles(p, byRoom);
-    parts.push(`<section class="pgroup" aria-label="${esc(p.name)}">${groupHead(p, t.total)}<div class="room-grid">${t.html}</div></section>`);
-  }
-  // Räume, deren Ort fehlt (etwa aus einem älteren Tab, bevor der nächste Start sie zuordnet):
-  // eigene Gruppe am Ende, mit „Einem Ort zuordnen“ – sonst wären sie hier unsichtbar.
-  const lost = state.rooms.filter(r => !ctx.placeById(r.placeId));
-  if (lost.length) {
-    const tiles = lost.map(r => roomTile(r, byRoom.get(r.id) || [])).join('');
-    const act = state.places.length
-      ? '<button type="button" class="pgroup-assign" data-rooms-assign>Einem Ort zuordnen</button>' : '';
-    parts.push(`<section class="pgroup pgroup-lost" aria-label="Räume ohne Ort"><div class="pgroup-head">
-      <span class="pbadge" aria-hidden="true">${icon('pin')}</span><h2 class="pgroup-name">Ohne Ort</h2><span class="sec-n">${lost.length}</span>${act}</div>
-      <div class="room-grid">${tiles}</div></section>`);
-  }
-  // Noch gar kein Ort: „Raum hinzufügen“ legt „Zuhause“ gleich mit an.
-  if (!state.places.length && !lost.length) parts.push(`<div class="room-grid">${addTile(null)}</div>`);
-  parts.push(`<button type="button" class="place-add" data-place-add>${icon('plus')}<span>Ort hinzufügen</span><small>z. B. Auto, Betrieb, Garten</small></button>`);
-  $('#places-grid').innerHTML = parts.join('');
-  $('#places-count').textContent = state.rooms.length ? String(state.rooms.length) : '';
-  watchCovers($('#view-places'));
+  const sub = st === 'building' ? 'Wird erstellt …' : st === 'ready' ? 'Antippen zum Teilen – z. B. in „Dateien“' : 'Antippen: jetzt sichern';
+  const ic = st === 'building' ? '<span class="spin"></span>' : icon(st === 'ready' ? 'share' : 'lock');
+  return {
+    score: st ? 99 : last ? 55 : 70,
+    html: `<div class="todo-row todo-split">
+      <button type="button" class="todo-hit" data-backup="go"${st === 'building' ? ' disabled' : ''}>
+        <span class="todo-ic ${st ? 'busy' : 'clay'}">${ic}</span>
+        <span class="todo-txt"><b>${esc(title)}</b><small>${esc(sub)}</small></span></button>
+      ${st ? '' : '<button type="button" class="todo-later" data-backup="later">Später</button>'}</div>`,
+  };
 }
 
 function todoRow(kind, ic, tone, title, sub) {
@@ -435,19 +351,6 @@ function recentTile(it) {
     <span class="rtile-img">${pic}${wait ? '<span class="spin"></span>' : ''}</span>
     <span class="rtile-name">${esc(name)}</span>
     <span class="rtile-room">${p && multi() ? placeIcon(p) : ''}<span>${esc(where)}</span></span>
-  </button>`;
-}
-
-function roomTile(room, items) {
-  const withPic = items.filter(i => isThumb(i.thumb)).sort((a, b) => b.createdAt - a.createdAt)[0];
-  const n = items.length;
-  const count = n ? plural(n, 'Ding', 'Dinge') : 'noch leer';
-  const art = withPic
-    ? `${pictureHTML(withPic, 'rt-img')}<span class="rt-shade"></span>`
-    : `<span class="rt-ph"><span class="rt-initial">${esc(initialOf(room.name))}</span>${icon('door', 'rt-door')}</span>`;
-  return `<button class="rt ${withPic ? 'has-pic' : `ph-${toneOf(room.name)}`}" data-room="${esc(room.id)}" aria-label="${esc(room.name)}, ${esc(count)}">
-    ${art}
-    <span class="rt-txt"><b>${esc(room.name)}</b><small>${esc(count)}</small></span>
   </button>`;
 }
 

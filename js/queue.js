@@ -103,7 +103,7 @@ async function pump() {
 async function photoForAI(photoId) {
   const photo = photoId ? await db.get('photos', photoId) : null;
   if (!photo) {
-    const e = new Error('Zu diesem Eintrag ist kein Foto gespeichert.');
+    const e = new Error('Zu diesem Ding ist kein Foto gespeichert.');
     e.code = 'nophoto';
     throw e;
   }

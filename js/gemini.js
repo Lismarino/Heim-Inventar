@@ -66,7 +66,7 @@ async function call(settings, body) {
     const msg = json?.error?.message || raw.slice(0, 300) || `HTTP ${s}`;
     if (s === 400 && /API key/i.test(msg)) throw aiError('API-Key wird abgelehnt. Bitte in den Einstellungen prüfen.', 'auth', s, msg);
     if (s === 403) throw aiError(`Zugriff verweigert: ${msg}`, 'auth', s, msg);
-    if (s === 429) throw aiError('Kontingent erschöpft (429). Später erneut versuchen oder ein anderes Modell wählen.', 'quota', s, msg);
+    if (s === 429) throw aiError('Kontingent erschöpft (429). Später erneut versuchen.', 'quota', s, msg);
     // Google nennt in dieser Meldung meist gleich das Nachfolgemodell – deshalb weiterreichen.
     if (s === 404) throw aiError(`Modell "${model}" nicht verfügbar. ${msg}`, 'model', s, msg);
     throw aiError(`Gemini-Fehler ${s}: ${msg}`, s >= 500 ? 'server' : 'http', s, msg);
